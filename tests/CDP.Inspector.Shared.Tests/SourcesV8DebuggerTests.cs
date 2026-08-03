@@ -1,0 +1,195 @@
+using System.ComponentModel;
+using System.Text.Json.Nodes;
+using Avalonia.Headless.XUnit;
+using CdpInspectorApp.ViewModels;
+
+namespace Avalonia.Diagnostics.Cdp.Tests;
+
+public sealed class SourcesV8DebuggerTests
+{
+    [AvaloniaFact]
+    public async Task V8EventsPopulateScriptsFramesScopesAndEvaluation()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        service.Raise("Debugger.scriptParsed", new JsonObject
+        {
+            ["scriptId"] = "42",
+            ["url"] = "file:///app/example.js",
+            ["startLine"] = 0,
+            ["startColumn"] = 0,
+            ["endLine"] = 10,
+            ["endColumn"] = 0,
+            ["executionContextId"] = 1,
+            ["hash"] = "abc"
+        });
+        await WaitUntilAsync(() => viewModel.RuntimeScripts.Count == 1);
+        Assert.Equal("example.js", viewModel.RuntimeScripts[0].DisplayName);
+
+        service.Raise("Debugger.paused", new JsonObject
+        {
+            ["reason"] = "breakpoint",
+            ["callFrames"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["callFrameId"] = "frame-1",
+                    ["functionName"] = "compute",
+                    ["url"] = "file:///app/example.js",
+                    ["location"] = new JsonObject
+                    {
+                        ["scriptId"] = "42",
+                        ["lineNumber"] = 4,
+                        ["columnNumber"] = 2
+                    },
+                    ["scopeChain"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["type"] = "local",
+                            ["object"] = new JsonObject { ["objectId"] = "scope-1", ["type"] = "object" }
+                        }
+                    }
+                }
+            }
+        });
+
+        await WaitUntilAsync(() => viewModel.ScopeVariables.Count == 1);
+        Assert.True(viewModel.IsDebuggerPaused);
+        Assert.Equal("breakpoint", viewModel.PauseReason);
+        Assert.Equal(5, viewModel.ActiveDebugLine);
+        Assert.Equal("[local] sum", viewModel.ScopeVariables[0].Key);
+        Assert.Equal("5", viewModel.ScopeVariables[0].Value);
+
+        viewModel.DebuggerEvaluationExpression = "sum * 2";
+        await Task.Delay(10);
+        Assert.True(viewModel.EvaluateOnCallFrameCommand.CanExecute(null));
+        viewModel.EvaluateOnCallFrameCommand.Execute(null);
+        await WaitUntilAsync(() => viewModel.DebuggerEvaluationResult == "10");
+        Assert.Contains(service.Commands, command => command.Method == "Debugger.evaluateOnCallFrame");
+
+        viewModel.NewWatchExpression = "sum";
+        viewModel.AddWatchExpressionCommand.Execute(null);
+        await WaitUntilAsync(() => viewModel.WatchExpressions.Count == 1 && viewModel.WatchExpressions[0].Value == "10");
+        Assert.Equal("sum", viewModel.WatchExpressions[0].Expression);
+
+        viewModel.RestartFrameCommand.Execute(null);
+        await WaitUntilAsync(() => service.Commands.Any(command => command.Method == "Debugger.restartFrame"));
+    }
+
+    [AvaloniaFact]
+    public async Task RuntimeSourceCanBeLiveEditedAndSearched()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        service.Raise("Debugger.scriptParsed", new JsonObject
+        {
+            ["scriptId"] = "42",
+            ["url"] = "file:///app/example.js",
+            ["startLine"] = 0,
+            ["startColumn"] = 0,
+            ["endLine"] = 10,
+            ["endColumn"] = 0,
+            ["executionContextId"] = 1,
+            ["hash"] = "abc"
+        });
+        await WaitUntilAsync(() => viewModel.RuntimeScripts.Count == 1);
+
+        viewModel.SelectedRuntimeScript = viewModel.RuntimeScripts[0];
+        await WaitUntilAsync(() => viewModel.SelectedFileContent.Contains("compute", StringComparison.Ordinal));
+        Assert.True(viewModel.CanEditCurrentSource);
+
+        const string editedSource = "function compute() { return 42; }";
+        await viewModel.ApplySourceChangesAsync(editedSource);
+        Assert.Equal("Live edit applied", viewModel.LiveEditStatus);
+        Assert.Equal(editedSource, viewModel.SelectedFileContent);
+        var liveEdit = Assert.Single(service.Commands, command => command.Method == "Debugger.setScriptSource");
+        Assert.Equal("42", liveEdit.Parameters?["scriptId"]?.GetValue<string>());
+        Assert.Equal(editedSource, liveEdit.Parameters?["scriptSource"]?.GetValue<string>());
+
+        viewModel.SearchQuery = "return";
+        await viewModel.SearchAsync();
+        await WaitUntilAsync(() => viewModel.SearchResults.Count == 1);
+        Assert.Equal(3, viewModel.SearchResults[0].LineNumber);
+        Assert.Equal("  return 42;", viewModel.SearchResults[0].LineContent);
+        Assert.Contains(service.Commands, command => command.Method == "Debugger.searchInContent");
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        for (var attempt = 0; attempt < 100 && !condition(); attempt++) await Task.Delay(10);
+        Assert.True(condition());
+    }
+
+    private sealed class V8FakeCdpService : ICdpService
+    {
+        private bool _isConnected;
+        public bool IsConnected
+        {
+            get => _isConnected;
+            set
+            {
+                _isConnected = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsConnected)));
+            }
+        }
+
+        public string ConnectionStatus => IsConnected ? "Connected" : "Disconnected";
+        public string ConnectedHost => "http://127.0.0.1:9229";
+        public string ConnectedTargetId => "node-target";
+        public string ConnectedTargetType => "node";
+        public string ConnectedTargetUrl => "file:///app/example.js";
+        public IReadOnlySet<string> SupportedDomains { get; } = new HashSet<string> { "Schema", "Runtime", "Debugger", "Profiler", "HeapProfiler" };
+        public bool IsPreviewScreencastActive { get; set; }
+        public event PropertyChangedEventHandler? PropertyChanged;
+        public event EventHandler<CdpEventEventArgs>? EventReceived;
+        public List<(string Method, JsonObject? Parameters)> Commands { get; } = new();
+
+        public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>());
+        public Task ConnectAsync(string host, TargetItem target) => Task.CompletedTask;
+        public Task DisconnectAsync() => Task.CompletedTask;
+
+        public Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
+        {
+            Commands.Add((method, parameters));
+            return Task.FromResult(method switch
+            {
+                "Debugger.getScriptSource" => new JsonObject { ["scriptSource"] = "function compute() {}" },
+                "Runtime.getProperties" => new JsonObject
+                {
+                    ["result"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["name"] = "sum",
+                            ["value"] = new JsonObject { ["type"] = "number", ["value"] = 5 }
+                        }
+                    }
+                },
+                "Debugger.evaluateOnCallFrame" => new JsonObject
+                {
+                    ["result"] = new JsonObject { ["type"] = "number", ["value"] = 10 }
+                },
+                "Debugger.setScriptSource" => new JsonObject { ["status"] = "Ok" },
+                "Debugger.restartFrame" => new JsonObject(),
+                "Debugger.searchInContent" => new JsonObject
+                {
+                    ["result"] = new JsonArray
+                    {
+                        new JsonObject { ["lineNumber"] = 2, ["lineContent"] = "  return 42;" }
+                    }
+                },
+                _ => new JsonObject()
+            });
+        }
+
+        public void Raise(string method, JsonObject parameters) =>
+            EventReceived?.Invoke(this, new CdpEventEventArgs(method, parameters));
+    }
+}

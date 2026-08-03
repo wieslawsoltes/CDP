@@ -52,6 +52,23 @@
                     <TextBlock Text="Structure Outline" Classes="panel-header" Grid.Row="2" Margin="0,10,0,5"/>
                     <TreeView Name="treeOutline" Grid.Row="3" Background="Transparent" BorderThickness="0"/>
                 </Grid>
+            <Grid Name="pnlSourcesRuntimeScripts" RowDefinitions="Auto, Auto, *" Margin="0,5,0,0">
+                <TextBlock Text="V8 Runtime Scripts" Classes="panel-header" Margin="0,0,0,5"/>
+                <TextBlock Name="txtV8DebuggerStatus" Grid.Row="1" Text="{Binding Sources.DebuggerStatusText}" FontSize="11" Foreground="#9aa0a6" Margin="0,0,0,6" TextWrapping="Wrap"/>
+                <ListBox Name="lstRuntimeScripts" Grid.Row="2"
+                         ItemsSource="{Binding Sources.RuntimeScripts}"
+                         SelectedItem="{Binding Sources.SelectedRuntimeScript, Mode=TwoWay}"
+                         Background="Transparent" BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:V8ScriptModel">
+                            <StackPanel Margin="2,3">
+                                <TextBlock Text="{Binding DisplayName}" FontSize="12" Foreground="#e8eaed" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding Url}" FontSize="10" Foreground="#9aa0a6" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
             <Grid Name="pnlSourcesSearch" RowDefinitions="Auto, Auto, Auto, *" Margin="0,5,0,0">
                     <TextBlock Text="Search in Workspace" Classes="panel-header" Margin="0,0,0,5"/>
 
@@ -118,6 +135,7 @@
                 <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,5">
                     <TextBlock Name="lblSourceFileName" Text="{Binding Sources.SelectedFileName}" Classes="panel-header" VerticalAlignment="Center"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="0,0,0,5" VerticalAlignment="Center">
+                        <TextBlock Name="txtLiveEditStatus" Text="{Binding Sources.LiveEditStatus}" FontSize="10" Foreground="#8ab4f8" VerticalAlignment="Center"/>
                         <ToggleButton Name="btnToggleMarkdownMode"
                                       IsVisible="{Binding Sources.IsMarkdownFile}"
                                       IsChecked="{Binding Sources.IsMarkdownPreviewMode, Mode=TwoWay}"
@@ -142,7 +160,7 @@
                                 <TextBlock Text="Rendered" VerticalAlignment="Center" FontSize="11"/>
                             </StackPanel>
                         </ToggleButton>
-                        <Button Name="btnSaveFile" IsEnabled="{Binding Sources.IsFileSelected}" ToolTip.Tip="Save file (Ctrl+S)" Height="26" Padding="8,0" VerticalAlignment="Center">
+                        <Button Name="btnSaveFile" IsEnabled="{Binding Sources.CanEditCurrentSource}" ToolTip.Tip="Save file or apply V8 live edit (Ctrl+S)" Height="26" Padding="8,0" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <PathIcon Data="{StaticResource SaveIcon}" Width="12" Height="12"/>
                                 <TextBlock Text="Save" VerticalAlignment="Center" FontSize="11"/>
@@ -159,7 +177,8 @@
                 <Grid Grid.Row="1">
                     <map:MinimapTextEditor Name="txtSourceContent"
                                            IsVisible="{Binding Sources.IsSourceEditorVisible}"
-                                           FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" Foreground="#e8eaed" Background="Transparent" BorderThickness="0" ShowLineNumbers="True" IsReadOnly="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"/>
+                                           FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" Foreground="#e8eaed" Background="Transparent" BorderThickness="0" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
+                                           ToolTip.Tip="F9 breakpoint · F5 continue · F6 pause · F10 step over · F11 step into · Shift+F11 step out · Ctrl+S save/live edit"/>
                     <ScrollViewer IsVisible="{Binding Sources.IsMarkdownPreviewMode}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <md:MarkdownEditor Name="mdVisualEditor"
                                            Text="{Binding Sources.SelectedFileContent, Mode=TwoWay}"
@@ -177,52 +196,95 @@
             </Grid>
             <!-- Right Debugger Panel -->
             <Border Name="pnlDebugger" BorderBrush="#3c4043" BorderThickness="1,0,0,0" Background="#292a2d" Padding="8">
-                <Grid RowDefinitions="Auto, Auto, Auto, *, Auto, *, Auto, *, Auto, Auto">
-                    <!-- Title -->
-                    <TextBlock Grid.Row="0" Text="Debugger" Classes="panel-header" Margin="0,0,0,5"/>
+                <Grid RowDefinitions="Auto, Auto, Auto, *">
+                    <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,5">
+                        <StackPanel>
+                            <TextBlock Text="V8 Debugger" Classes="panel-header"/>
+                            <TextBlock Text="{Binding Sources.DebuggerStatusText}" FontSize="10" Foreground="#9aa0a6"/>
+                            <TextBlock Text="{Binding Sources.PauseReason, StringFormat='Reason: {0}'}" FontSize="10" Foreground="#ffca28"/>
+                        </StackPanel>
+                        <ComboBox Name="cmbPauseOnExceptions" Grid.Column="1" Width="90"
+                                  ItemsSource="{Binding Sources.PauseOnExceptionsStates}"
+                                  SelectedItem="{Binding Sources.PauseOnExceptionsState, Mode=TwoWay}"
+                                  ToolTip.Tip="Pause on exceptions"/>
+                    </Grid>
 
-                    <!-- Debugger Toolbar -->
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
-                        <!-- Resume/Play -->
-                        <Button Command="{Binding Sources.ResumeCommand}" ToolTip.Tip="Resume (Play)" Width="36" Height="30" Padding="0">
+                        <Button Name="btnDebuggerResume" Command="{Binding Sources.ResumeCommand}" ToolTip.Tip="Resume (Play)" Width="36" Height="30" Padding="0">
                             <PathIcon Data="{StaticResource PlayIcon}" Width="14" Height="14" Foreground="#4caf50"/>
                         </Button>
-                        <!-- Step Over -->
-                        <Button Command="{Binding Sources.StepOverCommand}" ToolTip.Tip="Step Over" Width="36" Height="30" Padding="0">
+                        <Button Name="btnDebuggerPause" Command="{Binding Sources.PauseCommand}" ToolTip.Tip="Pause" Width="36" Height="30" Padding="0">
+                            <PathIcon Data="{StaticResource PauseIcon}" Width="14" Height="14" Foreground="#ffca28"/>
+                        </Button>
+                        <Button Name="btnDebuggerStepOver" Command="{Binding Sources.StepOverCommand}" ToolTip.Tip="Step Over" Width="36" Height="30" Padding="0">
                             <PathIcon Data="{StaticResource ArrowStepOverIcon}" Width="14" Height="14" Foreground="#2196f3"/>
                         </Button>
-                        <!-- Step Into -->
-                        <Button Command="{Binding Sources.StepIntoCommand}" ToolTip.Tip="Step Into" Width="36" Height="30" Padding="0">
+                        <Button Name="btnDebuggerStepInto" Command="{Binding Sources.StepIntoCommand}" ToolTip.Tip="Step Into" Width="36" Height="30" Padding="0">
                             <PathIcon Data="{StaticResource ArrowStepInIcon}" Width="14" Height="14" Foreground="#ffca28"/>
                         </Button>
-                        <!-- Step Out -->
-                        <Button Command="{Binding Sources.StepOutCommand}" ToolTip.Tip="Step Out" Width="36" Height="30" Padding="0">
+                        <Button Name="btnDebuggerStepOut" Command="{Binding Sources.StepOutCommand}" ToolTip.Tip="Step Out" Width="36" Height="30" Padding="0">
                             <PathIcon Data="{StaticResource ArrowStepOutIcon}" Width="14" Height="14" Foreground="#e040fb"/>
                         </Button>
+                        <Button Name="btnDebuggerRestartFrame" Command="{Binding Sources.RestartFrameCommand}" ToolTip.Tip="Restart selected frame" Width="36" Height="30" Padding="0" Content="↻" FontSize="18" Foreground="#8ab4f8"/>
                     </StackPanel>
 
-                    <!-- Call Stack -->
-                    <TextBlock Grid.Row="2" Text="Call Stack" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
-                    <ListBox Grid.Row="3" ItemsSource="{Binding Sources.CallStack}" Height="120" FontSize="11" Margin="0,0,0,8"/>
+                    <Grid Grid.Row="2" ColumnDefinitions="*, Auto" Margin="0,0,0,8">
+                        <TextBox Name="txtDebuggerExpression" Text="{Binding Sources.DebuggerEvaluationExpression, Mode=TwoWay}"
+                                 PlaceholderText="Evaluate in selected call frame" FontSize="11"/>
+                        <Button Name="btnDebuggerEvaluate" Grid.Column="1" Command="{Binding Sources.EvaluateOnCallFrameCommand}" Content="Evaluate" Margin="5,0,0,0"/>
+                    </Grid>
 
-                    <!-- Scope Variables -->
-                    <TextBlock Grid.Row="4" Text="Scope Variables" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
-                    <DataGrid Grid.Row="5" ItemsSource="{Binding Sources.ScopeVariables}" Height="150" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="None" HeadersVisibility="Column" Background="Transparent" BorderBrush="#3c4043" BorderThickness="1" FontSize="11" Margin="0,0,0,8">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Name" Binding="{Binding Key}" Width="110" Foreground="#8ab4f8"/>
-                            <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#e8eaed"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Sources.DebuggerEvaluationResult}" FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" Foreground="#8ab4f8" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
-                    <!-- Breakpoints -->
-                    <TextBlock Grid.Row="6" Text="Breakpoints" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
-                    <ListBox Grid.Row="7" ItemsSource="{Binding Sources.Breakpoints}" Height="100" FontSize="11" Margin="0,0,0,8"/>
+                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,5,0,2">
+                                <TextBlock Text="Watch" Classes="panel-header" FontSize="12" VerticalAlignment="Center"/>
+                                <Button Name="btnRefreshWatches" Grid.Column="1" Command="{Binding Sources.RefreshWatchExpressionsCommand}" Content="Refresh" FontSize="10" Padding="6,2"/>
+                                <Button Name="btnRemoveWatch" Grid.Column="2" Command="{Binding Sources.RemoveWatchExpressionCommand}" Content="Remove" FontSize="10" Padding="6,2" Margin="4,0,0,0"/>
+                            </Grid>
+                            <ListBox Name="lstDebuggerWatches" ItemsSource="{Binding Sources.WatchExpressions}"
+                                     SelectedItem="{Binding Sources.SelectedWatchExpression, Mode=TwoWay}"
+                                     MinHeight="60" MaxHeight="140" FontSize="11" Margin="0,0,0,4">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:V8WatchExpressionModel">
+                                        <Grid ColumnDefinitions="2*,3*">
+                                            <TextBlock Text="{Binding Expression}" Foreground="#8ab4f8" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Value}" Foreground="#e8eaed" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                                <TextBox Name="txtNewWatchExpression" Text="{Binding Sources.NewWatchExpression, Mode=TwoWay}" PlaceholderText="Add watch expression" FontSize="11"/>
+                                <Button Name="btnAddWatchExpression" Grid.Column="1" Command="{Binding Sources.AddWatchExpressionCommand}" Content="Add" Margin="5,0,0,0"/>
+                            </Grid>
 
-                    <!-- Breakpoint Condition -->
-                    <TextBox Grid.Row="8" Name="txtBreakpointCondition" Text="{Binding Sources.BreakpointCondition, Mode=TwoWay}" Watermark="Breakpoint condition (e.g. x == 5)" FontSize="11" Margin="0,0,0,8"/>
+                            <TextBlock Text="Call Stack" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
+                            <ListBox Name="lstDebuggerCallFrames" ItemsSource="{Binding Sources.CallFrames}"
+                                     SelectedItem="{Binding Sources.SelectedCallFrame, Mode=TwoWay}"
+                                     MinHeight="90" MaxHeight="180" FontSize="11" Margin="0,0,0,8">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:V8CallFrameModel">
+                                        <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
 
-                    <!-- Toggle Breakpoint at Caret -->
-                    <Button Grid.Row="9" Name="btnToggleBreakpoint" Content="Toggle Breakpoint at Caret" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="0,6"/>
+                            <TextBlock Text="Scopes" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
+                            <DataGrid Name="dgDebuggerScopes" ItemsSource="{Binding Sources.ScopeVariables}" Height="180" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="None" HeadersVisibility="Column" Background="Transparent" BorderBrush="#3c4043" BorderThickness="1" FontSize="11" Margin="0,0,0,8">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Key}" Width="140" Foreground="#8ab4f8"/>
+                                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#e8eaed"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <TextBlock Text="Breakpoints" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
+                            <ListBox Name="lstV8Breakpoints" ItemsSource="{Binding Sources.V8Breakpoints}" Height="90" FontSize="11" Margin="0,0,0,8"/>
+                            <TextBox Name="txtBreakpointCondition" Text="{Binding Sources.BreakpointCondition, Mode=TwoWay}" PlaceholderText="Breakpoint condition (e.g. x == 5)" FontSize="11" Margin="0,0,0,8"/>
+                            <Button Name="btnToggleBreakpoint" Content="Toggle Breakpoint at Caret" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="0,6"/>
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
             </Border>
         </Grid>

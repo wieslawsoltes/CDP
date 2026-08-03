@@ -10,6 +10,7 @@ using Avalonia.Controls.DataGridHierarchical;
 using Avalonia.Layout;
 using CDP.Editor.Splits.Models;
 using Chrome.DevTools.Protocol;
+using Chrome.DevTools.Protocol.Inspector;
 using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.ViewModels;
@@ -34,6 +35,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     private string? _pendingFilePathToSelect;
     private readonly ICdpService _cdpService;
+    private static readonly System.Net.Http.HttpClient SourceMapHttpClient = new() { Timeout = TimeSpan.FromSeconds(10) };
     private ObservableCollection<WorkspaceFileNode> _workspaceFiles = new();
     private string _selectedFileName = "Select a file from workspace";
     private string _selectedFileContent = "";
@@ -53,7 +55,18 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     private int? _pendingScrollLine;
     private bool _isDebuggerPaused;
+    private bool _isDebuggerEnabled;
     private int? _activeDebugLine;
+    private string _debuggerStatusText = "Debugger disconnected";
+    private string _pauseReason = "";
+    private string _pauseOnExceptionsState = "none";
+    private string _debuggerEvaluationExpression = "";
+    private string _debuggerEvaluationResult = "";
+    private string _liveEditStatus = "";
+    private string _newWatchExpression = "";
+    private V8WatchExpressionModel? _selectedWatchExpression;
+    private V8ScriptModel? _selectedRuntimeScript;
+    private V8CallFrameModel? _selectedCallFrame;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _breakpointIds = new();
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _breakpointDisplayStrings = new();
 
@@ -75,6 +88,68 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    public bool IsDebuggerEnabled
+    {
+        get => _isDebuggerEnabled;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isDebuggerEnabled, value))
+            {
+                OnPropertyChanged(nameof(CanEditCurrentSource));
+                RaiseDebuggerCommandCanExecuteChanged();
+                if (ApplySourceChangesCommand != null) ((RelayCommand<string>)ApplySourceChangesCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string DebuggerStatusText
+    {
+        get => _debuggerStatusText;
+        set => RaiseAndSetIfChanged(ref _debuggerStatusText, value);
+    }
+
+    public string PauseReason
+    {
+        get => _pauseReason;
+        set => RaiseAndSetIfChanged(ref _pauseReason, value);
+    }
+
+    public string PauseOnExceptionsState
+    {
+        get => _pauseOnExceptionsState;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _pauseOnExceptionsState, value) && _cdpService.IsConnected)
+            {
+                _ = SetPauseOnExceptionsAsync(value);
+            }
+        }
+    }
+
+    public string DebuggerEvaluationExpression
+    {
+        get => _debuggerEvaluationExpression;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _debuggerEvaluationExpression, value))
+            {
+                ((RelayCommand)EvaluateOnCallFrameCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string DebuggerEvaluationResult
+    {
+        get => _debuggerEvaluationResult;
+        set => RaiseAndSetIfChanged(ref _debuggerEvaluationResult, value);
+    }
+
+    public string LiveEditStatus
+    {
+        get => _liveEditStatus;
+        set => RaiseAndSetIfChanged(ref _liveEditStatus, value);
+    }
+
     public int? ActiveDebugLine
     {
         get => _activeDebugLine;
@@ -84,12 +159,93 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public ObservableCollection<string> CallStack { get; } = new();
     public ObservableCollection<System.Collections.Generic.KeyValuePair<string, string>> ScopeVariables { get; } = new();
     public ObservableCollection<string> Breakpoints { get; } = new();
+    public ObservableCollection<V8ScriptModel> RuntimeScripts { get; } = new();
+    public ObservableCollection<V8CallFrameModel> CallFrames { get; } = new();
+    public ObservableCollection<V8ScopeModel> Scopes { get; } = new();
+    public ObservableCollection<V8BreakpointModel> V8Breakpoints { get; } = new();
+    public ObservableCollection<V8WatchExpressionModel> WatchExpressions { get; } = new();
+    public ObservableCollection<string> PauseOnExceptionsStates { get; } = new() { "none", "uncaught", "caught", "all" };
+
+    public V8ScriptModel? SelectedRuntimeScript
+    {
+        get => _selectedRuntimeScript;
+        set
+        {
+            if (!RaiseAndSetIfChanged(ref _selectedRuntimeScript, value)) return;
+
+            if (value is not null)
+            {
+                if (_selectedFile is not null)
+                {
+                    _selectedFile = null;
+                    OnPropertyChanged(nameof(SelectedFile));
+                    OnPropertyChanged(nameof(IsFileSelected));
+                    OnPropertyChanged(nameof(SelectedFilePath));
+                }
+                _ = LoadRuntimeScriptSourceAsync(value);
+            }
+            LiveEditStatus = "";
+            OnPropertyChanged(nameof(CanEditCurrentSource));
+            if (ApplySourceChangesCommand != null) ((RelayCommand<string>)ApplySourceChangesCommand).RaiseCanExecuteChanged();
+            RaiseDebuggerCommandCanExecuteChanged();
+        }
+    }
+
+    public V8CallFrameModel? SelectedCallFrame
+    {
+        get => _selectedCallFrame;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedCallFrame, value))
+            {
+                _ = LoadScopesForFrameAsync(value);
+                _ = RefreshWatchExpressionsAsync();
+                ((RelayCommand)EvaluateOnCallFrameCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)RestartFrameCommand).RaiseCanExecuteChanged();
+                if (value is not null)
+                {
+                    _ = NavigateToCallFrameAsync(value);
+                }
+            }
+        }
+    }
+
+    public string NewWatchExpression
+    {
+        get => _newWatchExpression;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _newWatchExpression, value))
+            {
+                ((RelayCommand)AddWatchExpressionCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public V8WatchExpressionModel? SelectedWatchExpression
+    {
+        get => _selectedWatchExpression;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedWatchExpression, value))
+            {
+                ((RelayCommand)RemoveWatchExpressionCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
 
     public System.Windows.Input.ICommand ResumeCommand { get; }
+    public System.Windows.Input.ICommand PauseCommand { get; }
     public System.Windows.Input.ICommand StepOverCommand { get; }
     public System.Windows.Input.ICommand StepIntoCommand { get; }
     public System.Windows.Input.ICommand StepOutCommand { get; }
     public System.Windows.Input.ICommand ToggleBreakpointCommand { get; }
+    public System.Windows.Input.ICommand EvaluateOnCallFrameCommand { get; }
+    public System.Windows.Input.ICommand ApplySourceChangesCommand { get; }
+    public System.Windows.Input.ICommand RestartFrameCommand { get; }
+    public System.Windows.Input.ICommand AddWatchExpressionCommand { get; }
+    public System.Windows.Input.ICommand RemoveWatchExpressionCommand { get; }
+    public System.Windows.Input.ICommand RefreshWatchExpressionsCommand { get; }
 
     public HierarchicalModel<WorkspaceFileNode> HierarchicalWorkspaceFiles { get; }
 
@@ -138,6 +294,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     }
 
     public bool IsFileSelected => SelectedFile != null && !SelectedFile.IsDirectory;
+
+    public bool CanEditCurrentSource =>
+        (SelectedFile != null && !SelectedFile.IsDirectory && !IsDocumentFile) ||
+        (SelectedRuntimeScript != null && !SelectedRuntimeScript.IsOriginalSource && IsDebuggerEnabled);
 
     public string? SelectedFilePath => SelectedFile?.Path;
 
@@ -223,6 +383,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             if (RaiseAndSetIfChanged(ref _selectedFile, value))
             {
+                if (value is not null && _selectedRuntimeScript is not null)
+                {
+                    _selectedRuntimeScript = null;
+                    OnPropertyChanged(nameof(SelectedRuntimeScript));
+                }
                 if (_localPreviewFilePath != null)
                 {
                     try
@@ -252,6 +417,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     }
                 }
                 OnPropertyChanged(nameof(IsFileSelected));
+                OnPropertyChanged(nameof(CanEditCurrentSource));
                 OnPropertyChanged(nameof(SelectedFilePath));
                 OnPropertyChanged(nameof(IsMarkdownFile));
                 OnPropertyChanged(nameof(IsDocumentFile));
@@ -265,6 +431,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 }
                 IsDocumentPreviewMode = IsDocumentFile;
                 ((RelayCommand<string>)SaveFileCommand).RaiseCanExecuteChanged();
+                ((RelayCommand<string>)ApplySourceChangesCommand).RaiseCanExecuteChanged();
                 if (ToggleBreakpointCommand != null)
                 {
                     ((RelayCommand<int>)ToggleBreakpointCommand).RaiseCanExecuteChanged();
@@ -284,6 +451,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             (text) => _cdpService.IsConnected && SelectedFile != null && !SelectedFile.IsDirectory && !IsDocumentFile
         );
 
+        ApplySourceChangesCommand = new RelayCommand<string>(
+            async (text) => await ApplySourceChangesAsync(text),
+            (text) => _cdpService.IsConnected && CanEditCurrentSource
+        );
+
         SearchCommand = new RelayCommand(
             async () => await SearchAsync(),
             () => _cdpService.IsConnected && !string.IsNullOrWhiteSpace(SearchQuery)
@@ -292,6 +464,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         ResumeCommand = new RelayCommand(
             async () => await ResumeAsync(),
             () => _cdpService.IsConnected && IsDebuggerPaused
+        );
+
+        PauseCommand = new RelayCommand(
+            async () => await PauseAsync(),
+            () => _cdpService.IsConnected && IsDebuggerEnabled && !IsDebuggerPaused
         );
 
         StepOverCommand = new RelayCommand(
@@ -311,7 +488,39 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
         ToggleBreakpointCommand = new RelayCommand<int>(
             async (line) => await ToggleBreakpointAsync(line),
-            (line) => _cdpService.IsConnected && SelectedFile != null && !SelectedFile.IsDirectory
+            (line) => _cdpService.IsConnected && IsDebuggerEnabled &&
+                ((SelectedFile != null && !SelectedFile.IsDirectory) || SelectedRuntimeScript != null)
+        );
+
+        EvaluateOnCallFrameCommand = new RelayCommand(
+            async () => await EvaluateOnCallFrameAsync(),
+            () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame != null &&
+                !string.IsNullOrWhiteSpace(DebuggerEvaluationExpression)
+        );
+
+        RestartFrameCommand = new RelayCommand(
+            async () => await RestartFrameAsync(),
+            () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame != null
+        );
+
+        AddWatchExpressionCommand = new RelayCommand(
+            async () => await AddWatchExpressionAsync(),
+            () => !string.IsNullOrWhiteSpace(NewWatchExpression)
+        );
+
+        RemoveWatchExpressionCommand = new RelayCommand(
+            () =>
+            {
+                if (SelectedWatchExpression is not null) WatchExpressions.Remove(SelectedWatchExpression);
+                SelectedWatchExpression = null;
+                if (RefreshWatchExpressionsCommand is RelayCommand refresh) refresh.RaiseCanExecuteChanged();
+            },
+            () => SelectedWatchExpression is not null
+        );
+
+        RefreshWatchExpressionsCommand = new RelayCommand(
+            async () => await RefreshWatchExpressionsAsync(),
+            () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame != null && WatchExpressions.Count > 0
         );
 
         var options = new HierarchicalOptions<WorkspaceFileNode>
@@ -329,6 +538,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     {
         var left = new BoxNode();
         left.AddTab("Files", "FolderIcon", "SourcesFiles");
+        left.AddTab("Runtime Scripts", "CodeIcon", "SourcesRuntimeScripts");
         left.AddTab("Search", "SearchIcon", "SourcesSearch");
 
         var mid = new BoxNode();
@@ -345,10 +555,15 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private void RaiseDebuggerCommandCanExecuteChanged()
     {
         if (ResumeCommand != null) ((RelayCommand)ResumeCommand).RaiseCanExecuteChanged();
+        if (PauseCommand != null) ((RelayCommand)PauseCommand).RaiseCanExecuteChanged();
         if (StepOverCommand != null) ((RelayCommand)StepOverCommand).RaiseCanExecuteChanged();
         if (StepIntoCommand != null) ((RelayCommand)StepIntoCommand).RaiseCanExecuteChanged();
         if (StepOutCommand != null) ((RelayCommand)StepOutCommand).RaiseCanExecuteChanged();
         if (ToggleBreakpointCommand != null) ((RelayCommand<int>)ToggleBreakpointCommand).RaiseCanExecuteChanged();
+        if (EvaluateOnCallFrameCommand != null) ((RelayCommand)EvaluateOnCallFrameCommand).RaiseCanExecuteChanged();
+        if (ApplySourceChangesCommand != null) ((RelayCommand<string>)ApplySourceChangesCommand).RaiseCanExecuteChanged();
+        if (RestartFrameCommand != null) ((RelayCommand)RestartFrameCommand).RaiseCanExecuteChanged();
+        if (RefreshWatchExpressionsCommand != null) ((RelayCommand)RefreshWatchExpressionsCommand).RaiseCanExecuteChanged();
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -364,6 +579,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 ClearData();
             }
             ((RelayCommand<string>)SaveFileCommand).RaiseCanExecuteChanged();
+            ((RelayCommand<string>)ApplySourceChangesCommand).RaiseCanExecuteChanged();
             ((RelayCommand)SearchCommand).RaiseCanExecuteChanged();
             RaiseDebuggerCommandCanExecuteChanged();
         }
@@ -371,19 +587,52 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     private async Task InitializeWorkspaceAsync()
     {
+        if (!IsDebuggerPaused) DebuggerStatusText = "Enabling V8 debugger...";
+        if (!_cdpService.SupportsDomain("Debugger"))
+        {
+            IsDebuggerEnabled = false;
+            DebuggerStatusText = "Debugger unavailable for this target";
+            return;
+        }
+
         try
         {
+            if (_cdpService.SupportsDomain("Runtime"))
+            {
+                await _cdpService.SendCommandAsync("Runtime.enable");
+            }
             await _cdpService.SendCommandAsync("Debugger.enable");
+            await _cdpService.SendCommandAsync("Debugger.setAsyncCallStackDepth", new JsonObject { ["maxDepth"] = 32 });
+            await _cdpService.SendCommandAsync("Debugger.setPauseOnExceptions", new JsonObject { ["state"] = PauseOnExceptionsState });
+            IsDebuggerEnabled = true;
+            if (!IsDebuggerPaused)
+            {
+                DebuggerStatusText = $"Debugger ready ({(_cdpService.ConnectedTargetType.Length == 0 ? "CDP" : _cdpService.ConnectedTargetType)})";
+            }
+        }
+        catch (Exception ex)
+        {
+            IsDebuggerEnabled = false;
+            DebuggerStatusText = $"Debugger unavailable: {ex.Message}";
+            Logger.LogErrorMessage("SourcesVM", "Debugger initialization failed", ex);
+        }
+
+        if (!_cdpService.SupportsDomain("Sources"))
+        {
+            return;
+        }
+
+        try
+        {
             var sourcesRes = await _cdpService.SendCommandAsync("Sources.getWorkspaceFiles");
-            var files = sourcesRes["files"] as JsonArray;
-            if (files != null)
+            if (sourcesRes["files"] is JsonArray files)
             {
                 Dispatcher.UIThread.Post(() => LoadWorkspaceFiles(files));
             }
         }
         catch (Exception ex)
         {
-            Logger.LogErrorMessage("SourcesVM", "Sources failed", ex);
+            Logger.LogDebug(ex, "Target does not provide the optional Sources workspace domain");
         }
     }
 
@@ -398,125 +647,496 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             SearchResults.Clear();
             ActiveDebugLine = null;
             CallStack.Clear();
+            CallFrames.Clear();
+            Scopes.Clear();
             ScopeVariables.Clear();
+            RuntimeScripts.Clear();
+            SelectedRuntimeScript = null;
+            SelectedCallFrame = null;
             IsDebuggerPaused = false;
+            IsDebuggerEnabled = false;
+            PauseReason = "";
+            DebuggerStatusText = "Debugger disconnected";
             _breakpointIds.Clear();
             _breakpointDisplayStrings.Clear();
             Breakpoints.Clear();
+            V8Breakpoints.Clear();
         });
     }
 
     private void CdpService_EventReceived(object? sender, CdpEventEventArgs e)
     {
-        if (e.Method == "Debugger.paused" && e.Params != null)
+        switch (e.Method)
         {
-            var callFrames = e.Params["callFrames"] as JsonArray;
-            if (callFrames != null && callFrames.Count > 0)
-            {
-                var firstFrame = callFrames[0] as JsonObject;
-                if (firstFrame != null)
+            case "Debugger.scriptParsed" when e.Params is not null:
+                HandleScriptParsed(e.Params);
+                break;
+            case "Debugger.scriptFailedToParse" when e.Params is not null:
+                HandleScriptParsed(e.Params);
+                break;
+            case "Debugger.paused" when e.Params is not null:
+                HandleDebuggerPaused(e.Params);
+                break;
+            case "Debugger.resumed":
+                Dispatcher.UIThread.Post(() =>
                 {
-                    string url = firstFrame["url"]?.GetValue<string>() ?? "";
-                    var location = firstFrame["location"] as JsonObject;
-                    int line = 1;
-                    if (location != null)
-                    {
-                        line = location["lineNumber"]?.GetValue<int>() ?? 0;
-                    }
-
-                    var stackList = new System.Collections.Generic.List<string>();
-                    foreach (var frameNode in callFrames)
-                    {
-                        if (frameNode is JsonObject frame)
-                        {
-                            string funcName = frame["functionName"]?.GetValue<string>() ?? "unknown";
-                            string frameUrl = frame["url"]?.GetValue<string>() ?? "";
-                            var frameLoc = frame["location"] as JsonObject;
-                            int frameLine = frameLoc != null ? (frameLoc["lineNumber"]?.GetValue<int>() ?? 0) : 0;
-                            string fileName = System.IO.Path.GetFileName(frameUrl);
-                            stackList.Add($"{funcName} ({fileName}:{frameLine})");
-                        }
-                    }
-
-                    var scopeChain = firstFrame["scopeChain"] as JsonArray;
-                    string objectIdToQuery = "";
-                    if (scopeChain != null && scopeChain.Count > 0)
-                    {
-                        var firstScope = scopeChain[0] as JsonObject;
-                        var obj = firstScope?["object"] as JsonObject;
-                        objectIdToQuery = obj?["objectId"]?.GetValue<string>() ?? "";
-                    }
-
-                    _ = UpdateDebuggerPausedStateAsync(url, line, stackList, objectIdToQuery);
-                }
-            }
-        }
-        else if (e.Method == "Debugger.resumed")
-        {
-            Dispatcher.UIThread.Post(() =>
-            {
-                ActiveDebugLine = null;
-                CallStack.Clear();
-                ScopeVariables.Clear();
-                IsDebuggerPaused = false;
-            });
+                    ActiveDebugLine = null;
+                    CallStack.Clear();
+                    CallFrames.Clear();
+                    Scopes.Clear();
+                    ScopeVariables.Clear();
+                    SelectedCallFrame = null;
+                    foreach (var watch in WatchExpressions) watch.Value = "Not paused";
+                    PauseReason = "";
+                    DebuggerStatusText = "Debugger running";
+                    IsDebuggerPaused = false;
+                });
+                break;
+            case "Debugger.breakpointResolved" when e.Params is not null:
+                HandleBreakpointResolved(e.Params);
+                break;
+            case "Runtime.executionContextsCleared":
+                Dispatcher.UIThread.Post(RuntimeScripts.Clear);
+                break;
         }
     }
 
-    private async Task UpdateDebuggerPausedStateAsync(string url, int line, System.Collections.Generic.List<string> stackList, string scopeObjectId)
+    private void HandleScriptParsed(JsonObject parameters)
     {
-        var scopeVarsList = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
-
-        if (!string.IsNullOrEmpty(scopeObjectId))
+        var scriptId = parameters["scriptId"]?.GetValue<string>() ?? "";
+        if (scriptId.Length == 0) return;
+        var script = new V8ScriptModel
         {
+            ScriptId = scriptId,
+            Url = parameters["url"]?.GetValue<string>() ?? "",
+            Hash = parameters["hash"]?.GetValue<string>() ?? "",
+            SourceMapUrl = parameters["sourceMapURL"]?.GetValue<string>() ?? "",
+            ExecutionContextId = parameters["executionContextId"]?.GetValue<int>() ?? 0,
+            StartLine = parameters["startLine"]?.GetValue<int>() ?? 0,
+            StartColumn = parameters["startColumn"]?.GetValue<int>() ?? 0,
+            EndLine = parameters["endLine"]?.GetValue<int>() ?? 0,
+            EndColumn = parameters["endColumn"]?.GetValue<int>() ?? 0,
+            Length = parameters["length"]?.GetValue<int>() ?? 0,
+            IsModule = parameters["isModule"]?.GetValue<bool>() ?? false
+        };
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            var existing = RuntimeScripts.FirstOrDefault(item => item.ScriptId == script.ScriptId);
+            if (existing is not null) RuntimeScripts.Remove(existing);
+            RuntimeScripts.Add(script);
+        });
+        if (script.HasSourceMap) _ = LoadSourceMapAsync(script);
+    }
+
+    private async Task LoadSourceMapAsync(V8ScriptModel generatedScript)
+    {
+        try
+        {
+            var (json, mapUri) = await ReadSourceMapAsync(generatedScript.Url, generatedScript.SourceMapUrl);
+            var sourceMap = V8SourceMap.Parse(json);
+            var originals = new System.Collections.Generic.List<V8ScriptModel>();
+            for (var index = 0; index < sourceMap.Sources.Count; index++)
+            {
+                var sourceUrl = ResolveSourceUrl(mapUri, sourceMap.SourceRoot, sourceMap.Sources[index]);
+                var sourceContent = index < sourceMap.SourcesContent.Count ? sourceMap.SourcesContent[index] : null;
+                originals.Add(new V8ScriptModel
+                {
+                    ScriptId = $"{generatedScript.ScriptId}:source:{index}",
+                    Url = sourceUrl,
+                    GeneratedScriptId = generatedScript.ScriptId,
+                    GeneratedUrl = generatedScript.Url,
+                    SourceIndex = index,
+                    SourceContent = sourceContent,
+                    SourceMap = sourceMap,
+                    IsOriginalSource = true,
+                    IsModule = generatedScript.IsModule
+                });
+            }
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                foreach (var original in originals)
+                {
+                    if (!RuntimeScripts.Any(item => item.ScriptId == original.ScriptId)) RuntimeScripts.Add(original);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Unable to load source map {SourceMapUrl} for {ScriptUrl}", generatedScript.SourceMapUrl, generatedScript.Url);
+        }
+    }
+
+    private static async Task<(string Json, Uri? MapUri)> ReadSourceMapAsync(string scriptUrl, string sourceMapUrl)
+    {
+        if (sourceMapUrl.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        {
+            var comma = sourceMapUrl.IndexOf(',');
+            if (comma < 0) throw new FormatException("Invalid source-map data URI.");
+            var metadata = sourceMapUrl[..comma];
+            var payload = sourceMapUrl[(comma + 1)..];
+            return metadata.Contains(";base64", StringComparison.OrdinalIgnoreCase)
+                ? (System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload)), null)
+                : (Uri.UnescapeDataString(payload), null);
+        }
+
+        Uri? mapUri = null;
+        if (Uri.TryCreate(sourceMapUrl, UriKind.Absolute, out var absolute)) mapUri = absolute;
+        else if (Uri.TryCreate(scriptUrl, UriKind.Absolute, out var scriptUri)) mapUri = new Uri(scriptUri, sourceMapUrl);
+
+        if (mapUri?.IsFile == true) return (await System.IO.File.ReadAllTextAsync(mapUri.LocalPath), mapUri);
+        if (mapUri?.Scheme is "http" or "https") return (await SourceMapHttpClient.GetStringAsync(mapUri), mapUri);
+
+        var scriptPath = Uri.TryCreate(scriptUrl, UriKind.Absolute, out var fileScript) && fileScript.IsFile
+            ? fileScript.LocalPath
+            : scriptUrl;
+        var path = System.IO.Path.GetFullPath(sourceMapUrl, System.IO.Path.GetDirectoryName(scriptPath) ?? "");
+        return (await System.IO.File.ReadAllTextAsync(path), new Uri(path));
+    }
+
+    private static string ResolveSourceUrl(Uri? mapUri, string sourceRoot, string source)
+    {
+        if (Uri.TryCreate(source, UriKind.Absolute, out var sourceUri)) return sourceUri.ToString();
+        var rootedSource = string.IsNullOrWhiteSpace(sourceRoot) ? source : sourceRoot.TrimEnd('/') + "/" + source.TrimStart('/');
+        if (Uri.TryCreate(rootedSource, UriKind.Absolute, out var rootedUri)) return rootedUri.ToString();
+        if (mapUri is not null) return new Uri(mapUri, rootedSource).ToString();
+        return rootedSource;
+    }
+
+    private void HandleDebuggerPaused(JsonObject parameters)
+    {
+        var frames = new System.Collections.Generic.List<V8CallFrameModel>();
+        if (parameters["callFrames"] is JsonArray callFrames)
+        {
+            foreach (var frameNode in callFrames.OfType<JsonObject>())
+            {
+                var location = frameNode["location"] as JsonObject;
+                var scopes = new System.Collections.Generic.List<V8ScopeModel>();
+                if (frameNode["scopeChain"] is JsonArray scopeChain)
+                {
+                    foreach (var scopeNode in scopeChain.OfType<JsonObject>())
+                    {
+                        var remoteObject = scopeNode["object"] as JsonObject;
+                        scopes.Add(new V8ScopeModel
+                        {
+                            Type = scopeNode["type"]?.GetValue<string>() ?? "",
+                            Name = scopeNode["name"]?.GetValue<string>() ?? "",
+                            ObjectId = remoteObject?["objectId"]?.GetValue<string>() ?? "",
+                            Description = remoteObject?["description"]?.GetValue<string>() ?? ""
+                        });
+                    }
+                }
+
+                frames.Add(new V8CallFrameModel
+                {
+                    CallFrameId = frameNode["callFrameId"]?.GetValue<string>() ?? "",
+                    FunctionName = frameNode["functionName"]?.GetValue<string>() ?? "",
+                    Url = frameNode["url"]?.GetValue<string>() ?? "",
+                    ScriptId = location?["scriptId"]?.GetValue<string>() ?? "",
+                    LineNumber = location?["lineNumber"]?.GetValue<int>() ?? 0,
+                    ColumnNumber = location?["columnNumber"]?.GetValue<int>() ?? 0,
+                    ScopeChain = scopes
+                });
+            }
+        }
+
+        var reason = parameters["reason"]?.GetValue<string>() ?? "other";
+        Dispatcher.UIThread.Post(() =>
+        {
+            CallFrames.Clear();
+            CallStack.Clear();
+            foreach (var frame in frames)
+            {
+                CallFrames.Add(frame);
+                CallStack.Add(frame.DisplayName);
+            }
+            PauseReason = reason;
+            DebuggerStatusText = $"Paused: {reason}";
+            IsDebuggerPaused = true;
+            SelectedCallFrame = CallFrames.FirstOrDefault();
+        });
+    }
+
+    private void HandleBreakpointResolved(JsonObject parameters)
+    {
+        var breakpointId = parameters["breakpointId"]?.GetValue<string>() ?? "";
+        Dispatcher.UIThread.Post(() =>
+        {
+            var breakpoint = V8Breakpoints.FirstOrDefault(item => item.BreakpointId == breakpointId);
+            if (breakpoint is not null) breakpoint.IsResolved = true;
+        });
+    }
+
+    private async Task LoadRuntimeScriptSourceAsync(V8ScriptModel script)
+    {
+        if (!_cdpService.IsConnected || !IsDebuggerEnabled) return;
+        IsLoadingContent = true;
+        SelectedFileName = script.DisplayName;
+        SelectedFileContent = "Loading runtime source...";
+        try
+        {
+            if (script.IsOriginalSource)
+            {
+                SelectedFileContent = script.SourceContent ?? "Source map does not embed this original source.";
+                return;
+            }
+            var response = await _cdpService.SendCommandAsync("Debugger.getScriptSource", new JsonObject
+            {
+                ["scriptId"] = script.ScriptId
+            });
+            if (SelectedRuntimeScript?.ScriptId == script.ScriptId)
+            {
+                SelectedFileContent = response["scriptSource"]?.GetValue<string>() ?? "";
+            }
+        }
+        catch (Exception ex)
+        {
+            SelectedFileContent = $"Unable to load script source: {ex.Message}";
+            Logger.LogErrorMessage("SourcesVM", "Get script source failed", ex);
+        }
+        finally
+        {
+            IsLoadingContent = false;
+        }
+    }
+
+    private async Task NavigateToCallFrameAsync(V8CallFrameModel frame)
+    {
+        foreach (var original in RuntimeScripts.Where(item => item.IsOriginalSource && item.GeneratedScriptId == frame.ScriptId))
+        {
+            var mapped = original.SourceMap?.FindOriginalLocation(frame.LineNumber, frame.ColumnNumber);
+            if (mapped?.SourceIndex != original.SourceIndex) continue;
+            SelectedRuntimeScript = original;
+            ActiveDebugLine = mapped.OriginalLine + 1;
+            PendingScrollLine = mapped.OriginalLine + 1;
+            return;
+        }
+
+        var script = RuntimeScripts.FirstOrDefault(item => item.ScriptId == frame.ScriptId);
+        if (script is not null)
+        {
+            SelectedRuntimeScript = script;
+            ActiveDebugLine = frame.LineNumber + 1;
+            PendingScrollLine = frame.LineNumber + 1;
+            return;
+        }
+
+        var fileNode = FindFileBySuffix(frame.Url);
+        if (fileNode is not null)
+        {
+            SelectedFile = fileNode;
+            ActiveDebugLine = frame.LineNumber + 1;
+            PendingScrollLine = frame.LineNumber + 1;
+        }
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadScopesForFrameAsync(V8CallFrameModel? frame)
+    {
+        if (frame is null)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                Scopes.Clear();
+                ScopeVariables.Clear();
+            });
+            return;
+        }
+
+        foreach (var scope in frame.ScopeChain)
+        {
+            if (string.IsNullOrWhiteSpace(scope.ObjectId)) continue;
             try
             {
-                var propsRes = await _cdpService.SendCommandAsync("Runtime.getProperties", new JsonObject { ["objectId"] = scopeObjectId });
-                var results = propsRes?["result"] as JsonArray;
-                if (results != null)
+                var response = await _cdpService.SendCommandAsync("Runtime.getProperties", new JsonObject
                 {
-                    foreach (var p in results)
+                    ["objectId"] = scope.ObjectId,
+                    ["ownProperties"] = false,
+                    ["accessorPropertiesOnly"] = false,
+                    ["generatePreview"] = true
+                });
+                if (response["result"] is not JsonArray properties) continue;
+                foreach (var property in properties.OfType<JsonObject>())
+                {
+                    var value = property["value"] as JsonObject;
+                    scope.Properties.Add(new V8PropertyModel
                     {
-                        if (p is JsonObject propObj)
-                        {
-                            string name = propObj["name"]?.GetValue<string>() ?? "";
-                            var valObj = propObj["value"] as JsonObject;
-                            string val = valObj?["value"]?.ToString() ?? valObj?["description"]?.GetValue<string>() ?? "null";
-                            scopeVarsList.Add(new System.Collections.Generic.KeyValuePair<string, string>(name, val));
-                        }
-                    }
+                        Name = property["name"]?.GetValue<string>() ?? "",
+                        Type = value?["type"]?.GetValue<string>() ?? "",
+                        Subtype = value?["subtype"]?.GetValue<string>() ?? "",
+                        Value = FormatRemoteObject(value),
+                        ObjectId = value?["objectId"]?.GetValue<string>() ?? "",
+                        Writable = property["writable"]?.GetValue<bool>() ?? false,
+                        Enumerable = property["enumerable"]?.GetValue<bool>() ?? false,
+                        Configurable = property["configurable"]?.GetValue<bool>() ?? false
+                    });
                 }
             }
             catch (Exception ex)
             {
-                Logger.LogErrorMessage("SourcesVM", "Failed to get scope properties", ex);
+                Logger.LogErrorMessage("SourcesVM", $"Failed to load {scope.Type} scope", ex);
             }
         }
 
         Dispatcher.UIThread.Post(() =>
         {
-            CallStack.Clear();
-            foreach (var item in stackList)
-            {
-                CallStack.Add(item);
-            }
-
+            if (SelectedCallFrame?.CallFrameId != frame.CallFrameId) return;
+            Scopes.Clear();
             ScopeVariables.Clear();
-            foreach (var item in scopeVarsList)
+            foreach (var scope in frame.ScopeChain)
             {
-                ScopeVariables.Add(item);
-            }
-
-            IsDebuggerPaused = true;
-
-            var fileNode = FindFileBySuffix(url);
-            if (fileNode != null)
-            {
-                ActiveDebugLine = line;
-                SelectedFile = fileNode;
-                PendingScrollLine = line;
+                Scopes.Add(scope);
+                foreach (var property in scope.Properties)
+                {
+                    ScopeVariables.Add(new System.Collections.Generic.KeyValuePair<string, string>($"[{scope.Type}] {property.Name}", property.Value));
+                }
             }
         });
+    }
+
+    private static string FormatRemoteObject(JsonObject? value)
+    {
+        if (value is null) return "undefined";
+        if (value["unserializableValue"] is JsonNode unserializable) return unserializable.ToString();
+        if (value["value"] is JsonNode primitive) return primitive.ToJsonString().Trim('"');
+        return value["description"]?.GetValue<string>() ?? value["type"]?.GetValue<string>() ?? "undefined";
+    }
+
+    private async Task EvaluateOnCallFrameAsync()
+    {
+        var frame = SelectedCallFrame;
+        if (frame is null || string.IsNullOrWhiteSpace(DebuggerEvaluationExpression)) return;
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Debugger.evaluateOnCallFrame", new JsonObject
+            {
+                ["callFrameId"] = frame.CallFrameId,
+                ["expression"] = DebuggerEvaluationExpression,
+                ["objectGroup"] = "cdp-inspector-watch",
+                ["includeCommandLineAPI"] = true,
+                ["silent"] = false,
+                ["returnByValue"] = false,
+                ["generatePreview"] = true,
+                ["throwOnSideEffect"] = false
+            });
+            DebuggerEvaluationResult = response["exceptionDetails"] is JsonObject exception
+                ? exception["text"]?.GetValue<string>() ?? "Evaluation failed"
+                : FormatRemoteObject(response["result"] as JsonObject);
+        }
+        catch (Exception ex)
+        {
+            DebuggerEvaluationResult = ex.Message;
+            Logger.LogErrorMessage("SourcesVM", "Call-frame evaluation failed", ex);
+        }
+    }
+
+    private async Task AddWatchExpressionAsync()
+    {
+        var expression = NewWatchExpression.Trim();
+        if (string.IsNullOrWhiteSpace(expression)) return;
+        var watch = WatchExpressions.FirstOrDefault(item => string.Equals(item.Expression, expression, StringComparison.Ordinal));
+        if (watch is null)
+        {
+            watch = new V8WatchExpressionModel { Expression = expression };
+            WatchExpressions.Add(watch);
+        }
+        NewWatchExpression = "";
+        ((RelayCommand)RefreshWatchExpressionsCommand).RaiseCanExecuteChanged();
+        await EvaluateWatchExpressionAsync(watch);
+    }
+
+    private async Task RefreshWatchExpressionsAsync()
+    {
+        foreach (var watch in WatchExpressions.ToArray())
+        {
+            await EvaluateWatchExpressionAsync(watch);
+        }
+    }
+
+    private async Task EvaluateWatchExpressionAsync(V8WatchExpressionModel watch)
+    {
+        var frame = SelectedCallFrame;
+        if (!_cdpService.IsConnected || !IsDebuggerPaused || frame is null)
+        {
+            watch.Value = "Not paused";
+            return;
+        }
+
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Debugger.evaluateOnCallFrame", new JsonObject
+            {
+                ["callFrameId"] = frame.CallFrameId,
+                ["expression"] = watch.Expression,
+                ["objectGroup"] = "cdp-inspector-watch",
+                ["includeCommandLineAPI"] = true,
+                ["silent"] = true,
+                ["returnByValue"] = false,
+                ["generatePreview"] = true,
+                ["throwOnSideEffect"] = false
+            });
+            watch.Value = response["exceptionDetails"] is JsonObject exception
+                ? exception["text"]?.GetValue<string>() ?? "Evaluation failed"
+                : FormatRemoteObject(response["result"] as JsonObject);
+        }
+        catch (Exception ex)
+        {
+            watch.Value = ex.Message;
+        }
+    }
+
+    private async Task RestartFrameAsync()
+    {
+        var frame = SelectedCallFrame;
+        if (frame is null) return;
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Debugger.restartFrame", new JsonObject
+            {
+                ["callFrameId"] = frame.CallFrameId,
+                ["mode"] = "StepInto"
+            });
+            if (response["callFrames"] is JsonArray callFrames)
+            {
+                HandleDebuggerPaused(new JsonObject
+                {
+                    ["reason"] = "restartFrame",
+                    ["callFrames"] = callFrames.DeepClone()
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            DebuggerEvaluationResult = $"Restart frame failed: {ex.Message}";
+            Logger.LogErrorMessage("SourcesVM", "Restart frame failed", ex);
+        }
+    }
+
+    private async Task PauseAsync()
+    {
+        if (!_cdpService.IsConnected || !IsDebuggerEnabled) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Debugger.pause");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogErrorMessage("SourcesVM", "Pause failed", ex);
+        }
+    }
+
+    private async Task SetPauseOnExceptionsAsync(string state)
+    {
+        if (!_cdpService.IsConnected || !IsDebuggerEnabled) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Debugger.setPauseOnExceptions", new JsonObject { ["state"] = state });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogErrorMessage("SourcesVM", "Set pause on exceptions failed", ex);
+        }
     }
 
     private async Task ResumeAsync()
@@ -573,13 +1193,28 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     public async Task ToggleBreakpointAsync(int line)
     {
-        if (SelectedFile == null || SelectedFile.IsDirectory || !_cdpService.IsConnected)
+        if (!_cdpService.IsConnected || !IsDebuggerEnabled ||
+            ((SelectedFile == null || SelectedFile.IsDirectory) && SelectedRuntimeScript == null))
         {
             return;
         }
 
-        string url = SelectedFile.Path;
-        string key = $"{url}:{line}";
+        var script = SelectedRuntimeScript;
+        string displayUrl = script?.Url ?? SelectedFile?.Path ?? "";
+        string url = displayUrl;
+        string scriptId = script?.ScriptId ?? "";
+        int cdpLine = Math.Max(0, line - 1);
+        int cdpColumn = 0;
+        if (script?.IsOriginalSource == true)
+        {
+            var generated = script.SourceMap?.FindGeneratedLocation(script.SourceIndex, cdpLine);
+            if (generated is null) return;
+            scriptId = script.GeneratedScriptId;
+            cdpLine = generated.GeneratedLine;
+            cdpColumn = generated.GeneratedColumn;
+            url = "";
+        }
+        string key = $"{displayUrl}:{Math.Max(0, line - 1)}";
 
         if (_breakpointIds.TryGetValue(key, out var breakpointId))
         {
@@ -592,11 +1227,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 {
                     Dispatcher.UIThread.Post(() => Breakpoints.Remove(displayStr));
                 }
-                else
+                Dispatcher.UIThread.Post(() =>
                 {
-                    string fallbackDisplayStr = $"{SelectedFile.Name}:{line}";
-                    Dispatcher.UIThread.Post(() => Breakpoints.Remove(fallbackDisplayStr));
-                }
+                    var typed = V8Breakpoints.FirstOrDefault(item => item.BreakpointId == breakpointId);
+                    if (typed is not null) V8Breakpoints.Remove(typed);
+                });
             }
             catch (Exception ex)
             {
@@ -607,29 +1242,61 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             try
             {
-                var p = new JsonObject
+                JsonObject p;
+                if (!string.IsNullOrWhiteSpace(url))
                 {
-                    ["url"] = url,
-                    ["lineNumber"] = line
-                };
+                    p = new JsonObject
+                    {
+                        ["url"] = url,
+                        ["lineNumber"] = cdpLine,
+                        ["columnNumber"] = cdpColumn
+                    };
+                }
+                else
+                {
+                    p = new JsonObject
+                    {
+                        ["location"] = new JsonObject
+                        {
+                            ["scriptId"] = scriptId,
+                            ["lineNumber"] = cdpLine,
+                            ["columnNumber"] = cdpColumn
+                        }
+                    };
+                }
                 string condition = BreakpointCondition;
                 if (!string.IsNullOrWhiteSpace(condition))
                 {
                     p["condition"] = condition;
                 }
-                var response = await _cdpService.SendCommandAsync("Debugger.setBreakpointByUrl", p);
+                var response = await _cdpService.SendCommandAsync(
+                    string.IsNullOrWhiteSpace(url) ? "Debugger.setBreakpoint" : "Debugger.setBreakpointByUrl", p);
                 if (response != null)
                 {
                     string returnedId = response["breakpointId"]?.GetValue<string>() ?? key;
                     _breakpointIds[key] = returnedId;
-                    string displayStr = $"{SelectedFile.Name}:{line}";
+                    var resolvedLocation = response["actualLocation"] as JsonObject ??
+                        (response["locations"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
+                    var breakpoint = new V8BreakpointModel
+                    {
+                        BreakpointId = returnedId,
+                        ScriptId = resolvedLocation?["scriptId"]?.GetValue<string>() ?? scriptId,
+                        Url = displayUrl,
+                        LineNumber = resolvedLocation?["lineNumber"]?.GetValue<int>() ?? cdpLine,
+                        ColumnNumber = resolvedLocation?["columnNumber"]?.GetValue<int>() ?? 0,
+                        DisplayLineNumber = script?.IsOriginalSource == true ? Math.Max(0, line - 1) : null,
+                        Condition = condition,
+                        IsResolved = resolvedLocation is not null
+                    };
+                    string displayStr = breakpoint.DisplayName;
                     if (!string.IsNullOrWhiteSpace(condition))
                     {
-                        displayStr += $" (if: {condition})";
+                        displayStr = breakpoint.DisplayName;
                     }
                     _breakpointDisplayStrings[key] = displayStr;
                     Dispatcher.UIThread.Post(() =>
                     {
+                        V8Breakpoints.Add(breakpoint);
                         if (!Breakpoints.Contains(displayStr))
                         {
                             Breakpoints.Add(displayStr);
@@ -787,6 +1454,57 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    public async Task ApplySourceChangesAsync(string content)
+    {
+        if (!_cdpService.IsConnected) return;
+
+        if (SelectedFile is not null && !SelectedFile.IsDirectory)
+        {
+            await SaveFileAsync(content);
+            LiveEditStatus = "Saved";
+            return;
+        }
+
+        var script = SelectedRuntimeScript;
+        if (script is null || script.IsOriginalSource || string.IsNullOrWhiteSpace(script.ScriptId)) return;
+
+        LiveEditStatus = "Applying live edit...";
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Debugger.setScriptSource", new JsonObject
+            {
+                ["scriptId"] = script.ScriptId,
+                ["scriptSource"] = content,
+                ["dryRun"] = false,
+                ["allowTopFrameEditing"] = true
+            });
+
+            if (response["exceptionDetails"] is JsonObject exception)
+            {
+                LiveEditStatus = exception["text"]?.GetValue<string>() ?? "Live edit failed";
+                return;
+            }
+
+            var status = response["status"]?.GetValue<string>() ?? "Ok";
+            LiveEditStatus = status == "Ok" ? "Live edit applied" : $"Live edit: {status}";
+            if (status == "Ok") SelectedFileContent = content;
+
+            if (response["callFrames"] is JsonArray callFrames)
+            {
+                HandleDebuggerPaused(new JsonObject
+                {
+                    ["reason"] = "liveEdit",
+                    ["callFrames"] = callFrames.DeepClone()
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            LiveEditStatus = $"Live edit failed: {ex.Message}";
+            Logger.LogErrorMessage("SourcesVM", "Set script source failed", ex);
+        }
+    }
+
     private async Task LoadFileContentAsync()
     {
         if (SelectedFile == null || SelectedFile.IsDirectory)
@@ -883,6 +1601,42 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
         try
         {
+            if (!_cdpService.SupportsDomain("Sources") && _cdpService.SupportsDomain("Debugger"))
+            {
+                var runtimeMatches = new System.Collections.Generic.List<SearchResultModel>();
+                var scripts = SelectedRuntimeScript is not null
+                    ? new[] { SelectedRuntimeScript }
+                    : RuntimeScripts.Where(script => !script.IsOriginalSource && !string.IsNullOrWhiteSpace(script.ScriptId)).ToArray();
+
+                foreach (var script in scripts)
+                {
+                    var runtimeResponse = await _cdpService.SendCommandAsync("Debugger.searchInContent", new JsonObject
+                    {
+                        ["scriptId"] = script.ScriptId,
+                        ["query"] = SearchQuery,
+                        ["caseSensitive"] = SearchCaseSensitive,
+                        ["isRegex"] = false
+                    });
+                    if (runtimeResponse["result"] is not JsonArray results) continue;
+                    foreach (var match in results.OfType<JsonObject>())
+                    {
+                        runtimeMatches.Add(new SearchResultModel
+                        {
+                            Path = string.IsNullOrWhiteSpace(script.Url) ? script.DisplayName : script.Url,
+                            LineNumber = (match["lineNumber"]?.GetValue<int>() ?? 0) + 1,
+                            LineContent = match["lineContent"]?.GetValue<string>() ?? ""
+                        });
+                    }
+                }
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    SearchResults.Clear();
+                    foreach (var match in runtimeMatches) SearchResults.Add(match);
+                });
+                return;
+            }
+
             var p = new JsonObject
             {
                 ["query"] = SearchQuery,
