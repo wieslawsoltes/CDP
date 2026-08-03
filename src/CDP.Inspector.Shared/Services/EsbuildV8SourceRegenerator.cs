@@ -5,9 +5,11 @@ using Chrome.DevTools.Protocol.Inspector;
 namespace CdpInspectorApp.Services;
 
 /// <summary>
-/// Regenerates single-source TypeScript and JavaScript scripts with esbuild. The executable
-/// can be supplied explicitly, through CDP_ESBUILD_PATH, a project-local node_modules/.bin,
-/// or PATH.
+/// Regenerates TypeScript and JavaScript scripts with esbuild. Single-source transforms use
+/// the edited source directly. Multi-source entry maps are rebuilt as project-aware bundles,
+/// resolving imports from the source directory without changing files in the workspace. The
+/// executable can be supplied explicitly, through CDP_ESBUILD_PATH, a project-local
+/// node_modules/.bin, or PATH.
 /// </summary>
 public sealed class EsbuildV8SourceRegenerator : IV8SourceRegenerator
 {
@@ -28,8 +30,15 @@ public sealed class EsbuildV8SourceRegenerator : IV8SourceRegenerator
     public bool CanRegenerate(V8SourceRegenerationRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return request.SourceIndex == 0 && request.SourceMap.Sources.Count == 1 &&
-            SupportedExtensions.Contains(GetSourceExtension(request.SourceUrl));
+        if (request.SourceIndex != 0 ||
+            !SupportedExtensions.Contains(GetSourceExtension(request.SourceUrl)))
+        {
+            return false;
+        }
+
+        if (request.SourceMap.Sources.Count == 1) return true;
+        var sourcePath = GetLocalSourcePath(request.SourceUrl);
+        return sourcePath is not null && File.Exists(sourcePath);
     }
 
     public async ValueTask<V8SourceRegenerationResult> RegenerateAsync(
@@ -40,7 +49,7 @@ public sealed class EsbuildV8SourceRegenerator : IV8SourceRegenerator
         if (!CanRegenerate(request))
         {
             return V8SourceRegenerationResult.Failed(
-                "esbuild live edit currently requires one JS/TS source in the source map.");
+                "esbuild project regeneration requires the first mapped JS/TS source and a local entry file for bundled maps.");
         }
 
         var sourcePath = GetLocalSourcePath(request.SourceUrl);
@@ -56,10 +65,17 @@ public sealed class EsbuildV8SourceRegenerator : IV8SourceRegenerator
         Directory.CreateDirectory(temporaryDirectory);
         try
         {
-            var extension = NormalizeInputExtension(GetSourceExtension(request.SourceUrl));
-            var inputPath = Path.Combine(temporaryDirectory, "source" + extension);
             var outputPath = Path.Combine(temporaryDirectory, "generated.js");
-            await File.WriteAllTextAsync(inputPath, request.EditedSource, cancellationToken).ConfigureAwait(false);
+            var extension = NormalizeInputExtension(GetSourceExtension(request.SourceUrl));
+            var isProjectBundle = request.SourceMap.Sources.Count > 1;
+            var inputPath = Path.Combine(temporaryDirectory, "source" + extension);
+            var sourceFileName = sourcePath is null
+                ? "source" + extension
+                : Path.GetFileName(sourcePath);
+            if (!isProjectBundle)
+            {
+                await File.WriteAllTextAsync(inputPath, request.EditedSource, cancellationToken).ConfigureAwait(false);
+            }
 
             var startInfo = new ProcessStartInfo
             {
@@ -69,15 +85,22 @@ public sealed class EsbuildV8SourceRegenerator : IV8SourceRegenerator
                     : Environment.CurrentDirectory,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
+                RedirectStandardInput = isProjectBundle,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-            startInfo.ArgumentList.Add(inputPath);
+            if (!isProjectBundle) startInfo.ArgumentList.Add(inputPath);
             startInfo.ArgumentList.Add($"--outfile={outputPath}");
             startInfo.ArgumentList.Add("--sourcemap=external");
             startInfo.ArgumentList.Add("--sources-content=true");
             startInfo.ArgumentList.Add("--charset=utf8");
             startInfo.ArgumentList.Add("--log-level=warning");
+            if (isProjectBundle)
+            {
+                startInfo.ArgumentList.Add("--bundle");
+                startInfo.ArgumentList.Add($"--sourcefile={sourceFileName}");
+                startInfo.ArgumentList.Add($"--loader={GetLoader(extension)}");
+            }
 
             var tsconfig = FindUpward(searchDirectory, "tsconfig.json");
             if (tsconfig is not null) startInfo.ArgumentList.Add($"--tsconfig={tsconfig}");
@@ -90,6 +113,10 @@ public sealed class EsbuildV8SourceRegenerator : IV8SourceRegenerator
             {
                 startInfo.ArgumentList.Add("--format=esm");
             }
+            if (isProjectBundle && generatedExtension.Equals(".cjs", StringComparison.OrdinalIgnoreCase))
+            {
+                startInfo.ArgumentList.Add("--platform=node");
+            }
 
             using var process = new Process { StartInfo = startInfo };
             try
@@ -99,6 +126,12 @@ public sealed class EsbuildV8SourceRegenerator : IV8SourceRegenerator
             catch (Exception ex)
             {
                 return V8SourceRegenerationResult.Failed($"Unable to start esbuild: {ex.Message}");
+            }
+
+            if (isProjectBundle)
+            {
+                await process.StandardInput.WriteAsync(request.EditedSource.AsMemory(), cancellationToken).ConfigureAwait(false);
+                process.StandardInput.Close();
             }
 
             var standardOutput = process.StandardOutput.ReadToEndAsync(cancellationToken);
@@ -129,22 +162,36 @@ public sealed class EsbuildV8SourceRegenerator : IV8SourceRegenerator
             var generatedSource = await File.ReadAllTextAsync(outputPath, cancellationToken).ConfigureAwait(false);
             var sourceMapJson = await File.ReadAllTextAsync(sourceMapPath, cancellationToken).ConfigureAwait(false);
             var sourceMapRoot = JsonNode.Parse(sourceMapJson) as JsonObject;
-            if (sourceMapRoot?["sources"] is not JsonArray sources || sources.Count != 1)
+            if (sourceMapRoot?["sources"] is not JsonArray sources || sources.Count == 0)
             {
                 return V8SourceRegenerationResult.Failed("esbuild returned an incompatible source map.");
             }
 
-            sources[0] = request.SourceMap.Sources[request.SourceIndex];
-            sourceMapRoot["sourcesContent"] = new JsonArray(JsonValue.Create(request.EditedSource));
+            if (sourceMapRoot["sourcesContent"] is not JsonArray sourcesContent || sourcesContent.Count != sources.Count)
+            {
+                return V8SourceRegenerationResult.Failed("esbuild returned a source map without embedded source content.");
+            }
             sourceMapRoot["file"] = request.SourceMap.File;
             var mapUri = Uri.TryCreate(request.GeneratedUrl, UriKind.Absolute, out var generatedUri)
                 ? generatedUri
                 : null;
             var regeneratedMap = V8SourceMap.Parse(sourceMapRoot.ToJsonString(), mapUri);
+            var editedSourceIndex = FindEditedSourceIndex(regeneratedMap, request.EditedSource, sourceFileName);
+            if (editedSourceIndex < 0)
+            {
+                return V8SourceRegenerationResult.Failed("esbuild source map does not identify the edited entry source.");
+            }
+            regeneratedMap = regeneratedMap.RemapSourceIndex(
+                editedSourceIndex,
+                request.SourceIndex,
+                request.SourceMap.Sources[request.SourceIndex],
+                request.EditedSource);
             return V8SourceRegenerationResult.Regenerated(
                 generatedSource,
                 regeneratedMap,
-                "Source regenerated with esbuild; validating with V8...");
+                isProjectBundle
+                    ? "Project bundle regenerated with esbuild; validating with V8..."
+                    : "Source regenerated with esbuild; validating with V8...");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -222,4 +269,28 @@ public sealed class EsbuildV8SourceRegenerator : IV8SourceRegenerator
         ".mjs" or ".cjs" => ".js",
         _ => extension
     };
+
+    private static string GetLoader(string extension) => extension.ToLowerInvariant() switch
+    {
+        ".ts" => "ts",
+        ".tsx" => "tsx",
+        ".jsx" => "jsx",
+        _ => "js"
+    };
+
+    private static int FindEditedSourceIndex(V8SourceMap sourceMap, string editedSource, string sourceFileName)
+    {
+        for (var index = 0; index < sourceMap.SourcesContent.Count; index++)
+        {
+            if (string.Equals(sourceMap.SourcesContent[index], editedSource, StringComparison.Ordinal)) return index;
+        }
+        for (var index = 0; index < sourceMap.Sources.Count; index++)
+        {
+            if (string.Equals(Path.GetFileName(sourceMap.Sources[index].Replace('\\', '/')), sourceFileName, StringComparison.OrdinalIgnoreCase))
+            {
+                return index;
+            }
+        }
+        return -1;
+    }
 }

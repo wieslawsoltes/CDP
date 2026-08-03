@@ -47,6 +47,14 @@ When modifications are made to a file, the editor tracks its dirty status:
 - **Keyboard Shortcut**: Pressing `Ctrl+S` triggers file saving.
 - **Server Sync**: The inspector calls the `Save` command over the WebSocket. The backend saves the updated text buffer directly to the local disk workspace, updating compiler files in real-time.
 
+### V8 source-mapped live editing
+
+For V8 targets, an editor tab can represent generated JavaScript or an original source recovered from `sourcesContent`. Direct generated-JavaScript edits use `Debugger.setScriptSource`. Original JS/TS edits are planned by `V8SourceMutationEngine`: mapping-preserving changes patch the generated range directly, while transformed or multiline edits are delegated to an `IV8SourceRegenerator`.
+
+The built-in esbuild adapter supports JS, JSX, TS, and TSX module variants. It can transform a single mapped source or rebuild a local first-source project entry with imports. Project rebuilds read the edited entry from stdin, resolve dependencies and the nearest `tsconfig.json` from the source directory, and do not modify the source file on disk. Regenerated source indexes are normalized when bundler ordering changes. Before accepting an edit, the Inspector asks V8 to dry-run the complete generated script; applying the script, replacing its map, and rebinding breakpoints then behaves transactionally with rollback on failure.
+
+Editing an arbitrary dependency within an existing framework bundle requires a host-provided adapter for the owning webpack, Vite, Rollup, Babel, SWC, or other build pipeline. A source map alone does not contain enough configuration to reproduce those transforms safely.
+
 ---
 
 ## 3. Interactive Debugger controls

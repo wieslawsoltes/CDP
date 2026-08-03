@@ -72,6 +72,87 @@ public sealed class EsbuildV8SourceRegeneratorTests
     }
 
     [Fact(Timeout = 30_000)]
+    public async Task RebuildsProjectEntryWithImportsWithoutMutatingWorkspaceFiles()
+    {
+        var esbuild = FindEsbuild();
+        if (esbuild is null) return;
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var projectDirectory = Path.Combine(Path.GetTempPath(), $"cdp-v8-project-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(projectDirectory);
+        try
+        {
+            var entryPath = Path.Combine(projectDirectory, "main.ts");
+            var dependencyPath = Path.Combine(projectDirectory, "dependency.ts");
+            const string original = "import { dependency } from './dependency';\nglobalThis.projectMutationResult = dependency * 2;\n";
+            const string edited = "import { dependency } from './dependency';\nglobalThis.projectMutationResult = dependency * 3;\nconsole.log(globalThis.projectMutationResult);\n";
+            const string dependency = "export const dependency: number = 7;\n";
+            await File.WriteAllTextAsync(entryPath, original, cancellationToken);
+            await File.WriteAllTextAsync(dependencyPath, dependency, cancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(projectDirectory, "tsconfig.json"),
+                "{\"compilerOptions\":{\"target\":\"ES2022\",\"module\":\"CommonJS\"}}", cancellationToken);
+            var sourceMap = V8SourceMap.Parse($$"""
+                {
+                  "version": 3,
+                  "file": "bundle.cjs",
+                  "sources": ["webpack:///src/main.ts", "webpack:///src/dependency.ts"],
+                  "sourcesContent": [{{System.Text.Json.JsonSerializer.Serialize(original)}}, {{System.Text.Json.JsonSerializer.Serialize(dependency)}}],
+                  "names": [],
+                  "mappings": "AAAA;ACAA"
+                }
+                """);
+            var request = new V8SourceRegenerationRequest(
+                sourceMap,
+                0,
+                new Uri(entryPath).AbsoluteUri,
+                new Uri(Path.Combine(projectDirectory, "bundle.cjs")).AbsoluteUri,
+                original,
+                edited,
+                "globalThis.projectMutationResult = 14;\n");
+
+            var result = await new EsbuildV8SourceRegenerator(esbuild)
+                .RegenerateAsync(request, cancellationToken);
+
+            Assert.True(result.Success, result.Message);
+            Assert.Contains("Project bundle regenerated", result.Message, StringComparison.Ordinal);
+            Assert.Equal("webpack:///src/main.ts", result.SourceMap!.Sources[0]);
+            Assert.Equal(edited, result.SourceMap.SourcesContent[0]);
+            Assert.True(result.SourceMap.Sources.Count >= 2);
+            Assert.Contains(result.SourceMap.SourcesContent, content => content?.Contains("dependency: number = 7", StringComparison.Ordinal) == true);
+            Assert.Equal(original, await File.ReadAllTextAsync(entryPath, cancellationToken));
+
+            var generatedPath = Path.Combine(projectDirectory, "regenerated.cjs");
+            await File.WriteAllTextAsync(generatedPath, result.GeneratedSource, cancellationToken);
+            using var node = Process.Start(new ProcessStartInfo
+            {
+                FileName = "node",
+                ArgumentList = { generatedPath },
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            Assert.NotNull(node);
+            var output = node.StandardOutput.ReadToEndAsync(cancellationToken);
+            var error = node.StandardError.ReadToEndAsync(cancellationToken);
+            await node.WaitForExitAsync(cancellationToken);
+            Assert.Equal(0, node.ExitCode);
+            Assert.Equal("21", (await output).Trim());
+            Assert.True(string.IsNullOrWhiteSpace(await error));
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(projectDirectory, recursive: true);
+            }
+            catch
+            {
+                // The OS can remove an orphaned temporary directory later.
+            }
+        }
+    }
+
+    [Fact(Timeout = 30_000)]
     public async Task RegeneratedMultilineTypeScriptPassesRealNodeV8DryRunAndApply()
     {
         var esbuild = FindEsbuild();
