@@ -27,6 +27,8 @@ public sealed class V8InspectorClient : IAsyncDisposable
         if (_options.ReceiveBufferSize <= 0) throw new ArgumentOutOfRangeException(nameof(options), "Receive buffer size must be positive.");
         if (_options.MaxIncomingMessageSize <= 0) throw new ArgumentOutOfRangeException(nameof(options), "Maximum incoming message size must be positive.");
         if (_options.MaxOutgoingMessageSize <= 0) throw new ArgumentOutOfRangeException(nameof(options), "Maximum outgoing message size must be positive.");
+        _socket.Options.KeepAliveInterval = _options.KeepAliveInterval;
+        _socket.Options.KeepAliveTimeout = _options.KeepAliveTimeout;
         _options.ConfigureWebSocket?.Invoke(_socket.Options);
     }
 
@@ -325,6 +327,8 @@ public sealed class V8InspectorClientOptions
     public int ReceiveBufferSize { get; init; } = 16 * 1024;
     public int MaxIncomingMessageSize { get; init; } = 64 * 1024 * 1024;
     public int MaxOutgoingMessageSize { get; init; } = 64 * 1024 * 1024;
+    public TimeSpan KeepAliveInterval { get; init; } = TimeSpan.FromSeconds(15);
+    public TimeSpan KeepAliveTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public Action<ClientWebSocketOptions>? ConfigureWebSocket { get; init; }
 }
 

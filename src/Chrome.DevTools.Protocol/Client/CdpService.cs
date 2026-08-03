@@ -343,6 +343,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         }
 
         _ws = new ClientWebSocket();
+        ConfigureInspectorKeepAlive(_ws.Options);
         _cts = new CancellationTokenSource();
         _pendingRequests.Clear();
 
@@ -396,6 +397,16 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             await DisconnectAsync();
             throw new Exception($"Failed to connect to target: {ex.Message}", ex);
         }
+    }
+
+    private static void ConfigureInspectorKeepAlive(ClientWebSocketOptions options)
+    {
+        // ClientWebSocket defaults to an unsolicited PONG every 30 seconds.
+        // Standalone V8 inspector endpoints can treat that unsolicited control
+        // frame as a protocol error and abruptly close an otherwise healthy
+        // debugging session. Use the standard PING/PONG exchange instead.
+        options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+        options.KeepAliveTimeout = TimeSpan.FromSeconds(5);
     }
 
     private readonly object _disconnectLock = new();

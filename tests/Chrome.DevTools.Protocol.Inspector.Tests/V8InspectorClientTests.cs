@@ -25,6 +25,8 @@ public sealed class V8InspectorClientTests
         {
             ConfigureWebSocket = options =>
             {
+                Assert.Equal(TimeSpan.FromSeconds(15), options.KeepAliveInterval);
+                Assert.Equal(TimeSpan.FromSeconds(5), options.KeepAliveTimeout);
                 options.SetRequestHeader("X-Inspector-Test", "configured");
                 configured = true;
             }
