@@ -179,7 +179,50 @@ public sealed class V8InspectorClientIntegrationTests
                 ["returnByValue"] = true
             });
             Assert.Equal(21, value["result"]?["value"]?.GetValue<int>());
+
+            var generatedSource = await inspector.SendCommandAsync("Debugger.getScriptSource", new JsonObject
+            {
+                ["scriptId"] = script["scriptId"]!.GetValue<string>()
+            });
+            var originalSource = Assert.Single(sourceMap.SourcesContent)!;
+            var editedOriginal = originalSource.Replace("value * 2", "value * 3", StringComparison.Ordinal);
+            var mutation = new V8SourceMutationEngine().CreatePatch(
+                sourceMap,
+                0,
+                originalSource,
+                editedOriginal,
+                generatedSource["scriptSource"]!.GetValue<string>());
+            Assert.True(mutation.CanApply, mutation.Message);
+            var dryRun = await inspector.SendCommandAsync("Debugger.setScriptSource", new JsonObject
+            {
+                ["scriptId"] = script["scriptId"]!.GetValue<string>(),
+                ["scriptSource"] = mutation.GeneratedSource,
+                ["dryRun"] = true,
+                ["allowTopFrameEditing"] = true
+            });
+            Assert.Equal("Ok", dryRun["status"]?.GetValue<string>());
+            var applied = await inspector.SendCommandAsync("Debugger.setScriptSource", new JsonObject
+            {
+                ["scriptId"] = script["scriptId"]!.GetValue<string>(),
+                ["scriptSource"] = mutation.GeneratedSource,
+                ["dryRun"] = false,
+                ["allowTopFrameEditing"] = true
+            });
+            Assert.Equal("Ok", applied["status"]?.GetValue<string>());
             await inspector.SendCommandAsync("Debugger.resume");
+
+            JsonObject mappedResult = new();
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                mappedResult = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+                {
+                    ["expression"] = "globalThis.mappedResult",
+                    ["returnByValue"] = true
+                });
+                if (mappedResult["result"]?["value"]?.GetValue<int>() == 63) break;
+                await Task.Delay(25, TestContext.Current.CancellationToken);
+            }
+            Assert.Equal(63, mappedResult["result"]?["value"]?.GetValue<int>());
         }
         finally
         {

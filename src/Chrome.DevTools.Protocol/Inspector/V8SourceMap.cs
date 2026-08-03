@@ -143,6 +143,58 @@ public sealed class V8SourceMap
         return result;
     }
 
+    internal V8SourceMap WithSingleLineMutation(
+        int sourceIndex,
+        string sourceContent,
+        int originalLine,
+        int originalStartColumn,
+        int originalEndColumn,
+        int originalReplacementLength,
+        int generatedLine,
+        int generatedStartColumn,
+        int generatedEndColumn,
+        int generatedReplacementLength)
+    {
+        var originalDelta = originalReplacementLength - (originalEndColumn - originalStartColumn);
+        var generatedDelta = generatedReplacementLength - (generatedEndColumn - generatedStartColumn);
+        var entries = new List<V8SourceMapEntry>(_entries.Count);
+        foreach (var entry in _entries)
+        {
+            var insideOriginalMutation = entry.SourceIndex == sourceIndex && entry.OriginalLine == originalLine &&
+                entry.OriginalColumn > originalStartColumn && entry.OriginalColumn < originalEndColumn;
+            var insideGeneratedMutation = entry.GeneratedLine == generatedLine &&
+                entry.GeneratedColumn > generatedStartColumn && entry.GeneratedColumn < generatedEndColumn;
+            if (insideOriginalMutation || insideGeneratedMutation) continue;
+
+            var originalColumn = entry.OriginalColumn;
+            if (entry.SourceIndex == sourceIndex && entry.OriginalLine == originalLine &&
+                entry.OriginalColumn >= originalEndColumn)
+            {
+                originalColumn += originalDelta;
+            }
+            var generatedColumn = entry.GeneratedColumn;
+            if (entry.GeneratedLine == generatedLine && entry.GeneratedColumn >= generatedEndColumn)
+            {
+                generatedColumn += generatedDelta;
+            }
+            entries.Add(entry with { OriginalColumn = originalColumn, GeneratedColumn = generatedColumn });
+        }
+
+        var sourcesContent = SourcesContent.ToArray();
+        sourcesContent[sourceIndex] = sourceContent;
+        return new V8SourceMap(
+            Sources,
+            sourcesContent,
+            Names,
+            entries,
+            _sourceRoots,
+            _sourceMapUris,
+            _ignoredSourceIndexes,
+            File,
+            SourceRoot,
+            _isIndexed);
+    }
+
     private static JsonObject ParseRoot(string json) =>
         JsonNode.Parse(json) as JsonObject ?? throw new FormatException("Source map must be a JSON object.");
 

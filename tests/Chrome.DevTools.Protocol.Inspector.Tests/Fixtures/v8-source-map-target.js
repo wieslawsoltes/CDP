@@ -3,4 +3,5 @@ function mappedCompute(value) {
   globalThis.mappedResult = doubled;
 }
 mappedCompute(21);
+setInterval(() => {}, 1000);
 //# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoidjgtc291cmNlLW1hcC10YXJnZXQuanMiLCJzb3VyY2VSb290IjoiLi4vc3JjIiwic291cmNlcyI6WyJtYXBwZWQtdGFyZ2V0LnRzIl0sInNvdXJjZXNDb250ZW50IjpbImV4cG9ydCBmdW5jdGlvbiBtYXBwZWRDb21wdXRlKHZhbHVlOiBudW1iZXIpIHtcbiAgY29uc3QgZG91YmxlZCA9IHZhbHVlICogMjtcbiAgZ2xvYmFsVGhpcy5tYXBwZWRSZXN1bHQgPSBkb3VibGVkO1xufVxubWFwcGVkQ29tcHV0ZSgyMSk7Il0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBO0FBQ0E7QUFDQTtBQUNBO0FBQ0EifQ==

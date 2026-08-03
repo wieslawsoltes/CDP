@@ -1,0 +1,214 @@
+namespace Chrome.DevTools.Protocol.Inspector;
+
+/// <summary>
+/// Builds safe V8 live-edit patches for an original source represented by a source map.
+/// Source maps describe positions rather than a compiler transformation, so mutations are
+/// accepted only when the mapped generated window is textually identical to the original.
+/// </summary>
+public sealed class V8SourceMutationEngine
+{
+    public V8SourceMutationResult CreatePatch(
+        V8SourceMap sourceMap,
+        int sourceIndex,
+        string originalSource,
+        string editedSource,
+        string generatedSource)
+    {
+        ArgumentNullException.ThrowIfNull(sourceMap);
+        ArgumentNullException.ThrowIfNull(originalSource);
+        ArgumentNullException.ThrowIfNull(editedSource);
+        ArgumentNullException.ThrowIfNull(generatedSource);
+
+        if (sourceIndex < 0 || sourceIndex >= sourceMap.Sources.Count)
+        {
+            return V8SourceMutationResult.Rejected("The original source index is outside the source map.");
+        }
+
+        var prefixLength = GetCommonPrefixLength(originalSource, editedSource);
+        if (prefixLength == originalSource.Length && prefixLength == editedSource.Length)
+        {
+            return V8SourceMutationResult.NoChange(generatedSource, sourceMap);
+        }
+
+        var suffixLength = GetCommonSuffixLength(originalSource, editedSource, prefixLength);
+        var originalEndOffset = originalSource.Length - suffixLength;
+        var editedEndOffset = editedSource.Length - suffixLength;
+        var originalStart = GetPosition(originalSource, prefixLength);
+        var originalEnd = GetPosition(originalSource, originalEndOffset);
+        var replacement = editedSource[prefixLength..editedEndOffset];
+        if (originalStart.Line != originalEnd.Line || replacement.Contains('\n') || replacement.Contains('\r'))
+        {
+            return V8SourceMutationResult.Rejected(
+                "Source-mapped live edit currently requires one mapping-preserving line mutation.");
+        }
+
+        var sourceEntries = sourceMap.Entries
+            .Where(entry => entry.SourceIndex == sourceIndex)
+            .OrderBy(entry => entry.OriginalLine)
+            .ThenBy(entry => entry.OriginalColumn)
+            .ToArray();
+        var startAnchor = sourceEntries.LastOrDefault(entry =>
+            Compare(entry.OriginalLine, entry.OriginalColumn, originalStart.Line, originalStart.Column) <= 0);
+        if (startAnchor is null)
+        {
+            return V8SourceMutationResult.Rejected("The edited range has no preceding source-map anchor.");
+        }
+
+        var endAnchor = sourceEntries.FirstOrDefault(entry =>
+            Compare(entry.OriginalLine, entry.OriginalColumn, originalEnd.Line, originalEnd.Column) >= 0 &&
+            !ReferenceEquals(entry, startAnchor));
+        var originalAnchorStartOffset = GetOffset(originalSource, startAnchor.OriginalLine, startAnchor.OriginalColumn);
+        var generatedAnchorStartOffset = GetOffset(generatedSource, startAnchor.GeneratedLine, startAnchor.GeneratedColumn);
+        int originalAnchorEndOffset;
+        int generatedAnchorEndOffset;
+        if (endAnchor is not null)
+        {
+            originalAnchorEndOffset = GetOffset(originalSource, endAnchor.OriginalLine, endAnchor.OriginalColumn);
+            generatedAnchorEndOffset = GetOffset(generatedSource, endAnchor.GeneratedLine, endAnchor.GeneratedColumn);
+        }
+        else
+        {
+            originalAnchorEndOffset = originalSource.Length;
+            generatedAnchorEndOffset = generatedAnchorStartOffset + (originalAnchorEndOffset - originalAnchorStartOffset);
+            if (generatedAnchorEndOffset > generatedSource.Length)
+            {
+                return V8SourceMutationResult.Rejected("The generated source ends before the mapped edit window.");
+            }
+        }
+
+        if (prefixLength < originalAnchorStartOffset || originalEndOffset > originalAnchorEndOffset ||
+            generatedAnchorEndOffset < generatedAnchorStartOffset)
+        {
+            return V8SourceMutationResult.Rejected("The edited range crosses an unsupported source-map boundary.");
+        }
+
+        var originalWindow = originalSource[originalAnchorStartOffset..originalAnchorEndOffset];
+        var generatedWindow = generatedSource[generatedAnchorStartOffset..generatedAnchorEndOffset];
+        if (!string.Equals(originalWindow, generatedWindow, StringComparison.Ordinal))
+        {
+            return V8SourceMutationResult.Rejected(
+                "This mapped region was transformed by the compiler and cannot be patched without its compiler adapter.");
+        }
+
+        var relativeStart = prefixLength - originalAnchorStartOffset;
+        var relativeEnd = originalEndOffset - originalAnchorStartOffset;
+        var patchedWindow = string.Concat(originalWindow.AsSpan(0, relativeStart), replacement,
+            originalWindow.AsSpan(relativeEnd));
+        var patchedGeneratedSource = string.Concat(
+            generatedSource.AsSpan(0, generatedAnchorStartOffset),
+            patchedWindow,
+            generatedSource.AsSpan(generatedAnchorEndOffset));
+        var generatedEditStartOffset = generatedAnchorStartOffset + relativeStart;
+        var generatedEditEndOffset = generatedAnchorStartOffset + relativeEnd;
+        var generatedStart = GetPosition(generatedSource, generatedEditStartOffset);
+        var generatedEnd = GetPosition(generatedSource, generatedEditEndOffset);
+        if (generatedStart.Line != generatedEnd.Line)
+        {
+            return V8SourceMutationResult.Rejected("The mapped generated edit crosses a line boundary.");
+        }
+
+        var updatedMap = sourceMap.WithSingleLineMutation(
+            sourceIndex,
+            editedSource,
+            originalStart.Line,
+            originalStart.Column,
+            originalEnd.Column,
+            replacement.Length,
+            generatedStart.Line,
+            generatedStart.Column,
+            generatedEnd.Column,
+            replacement.Length);
+        return V8SourceMutationResult.Ready(
+            patchedGeneratedSource,
+            updatedMap,
+            new V8SourceMutationRange(originalStart.Line, originalStart.Column, originalEnd.Line, originalEnd.Column),
+            new V8SourceMutationRange(generatedStart.Line, generatedStart.Column, generatedEnd.Line, generatedEnd.Column));
+    }
+
+    private static int GetCommonPrefixLength(string left, string right)
+    {
+        var length = Math.Min(left.Length, right.Length);
+        var index = 0;
+        while (index < length && left[index] == right[index]) index++;
+        return index;
+    }
+
+    private static int GetCommonSuffixLength(string left, string right, int prefixLength)
+    {
+        var maximum = Math.Min(left.Length, right.Length) - prefixLength;
+        var length = 0;
+        while (length < maximum && left[^(length + 1)] == right[^(length + 1)]) length++;
+        return length;
+    }
+
+    private static V8SourceMutationPosition GetPosition(string text, int offset)
+    {
+        if (offset < 0 || offset > text.Length) throw new ArgumentOutOfRangeException(nameof(offset));
+        var line = 0;
+        var column = 0;
+        for (var index = 0; index < offset; index++)
+        {
+            if (text[index] == '\n')
+            {
+                line++;
+                column = 0;
+            }
+            else if (text[index] != '\r')
+            {
+                column++;
+            }
+        }
+        return new V8SourceMutationPosition(line, column);
+    }
+
+    private static int GetOffset(string text, int line, int column)
+    {
+        if (line < 0 || column < 0) throw new ArgumentOutOfRangeException(nameof(line));
+        var currentLine = 0;
+        var offset = 0;
+        while (currentLine < line && offset < text.Length)
+        {
+            if (text[offset++] == '\n') currentLine++;
+        }
+        if (currentLine != line) throw new ArgumentOutOfRangeException(nameof(line));
+        var lineEnd = text.IndexOf('\n', offset);
+        if (lineEnd < 0) lineEnd = text.Length;
+        var target = offset + column;
+        if (target > lineEnd) throw new ArgumentOutOfRangeException(nameof(column));
+        return target;
+    }
+
+    private static int Compare(int leftLine, int leftColumn, int rightLine, int rightColumn)
+    {
+        var line = leftLine.CompareTo(rightLine);
+        return line != 0 ? line : leftColumn.CompareTo(rightColumn);
+    }
+
+    private sealed record V8SourceMutationPosition(int Line, int Column);
+}
+
+public sealed record V8SourceMutationRange(int StartLine, int StartColumn, int EndLine, int EndColumn);
+
+public sealed record V8SourceMutationResult(
+    bool CanApply,
+    bool HasChanges,
+    string Message,
+    string GeneratedSource,
+    V8SourceMap? UpdatedSourceMap,
+    V8SourceMutationRange? OriginalRange,
+    V8SourceMutationRange? GeneratedRange)
+{
+    internal static V8SourceMutationResult Ready(
+        string generatedSource,
+        V8SourceMap updatedSourceMap,
+        V8SourceMutationRange originalRange,
+        V8SourceMutationRange generatedRange) =>
+        new(true, true, "Source-mapped mutation is ready for V8 validation.", generatedSource, updatedSourceMap,
+            originalRange, generatedRange);
+
+    internal static V8SourceMutationResult NoChange(string generatedSource, V8SourceMap sourceMap) =>
+        new(true, false, "The source is unchanged.", generatedSource, sourceMap, null, null);
+
+    internal static V8SourceMutationResult Rejected(string message) =>
+        new(false, false, message, "", null, null, null);
+}
