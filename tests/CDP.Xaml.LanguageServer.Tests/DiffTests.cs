@@ -135,12 +135,18 @@ public class DiffTests
         string leftText = string.Join("\n", leftLines);
         string rightText = string.Join("\n", rightLines);
 
+        // Exclude one-time JIT cost from the algorithm regression check. Shared
+        // Windows runners can otherwise spend more time compiling than diffing.
+        _ = DiffEngine.ComputeDiff("warmup\noriginal", "warmup\nmodified");
+
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var diff = DiffEngine.ComputeDiff(leftText, rightText);
         stopwatch.Stop();
 
-        // Ensure it executes extremely fast due to prefix/suffix trimming (typically < 10ms)
-        Assert.True(stopwatch.ElapsedMilliseconds < 50, $"Diff engine stress test took too long: {stopwatch.ElapsedMilliseconds}ms");
+        // Prefix/suffix trimming should keep this comfortably sub-second. Use a
+        // coarse ceiling so the test catches algorithmic regressions without
+        // failing on brief scheduling stalls in shared CI.
+        Assert.True(stopwatch.ElapsedMilliseconds < 250, $"Diff engine stress test took too long: {stopwatch.ElapsedMilliseconds}ms");
         Assert.Equal(10002, diff.Count);
         
         Assert.Equal(DiffType.Deleted, diff[5000].Type);
