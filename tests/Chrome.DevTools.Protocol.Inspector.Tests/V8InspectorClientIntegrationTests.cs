@@ -38,6 +38,11 @@ public sealed class V8InspectorClientIntegrationTests
             await using var inspector = new V8InspectorClient();
             var pauses = Channel.CreateUnbounded<JsonObject>();
             var consoleCalled = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var subscriberFailure = new TaskCompletionSource<V8InspectorSubscriberExceptionEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var connectionClosed = new TaskCompletionSource<V8InspectorConnectionClosedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
+            inspector.EventReceived += (_, _) => throw new InvalidOperationException("Subscriber isolation probe");
+            inspector.EventSubscriberFailed += (_, e) => subscriberFailure.TrySetResult(e);
+            inspector.ConnectionClosed += (_, e) => connectionClosed.TrySetResult(e);
             inspector.EventReceived += (_, e) =>
             {
                 if (e.Method == "Debugger.paused")
@@ -58,6 +63,13 @@ public sealed class V8InspectorClientIntegrationTests
 
             await inspector.SendCommandAsync("Runtime.enable");
             await inspector.SendCommandAsync("Debugger.enable");
+            await inspector.SendCommandAsync("Debugger.setAsyncCallStackDepth", new JsonObject { ["maxDepth"] = 32 });
+            await inspector.SendCommandAsync("Debugger.setBreakpointsActive", new JsonObject { ["active"] = true });
+            await inspector.SendCommandAsync("Debugger.setBlackboxPatterns", new JsonObject
+            {
+                ["patterns"] = new JsonArray { "node:internal" },
+                ["skipAnonymous"] = false
+            });
             await inspector.SendCommandAsync("Profiler.enable");
             await inspector.SendCommandAsync("HeapProfiler.enable");
 
@@ -65,7 +77,8 @@ public sealed class V8InspectorClientIntegrationTests
             {
                 ["urlRegex"] = "v8-debug-target\\.js$",
                 ["lineNumber"] = 4,
-                ["columnNumber"] = 0
+                ["columnNumber"] = 0,
+                ["condition"] = "a === 2 && b === 3"
             });
             Assert.False(string.IsNullOrWhiteSpace(breakpoint["breakpointId"]?.GetValue<string>()));
 
@@ -82,12 +95,21 @@ public sealed class V8InspectorClientIntegrationTests
 
             var callFrame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(pauseEvent["callFrames"])[0]);
             Assert.Equal("compute", callFrame["functionName"]?.GetValue<string>());
+            Assert.NotNull(pauseEvent["asyncStackTrace"]);
             var location = Assert.IsType<JsonObject>(callFrame["location"]);
             var source = await inspector.SendCommandAsync("Debugger.getScriptSource", new JsonObject
             {
                 ["scriptId"] = location["scriptId"]!.GetValue<string>()
             });
             Assert.Contains("function compute", source["scriptSource"]?.GetValue<string>());
+            var search = await inspector.SendCommandAsync("Debugger.searchInContent", new JsonObject
+            {
+                ["scriptId"] = location["scriptId"]!.GetValue<string>(),
+                ["query"] = "asyncCompute",
+                ["caseSensitive"] = true,
+                ["isRegex"] = false
+            });
+            Assert.NotEmpty(Assert.IsType<JsonArray>(search["result"]));
             var evaluation = await inspector.SendCommandAsync("Debugger.evaluateOnCallFrame", new JsonObject
             {
                 ["callFrameId"] = callFrame["callFrameId"]!.GetValue<string>(),
@@ -106,6 +128,31 @@ public sealed class V8InspectorClientIntegrationTests
             Assert.Contains(Assert.IsType<JsonArray>(properties["result"]).OfType<JsonObject>(),
                 property => property["name"]?.GetValue<string>() == "sum");
 
+            var editedSource = source["scriptSource"]!.GetValue<string>().Replace("return sum * 2;", "return sum * 3;", StringComparison.Ordinal);
+            var liveEdit = await inspector.SendCommandAsync("Debugger.setScriptSource", new JsonObject
+            {
+                ["scriptId"] = location["scriptId"]!.GetValue<string>(),
+                ["scriptSource"] = editedSource,
+                ["allowTopFrameEditing"] = true
+            });
+            Assert.Equal("Ok", liveEdit["status"]?.GetValue<string>());
+
+            await inspector.SendCommandAsync("Debugger.setVariableValue", new JsonObject
+            {
+                ["scopeNumber"] = 0,
+                ["variableName"] = "sum",
+                ["newValue"] = new JsonObject { ["value"] = 7 },
+                ["callFrameId"] = callFrame["callFrameId"]!.GetValue<string>()
+            });
+            var changedEvaluation = await inspector.SendCommandAsync("Debugger.evaluateOnCallFrame", new JsonObject
+            {
+                ["callFrameId"] = callFrame["callFrameId"]!.GetValue<string>(),
+                ["expression"] = "sum",
+                ["returnByValue"] = true,
+                ["throwOnSideEffect"] = true
+            });
+            Assert.Equal(7, changedEvaluation["result"]?["value"]?.GetValue<int>());
+
             await inspector.SendCommandAsync("Debugger.resume");
             var consoleEvent = await consoleCalled.Task.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Equal("log", consoleEvent["type"]?.GetValue<string>());
@@ -118,14 +165,28 @@ public sealed class V8InspectorClientIntegrationTests
                     ["expression"] = "globalThis.inspectorResult",
                     ["returnByValue"] = true
                 });
-                if (runtimeEvaluation["result"]?["value"]?.GetValue<int>() == 10) break;
+                if (runtimeEvaluation["result"]?["value"]?.GetValue<int>() == 15) break;
                 await Task.Delay(25);
             }
-            Assert.Equal(10, runtimeEvaluation["result"]?["value"]?.GetValue<int>());
+            // Live-editing the active top frame restarts that activation. The explicit
+            // setVariableValue assertion above proves the local edit while paused; the
+            // resumed frame then runs the edited source with its original arguments.
+            Assert.Equal(15, runtimeEvaluation["result"]?["value"]?.GetValue<int>());
+
+            var isolatedFailure = await subscriberFailure.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(string.IsNullOrWhiteSpace(isolatedFailure.Method));
+            Assert.IsType<InvalidOperationException>(isolatedFailure.Exception);
+            Assert.True(inspector.IsConnected);
 
             var profile = await inspector.SendCommandAsync("Profiler.stop");
             Assert.NotEmpty(Assert.IsType<JsonArray>(profile["profile"]?["nodes"]));
             await inspector.SendCommandAsync("HeapProfiler.collectGarbage");
+
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync();
+            var closed = await connectionClosed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(closed.WasRequested);
+            Assert.False(inspector.IsConnected);
         }
         finally
         {
