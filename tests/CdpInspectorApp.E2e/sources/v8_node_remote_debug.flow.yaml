@@ -17,17 +17,17 @@ tags:
     sources.BlackboxPatterns.Clear();
 - evalScript: |
     var sources = __raw_window.DataContext.Sources;
-    sources.DebuggerEvaluationExpression = "typeof require";
+    sources.DebuggerEvaluationExpression = "sum";
     sources.EvaluateOnCallFrameCommand.Execute(null);
 - delay: "1500"
-- assertTrue: "__raw_window.DataContext.Sources.DebuggerEvaluationResult == \"function\""
+- assertTrue: "__raw_window.DataContext.Sources.DebuggerEvaluationResult == \"5\""
 - evalScript: |
     var sources = __raw_window.DataContext.Sources;
-    sources.NewWatchExpression = "typeof require";
+    sources.NewWatchExpression = "sum";
     sources.AddWatchExpressionCommand.Execute(null);
 - delay: "1500"
 - assertTrue: "__raw_window.DataContext.Sources.WatchExpressions.Count == 1"
-- assertTrue: "__raw_window.DataContext.Sources.WatchExpressions[0].Value == \"function\""
+- assertTrue: "__raw_window.DataContext.Sources.WatchExpressions[0].Value == \"5\""
 - evalScript: |
     var sources = __raw_window.DataContext.Sources;
     sources.NewBlackboxPattern = "node:internal";
@@ -37,13 +37,25 @@ tags:
 - assertTrue: "__raw_window.DataContext.Sources.BlackboxStatusText.indexOf(\"Ignoring\") >= 0"
 - assertVisible: "#btnDebuggerResume"
 - assertVisible: "#lstDebuggerCallFrames"
-- assertVisible: "#dgDebuggerScopes"
+- assertVisible: "#treeDebuggerScopes"
 - assertVisible: "#txtNewWatchExpression"
 - assertVisible: "#btnDebuggerRestartFrame"
 - assertTrue: "document.querySelector('#chkBreakpointsActive') != null"
 - assertTrue: "document.querySelector('#cmbBreakpointKind') != null"
 - assertTrue: "document.querySelector('#txtNewVariableValue') != null"
 - assertTrue: "document.querySelector('#btnSetVariableValue') != null"
+- evalScript: |
+    var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;
+    var box = vm.FindBoxNodeByViewName(vm.Sources.DebuggerLayoutRoot, "DebuggerIgnoreList");
+    if (box != null) {
+        for (var i = 0; i < box.Tabs.Count; i++) {
+            if (box.Tabs[i].SelectedViewName == "DebuggerIgnoreList") {
+                box.ActiveTab = box.Tabs[i];
+                break;
+            }
+        }
+    }
+- delay: "200"
 - assertTrue: "document.querySelector('#lstBlackboxPatterns') != null"
 - assertTrue: "document.querySelector('#txtNewBlackboxPattern') != null"
 - assertTrue: "document.querySelector('#btnAddBlackboxPattern') != null"

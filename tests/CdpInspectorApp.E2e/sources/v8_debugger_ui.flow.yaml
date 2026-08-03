@@ -30,7 +30,7 @@ tags:
 - assertVisible: "#lstDebuggerWatches"
 - assertTrue: "document.querySelector('#txtLiveEditStatus') != null"
 - assertVisible: "#lstDebuggerCallFrames"
-- assertVisible: "#dgDebuggerScopes"
+- assertVisible: "#treeDebuggerScopes"
 - assertVisible: "#lstV8Breakpoints"
 - assertTrue: "document.querySelector('#chkBreakpointsActive') != null"
 - assertTrue: "document.querySelector('#cmbBreakpointKind') != null"
@@ -40,6 +40,18 @@ tags:
 - assertTrue: "document.querySelector('#btnRemoveBreakpoint') != null"
 - assertTrue: "document.querySelector('#txtNewVariableValue') != null"
 - assertTrue: "document.querySelector('#btnSetVariableValue') != null"
+- evalScript: |
+    var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;
+    var box = vm.FindBoxNodeByViewName(vm.Sources.DebuggerLayoutRoot, "DebuggerIgnoreList");
+    if (box != null) {
+        for (var i = 0; i < box.Tabs.Count; i++) {
+            if (box.Tabs[i].SelectedViewName == "DebuggerIgnoreList") {
+                box.ActiveTab = box.Tabs[i];
+                break;
+            }
+        }
+    }
+- delay: "200"
 - assertTrue: "document.querySelector('#lstBlackboxPatterns') != null"
 - assertTrue: "document.querySelector('#txtNewBlackboxPattern') != null"
 - assertTrue: "document.querySelector('#btnAddBlackboxPattern') != null"
