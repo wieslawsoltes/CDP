@@ -289,10 +289,32 @@
 
             <Border Name="pnlDebuggerVariables" Classes="sources-section" Padding="4">
                 <Grid RowDefinitions="*,Auto">
-                    <DataGrid Name="dgDebuggerScopes" ItemsSource="{Binding Sources.ScopeVariables}" SelectedItem="{Binding Sources.SelectedScopeVariable, Mode=TwoWay}" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="None" HeadersVisibility="Column" Background="Transparent" BorderBrush="{DynamicResource Brush.Sources.Border}" BorderThickness="1" FontSize="11" Margin="0,0,0,4">
+                    <DataGrid Name="dgDebuggerScopes"
+                              HierarchicalModel="{Binding Sources.HierarchicalScopeVariables}"
+                              SelectedItem="{Binding Sources.SelectedScopeVariableNode, Mode=TwoWay}"
+                              HierarchicalRowsEnabled="True"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              GridLinesVisibility="None" HeadersVisibility="None"
+                              Background="Transparent" BorderBrush="{DynamicResource Brush.Sources.Border}"
+                              BorderThickness="1" FontSize="11" Margin="0,0,0,4">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="120" Foreground="#8ab4f8"/>
-                            <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#e8eaed"/>
+                            <DataGridHierarchicalColumn Width="*">
+                                <DataGridHierarchicalColumn.CellTemplate>
+                                    <DataTemplate x:DataType="tree:HierarchicalNode">
+                                        <Grid ColumnDefinitions="2*,3*,Auto" ColumnSpacing="5" Margin="2,0">
+                                            <TextBlock Text="{Binding ((models:V8ScopeVariableModel)Item).DisplayName}"
+                                                       Foreground="{DynamicResource Brush.Sources.Accent}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ((models:V8ScopeVariableModel)Item).Value}"
+                                                       Foreground="{DynamicResource Brush.Sources.Text}"
+                                                       FontFamily="Consolas,Monaco,Courier New,monospace"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding ((models:V8ScopeVariableModel)Item).TypeDisplay}"
+                                                       Classes="sources-meta" FontSize="9"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridHierarchicalColumn.CellTemplate>
+                            </DataGridHierarchicalColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                     <Grid Grid.Row="1" ColumnDefinitions="*,Auto">

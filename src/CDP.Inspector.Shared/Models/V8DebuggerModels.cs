@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Threading;
 using CdpInspectorApp.ViewModels;
 using Chrome.DevTools.Protocol.Inspector;
 
@@ -77,19 +78,86 @@ public sealed class V8ScopeModel
 public sealed class V8ScopeVariableModel : ViewModelBase
 {
     private string _value = "undefined";
+    private Func<V8ScopeVariableModel, Task<IReadOnlyList<V8ScopeVariableModel>>>? _childrenLoader;
+    private Task<IReadOnlyList<V8ScopeVariableModel>>? _childrenLoadTask;
 
     public string ScopeType { get; init; } = "";
     public int ScopeNumber { get; init; }
     public string Name { get; init; } = "";
     public string Type { get; init; } = "";
+    public string Subtype { get; init; } = "";
     public string ObjectId { get; init; } = "";
     public bool Writable { get; init; }
-    public string DisplayName => $"[{ScopeType}] {Name}";
+    public bool IsScopeGroup { get; init; }
+    public bool IsNested { get; init; }
+    public bool IsAccessor { get; init; }
+    public bool IsCircular { get; init; }
+    public bool IsPrivate { get; init; }
+    public bool IsInternal { get; init; }
+    public bool IsPlaceholder { get; init; }
+    public bool IsDepthLimited { get; init; }
+    public int Depth { get; init; }
+    public int PauseGeneration { get; init; }
+    public IReadOnlySet<string> AncestorObjectIds { get; init; } = new HashSet<string>();
+    public ObservableCollection<V8ScopeVariableModel> Children { get; } = new();
+    public bool IsExpandable => !IsPlaceholder && !IsAccessor && !IsCircular && !IsDepthLimited &&
+        !string.IsNullOrWhiteSpace(ObjectId) && _childrenLoader is not null;
+    public string DisplayName => IsScopeGroup ? Name : IsNested ? Name : $"[{ScopeType}] {Name}";
+    public string TypeDisplay => IsAccessor
+        ? "accessor"
+        : string.IsNullOrWhiteSpace(Subtype) ? Type : Subtype;
 
     public string Value
     {
         get => _value;
         set => RaiseAndSetIfChanged(ref _value, value);
+    }
+
+    public void ConfigureChildrenLoader(Func<V8ScopeVariableModel, Task<IReadOnlyList<V8ScopeVariableModel>>> loader) =>
+        _childrenLoader = loader;
+
+    public IEnumerable<V8ScopeVariableModel> GetChildren()
+        => Children;
+
+    public Task EnsureChildrenLoadedAsync()
+        => LoadChildrenForHierarchyAsync(CancellationToken.None);
+
+    public Task<IReadOnlyList<V8ScopeVariableModel>> LoadChildrenForHierarchyAsync(CancellationToken cancellationToken)
+    {
+        if (!IsExpandable) return Task.FromResult<IReadOnlyList<V8ScopeVariableModel>>(Array.Empty<V8ScopeVariableModel>());
+        return _childrenLoadTask ??= LoadChildrenAsync();
+    }
+
+    private async Task<IReadOnlyList<V8ScopeVariableModel>> LoadChildrenAsync()
+    {
+        try
+        {
+            var children = _childrenLoader is null
+                ? Array.Empty<V8ScopeVariableModel>()
+                : await _childrenLoader(this);
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                Children.Clear();
+                foreach (var child in children) Children.Add(child);
+            });
+            return children;
+        }
+        catch (Exception ex)
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                Children.Clear();
+                Children.Add(new V8ScopeVariableModel
+                {
+                    Name = "Unable to load properties",
+                    Value = ex.Message,
+                    IsNested = true,
+                    IsPlaceholder = true,
+                    PauseGeneration = PauseGeneration
+                });
+            });
+            return Children;
+        }
     }
 }
 

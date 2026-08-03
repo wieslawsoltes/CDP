@@ -74,11 +74,19 @@ public sealed class SourcesV8DebuggerTests
         });
 
         await WaitUntilAsync(() => viewModel.ScopeVariables.Count == 1);
+        var localScope = Assert.Single(viewModel.ScopeVariables);
+        Assert.True(localScope.IsScopeGroup);
+        Assert.Equal("Local", localScope.DisplayName);
+        Assert.DoesNotContain(service.Commands, command => command.Method == "Runtime.getProperties");
+        await localScope.EnsureChildrenLoadedAsync();
+        Assert.Contains(service.Commands, command => command.Method == "Runtime.getProperties" &&
+            command.Parameters?["objectId"]?.GetValue<string>() == "scope-1");
+        var sumVariable = Assert.Single(localScope.Children);
         Assert.True(viewModel.IsDebuggerPaused);
         Assert.Equal("breakpoint", viewModel.PauseReason);
         Assert.Equal(5, viewModel.ActiveDebugLine);
-        Assert.Equal("[local] sum", viewModel.ScopeVariables[0].DisplayName);
-        Assert.Equal("5", viewModel.ScopeVariables[0].Value);
+        Assert.Equal("sum", sumVariable.DisplayName);
+        Assert.Equal("5", sumVariable.Value);
         Assert.Equal(3, viewModel.CallFrames.Count);
         Assert.True(viewModel.CallFrames[1].IsAsyncBoundary);
         Assert.Equal("scheduleCompute", viewModel.CallFrames[2].FunctionName);
@@ -94,8 +102,10 @@ public sealed class SourcesV8DebuggerTests
         Assert.Equal("10", hoverValue);
         var hover = service.Commands.Last(command => command.Method == "Debugger.evaluateOnCallFrame");
         Assert.True(hover.Parameters?["throwOnSideEffect"]?.GetValue<bool>());
+        Assert.Contains(service.Commands, command => command.Method == "Runtime.releaseObjectGroup" &&
+            command.Parameters?["objectGroup"]?.GetValue<string>() == "cdp-inspector-hover");
 
-        viewModel.SelectedScopeVariable = viewModel.ScopeVariables[0];
+        viewModel.SelectedScopeVariable = sumVariable;
         viewModel.NewVariableValueExpression = "42";
         viewModel.SetVariableValueCommand.Execute(null);
         await WaitUntilAsync(() => service.Commands.Any(command => command.Method == "Debugger.setVariableValue"));
@@ -111,6 +121,68 @@ public sealed class SourcesV8DebuggerTests
 
         viewModel.RestartFrameCommand.Execute(null);
         await WaitUntilAsync(() => service.Commands.Any(command => command.Method == "Debugger.restartFrame"));
+    }
+
+    [AvaloniaFact]
+    public async Task ScopeVariablesExpandNestedCircularAccessorPrivateAndInternalProperties()
+    {
+        var service = new V8FakeCdpService { ProvideNestedScopeValues = true };
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        service.Raise("Debugger.paused", new JsonObject
+        {
+            ["reason"] = "breakpoint",
+            ["callFrames"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["callFrameId"] = "frame-nested",
+                    ["functionName"] = "inspectState",
+                    ["url"] = "file:///app/example.js",
+                    ["location"] = new JsonObject { ["scriptId"] = "42", ["lineNumber"] = 4, ["columnNumber"] = 0 },
+                    ["scopeChain"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["type"] = "local",
+                            ["object"] = new JsonObject { ["objectId"] = "scope-nested", ["type"] = "object" }
+                        }
+                    }
+                }
+            }
+        });
+
+        await WaitUntilAsync(() => viewModel.ScopeVariables.Count == 1);
+        var localScope = Assert.Single(viewModel.ScopeVariables);
+        await localScope.EnsureChildrenLoadedAsync();
+        Assert.Equal(2, localScope.Children.Count);
+        var state = localScope.Children.Single(variable => variable.Name == "state");
+        Assert.True(state.IsExpandable);
+        await state.EnsureChildrenLoadedAsync();
+
+        Assert.Equal(5, state.Children.Count);
+        var nested = state.Children.Single(variable => variable.Name == "nested");
+        Assert.True(nested.IsExpandable);
+        await nested.EnsureChildrenLoadedAsync();
+        Assert.Equal("5", Assert.Single(nested.Children).Value);
+
+        var self = state.Children.Single(variable => variable.Name == "self");
+        Assert.True(self.IsCircular);
+        Assert.False(self.IsExpandable);
+        Assert.Equal("[Circular]", self.Value);
+
+        var risky = state.Children.Single(variable => variable.Name == "risky");
+        Assert.True(risky.IsAccessor);
+        Assert.False(risky.IsExpandable);
+        Assert.Equal("(…)", risky.Value);
+        Assert.True(state.Children.Single(variable => variable.Name == "#secret").IsPrivate);
+        Assert.True(state.Children.Single(variable => variable.Name == "[[Prototype]]").IsInternal);
+
+        service.Raise("Debugger.resumed", new JsonObject());
+        await WaitUntilAsync(() => viewModel.ScopeVariables.Count == 0);
+        Assert.Contains(service.Commands, command => command.Method == "Runtime.releaseObjectGroup");
     }
 
     [AvaloniaFact]
@@ -406,6 +478,7 @@ public sealed class SourcesV8DebuggerTests
         public event EventHandler<CdpEventEventArgs>? EventReceived;
         public List<(string Method, JsonObject? Parameters)> Commands { get; } = new();
         public bool RejectOptionalDebuggerCommands { get; init; }
+        public bool ProvideNestedScopeValues { get; init; }
         private int _nextBreakpointId;
 
         public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>());
@@ -435,18 +508,7 @@ public sealed class SourcesV8DebuggerTests
             return Task.FromResult(method switch
             {
                 "Debugger.getScriptSource" => new JsonObject { ["scriptSource"] = "function compute() {}" },
-                "Runtime.getProperties" => new JsonObject
-                {
-                    ["result"] = new JsonArray
-                    {
-                        new JsonObject
-                        {
-                            ["name"] = "sum",
-                            ["writable"] = true,
-                            ["value"] = new JsonObject { ["type"] = "number", ["value"] = 5 }
-                        }
-                    }
-                },
+                "Runtime.getProperties" => GetProperties(parameters),
                 "Debugger.evaluateOnCallFrame" => new JsonObject
                 {
                     ["result"] = new JsonObject { ["type"] = "number", ["value"] = 10 }
@@ -480,6 +542,84 @@ public sealed class SourcesV8DebuggerTests
                 },
                 _ => new JsonObject()
             });
+        }
+
+        private JsonObject GetProperties(JsonObject? parameters)
+        {
+            if (!ProvideNestedScopeValues)
+            {
+                return new JsonObject
+                {
+                    ["result"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["name"] = "sum",
+                            ["writable"] = true,
+                            ["value"] = new JsonObject { ["type"] = "number", ["value"] = 5 }
+                        }
+                    }
+                };
+            }
+
+            return parameters?["objectId"]?.GetValue<string>() switch
+            {
+                "scope-nested" => new JsonObject
+                {
+                    ["result"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["name"] = "sum",
+                            ["writable"] = true,
+                            ["value"] = new JsonObject { ["type"] = "number", ["value"] = 5 }
+                        },
+                        new JsonObject
+                        {
+                            ["name"] = "state",
+                            ["writable"] = true,
+                            ["value"] = new JsonObject { ["type"] = "object", ["description"] = "Object", ["objectId"] = "object-state" }
+                        }
+                    }
+                },
+                "object-state" => new JsonObject
+                {
+                    ["result"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["name"] = "nested",
+                            ["value"] = new JsonObject { ["type"] = "object", ["description"] = "Object", ["objectId"] = "object-nested" }
+                        },
+                        new JsonObject
+                        {
+                            ["name"] = "self",
+                            ["value"] = new JsonObject { ["type"] = "object", ["description"] = "Object", ["objectId"] = "object-state" }
+                        },
+                        new JsonObject
+                        {
+                            ["name"] = "risky",
+                            ["get"] = new JsonObject { ["type"] = "function", ["description"] = "get risky()", ["objectId"] = "getter-risky" }
+                        }
+                    },
+                    ["privateProperties"] = new JsonArray
+                    {
+                        new JsonObject { ["name"] = "#secret", ["value"] = new JsonObject { ["type"] = "number", ["value"] = 9 } }
+                    },
+                    ["internalProperties"] = new JsonArray
+                    {
+                        new JsonObject { ["name"] = "[[Prototype]]", ["value"] = new JsonObject { ["type"] = "object", ["description"] = "Object", ["objectId"] = "object-prototype" } }
+                    }
+                },
+                "object-nested" => new JsonObject
+                {
+                    ["result"] = new JsonArray
+                    {
+                        new JsonObject { ["name"] = "value", ["value"] = new JsonObject { ["type"] = "number", ["value"] = 5 } }
+                    }
+                },
+                _ => new JsonObject { ["result"] = new JsonArray() }
+            };
         }
 
         public void Raise(string method, JsonObject parameters) =>

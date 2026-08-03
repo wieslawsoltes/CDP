@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CdpInspectorApp.Models;
@@ -20,6 +21,11 @@ namespace CdpInspectorApp.ViewModels;
 public class SourcesViewModel : ViewModelBase, IStateProvider
 {
     private static readonly ILogger Logger = CdpLogging.CreateLogger<SourcesViewModel>();
+    private const string DebugConsoleObjectGroup = "cdp-inspector-debug-console";
+    private const string HoverObjectGroup = "cdp-inspector-hover";
+    private const string VariableEditObjectGroup = "cdp-inspector-variable-edit";
+    private const string WatchObjectGroup = "cdp-inspector-watch";
+    private const int MaximumVariableDepth = 32;
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
     private SplitNode? _debuggerLayoutRoot;
@@ -92,7 +98,9 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private V8ScriptModel? _selectedRuntimeScript;
     private V8CallFrameModel? _selectedCallFrame;
     private V8ScopeVariableModel? _selectedScopeVariable;
+    private object? _selectedScopeVariableNode;
     private string _newVariableValueExpression = "";
+    private int _pauseGeneration;
 
     public int? PendingScrollLine
     {
@@ -182,6 +190,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     public ObservableCollection<string> CallStack { get; } = new();
     public ObservableCollection<V8ScopeVariableModel> ScopeVariables { get; } = new();
+    public HierarchicalModel<V8ScopeVariableModel> HierarchicalScopeVariables { get; }
     public ObservableCollection<string> Breakpoints { get; } = new();
     public ObservableCollection<V8ScriptModel> RuntimeScripts { get; } = new();
     public ObservableCollection<V8CallFrameModel> CallFrames { get; } = new();
@@ -291,8 +300,30 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             if (RaiseAndSetIfChanged(ref _selectedScopeVariable, value))
             {
+                if (value is null)
+                {
+                    if (SelectedScopeVariableNode is not null) SelectedScopeVariableNode = null;
+                }
+                else
+                {
+                    var node = HierarchicalScopeVariables.FindNode(value);
+                    if (!Equals(SelectedScopeVariableNode, node)) SelectedScopeVariableNode = node;
+                }
                 ((RelayCommand)SetVariableValueCommand).RaiseCanExecuteChanged();
             }
+        }
+    }
+
+    public object? SelectedScopeVariableNode
+    {
+        get => _selectedScopeVariableNode;
+        set
+        {
+            if (!RaiseAndSetIfChanged(ref _selectedScopeVariableNode, value)) return;
+            var target = value is HierarchicalNode<V8ScopeVariableModel> node
+                ? node.Item
+                : value as V8ScopeVariableModel;
+            if (!ReferenceEquals(SelectedScopeVariable, target)) SelectedScopeVariable = target;
         }
     }
 
@@ -730,6 +761,16 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             () => _cdpService.IsConnected && IsDebuggerEnabled
         );
 
+        var scopeOptions = new HierarchicalOptions<V8ScopeVariableModel>
+        {
+            ChildrenSelectorAsync = async (node, cancellationToken) =>
+                await node.LoadChildrenForHierarchyAsync(cancellationToken),
+            IsLeafSelector = node => !node.IsExpandable,
+            AutoExpandRoot = false
+        };
+        HierarchicalScopeVariables = new HierarchicalModel<V8ScopeVariableModel>(scopeOptions);
+        HierarchicalScopeVariables.SetRoots(ScopeVariables);
+
         var options = new HierarchicalOptions<WorkspaceFileNode>
         {
             ChildrenSelector = node => node.Children,
@@ -884,6 +925,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     private void ClearData()
     {
+        Interlocked.Increment(ref _pauseGeneration);
         Dispatcher.UIThread.Post(() =>
         {
             WorkspaceFiles.Clear();
@@ -931,6 +973,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 HandleDebuggerPaused(e.Params);
                 break;
             case "Debugger.resumed":
+                Interlocked.Increment(ref _pauseGeneration);
+                _ = ReleaseDebuggerObjectGroupsAsync();
                 Dispatcher.UIThread.Post(() =>
                 {
                     ActiveDebugLine = null;
@@ -1099,6 +1143,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     private void HandleDebuggerPaused(JsonObject parameters)
     {
+        Interlocked.Increment(ref _pauseGeneration);
+        _ = ReleaseDebuggerObjectGroupsAsync();
         var frames = new System.Collections.Generic.List<V8CallFrameModel>();
         if (parameters["callFrames"] is JsonArray callFrames)
         {
@@ -1340,66 +1386,177 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             return;
         }
 
+        var generation = Volatile.Read(ref _pauseGeneration);
+        var variables = new System.Collections.Generic.List<V8ScopeVariableModel>();
         foreach (var scope in frame.ScopeChain)
         {
             if (string.IsNullOrWhiteSpace(scope.ObjectId)) continue;
-            scope.Properties.Clear();
-            try
+            var group = new V8ScopeVariableModel
             {
-                var response = await _cdpService.SendCommandAsync("Runtime.getProperties", new JsonObject
-                {
-                    ["objectId"] = scope.ObjectId,
-                    ["ownProperties"] = false,
-                    ["accessorPropertiesOnly"] = false,
-                    ["generatePreview"] = true
-                });
-                if (response["result"] is not JsonArray properties) continue;
-                foreach (var property in properties.OfType<JsonObject>())
-                {
-                    var value = property["value"] as JsonObject;
-                    scope.Properties.Add(new V8PropertyModel
-                    {
-                        Name = property["name"]?.GetValue<string>() ?? "",
-                        Type = value?["type"]?.GetValue<string>() ?? "",
-                        Subtype = value?["subtype"]?.GetValue<string>() ?? "",
-                        Value = FormatRemoteObject(value),
-                        ObjectId = value?["objectId"]?.GetValue<string>() ?? "",
-                        Writable = property["writable"]?.GetValue<bool>() ?? false,
-                        Enumerable = property["enumerable"]?.GetValue<bool>() ?? false,
-                        Configurable = property["configurable"]?.GetValue<bool>() ?? false
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogErrorMessage("SourcesVM", $"Failed to load {scope.Type} scope", ex);
-            }
+                ScopeType = scope.Type,
+                ScopeNumber = scope.Index,
+                Name = GetScopeGroupName(scope),
+                ObjectId = scope.ObjectId,
+                IsScopeGroup = true,
+                Depth = -1,
+                PauseGeneration = generation,
+                AncestorObjectIds = new HashSet<string>(StringComparer.Ordinal),
+                Value = ""
+            };
+            group.ConfigureChildrenLoader(LoadVariableChildrenAsync);
+            variables.Add(group);
         }
 
         Dispatcher.UIThread.Post(() =>
         {
-            if (SelectedCallFrame?.CallFrameId != frame.CallFrameId) return;
+            if (generation != Volatile.Read(ref _pauseGeneration) || SelectedCallFrame?.CallFrameId != frame.CallFrameId) return;
             Scopes.Clear();
             ScopeVariables.Clear();
             SelectedScopeVariable = null;
             foreach (var scope in frame.ScopeChain)
             {
                 Scopes.Add(scope);
-                foreach (var property in scope.Properties)
-                {
-                    ScopeVariables.Add(new V8ScopeVariableModel
-                    {
-                        ScopeType = scope.Type,
-                        ScopeNumber = scope.Index,
-                        Name = property.Name,
-                        Type = property.Type,
-                        ObjectId = property.ObjectId,
-                        Writable = property.Writable,
-                        Value = property.Value
-                    });
-                }
+                scope.Properties.Clear();
             }
+            foreach (var variable in variables) ScopeVariables.Add(variable);
         });
+    }
+
+    private async Task<IReadOnlyList<V8ScopeVariableModel>> LoadVariableChildrenAsync(V8ScopeVariableModel parent)
+    {
+        if (!_cdpService.IsConnected || !IsDebuggerPaused || string.IsNullOrWhiteSpace(parent.ObjectId) ||
+            parent.PauseGeneration != Volatile.Read(ref _pauseGeneration))
+        {
+            return Array.Empty<V8ScopeVariableModel>();
+        }
+
+        var response = await _cdpService.SendCommandAsync("Runtime.getProperties", new JsonObject
+        {
+            ["objectId"] = parent.ObjectId,
+            ["ownProperties"] = true,
+            ["accessorPropertiesOnly"] = false,
+            ["generatePreview"] = true,
+            ["nonIndexedPropertiesOnly"] = false
+        });
+        if (parent.PauseGeneration != Volatile.Read(ref _pauseGeneration)) return Array.Empty<V8ScopeVariableModel>();
+        return await CreateVariableNodesAsync(
+            response,
+            parent.ScopeType,
+            parent.ScopeNumber,
+            isNested: true,
+            parent.Depth + 1,
+            canSetVariables: parent.IsScopeGroup,
+            parent.PauseGeneration,
+            parent.AncestorObjectIds);
+    }
+
+    private Task<IReadOnlyList<V8ScopeVariableModel>> CreateVariableNodesAsync(
+        JsonObject response,
+        string scopeType,
+        int scopeNumber,
+        bool isNested,
+        int depth,
+        bool canSetVariables,
+        int generation,
+        IReadOnlySet<string> ancestors)
+    {
+        if (response["exceptionDetails"] is JsonObject exception)
+        {
+            throw new InvalidOperationException(exception["text"]?.GetValue<string>() ?? "Property inspection failed.");
+        }
+
+        var nodes = new System.Collections.Generic.List<V8ScopeVariableModel>();
+        AddVariableDescriptors(response["result"] as JsonArray, isPrivate: false, isInternal: false);
+        AddVariableDescriptors(response["privateProperties"] as JsonArray, isPrivate: true, isInternal: false);
+        AddVariableDescriptors(response["internalProperties"] as JsonArray, isPrivate: false, isInternal: true);
+        return Task.FromResult<IReadOnlyList<V8ScopeVariableModel>>(nodes);
+
+        void AddVariableDescriptors(JsonArray? descriptors, bool isPrivate, bool isInternal)
+        {
+            if (descriptors is null) return;
+            foreach (var descriptor in descriptors.OfType<JsonObject>())
+            {
+                nodes.Add(CreateVariableNode(
+                    descriptor,
+                    scopeType,
+                    scopeNumber,
+                    isNested,
+                    depth,
+                    canSetVariables,
+                    isPrivate,
+                    isInternal,
+                    generation,
+                    ancestors));
+            }
+        }
+    }
+
+    private V8ScopeVariableModel CreateVariableNode(
+        JsonObject descriptor,
+        string scopeType,
+        int scopeNumber,
+        bool isNested,
+        int depth,
+        bool canSetVariables,
+        bool isPrivate,
+        bool isInternal,
+        int generation,
+        IReadOnlySet<string> ancestors)
+    {
+        var value = descriptor["value"] as JsonObject;
+        var getter = descriptor["get"] as JsonObject;
+        var isAccessor = value is null && getter is not null;
+        var objectId = value?["objectId"]?.GetValue<string>() ?? "";
+        // RemoteObjectId values are opaque and some V8 targets issue a new handle
+        // for the same object. Use handle equality when available; the depth cap
+        // below keeps differently handled cycles finite without injecting identity
+        // functions into a live paused target.
+        var isCircular = isNested && objectId.Length > 0 && ancestors.Contains(objectId);
+        var isDepthLimited = objectId.Length > 0 && depth >= MaximumVariableDepth;
+        var childAncestors = new HashSet<string>(ancestors, StringComparer.Ordinal);
+        if (objectId.Length > 0) childAncestors.Add(objectId);
+
+        var node = new V8ScopeVariableModel
+        {
+            ScopeType = scopeType,
+            ScopeNumber = scopeNumber,
+            Name = descriptor["name"]?.GetValue<string>() ?? "",
+            Type = isAccessor ? "accessor" : value?["type"]?.GetValue<string>() ?? "undefined",
+            Subtype = value?["subtype"]?.GetValue<string>() ?? "",
+            ObjectId = objectId,
+            Writable = canSetVariables && !isAccessor && (descriptor["writable"]?.GetValue<bool>() ?? false),
+            IsNested = isNested,
+            IsAccessor = isAccessor,
+            IsCircular = isCircular,
+            IsDepthLimited = isDepthLimited,
+            Depth = depth,
+            IsPrivate = isPrivate,
+            IsInternal = isInternal,
+            PauseGeneration = generation,
+            AncestorObjectIds = childAncestors,
+            Value = isCircular ? "[Circular]" : isDepthLimited ? "[Maximum depth]" : isAccessor ? "(…)" : FormatRemoteObject(value)
+        };
+        if (objectId.Length > 0 && !isCircular && !isDepthLimited) node.ConfigureChildrenLoader(LoadVariableChildrenAsync);
+        return node;
+    }
+
+    private static string GetScopeGroupName(V8ScopeModel scope)
+    {
+        var label = scope.Type switch
+        {
+            "local" => "Local",
+            "closure" => "Closure",
+            "catch" => "Catch",
+            "block" => "Block",
+            "script" => "Script",
+            "with" => "With",
+            "module" => "Module",
+            "wasm-expression-stack" => "Wasm Expression Stack",
+            "global" => "Global",
+            _ when scope.Type.Length > 0 => char.ToUpperInvariant(scope.Type[0]) + scope.Type[1..],
+            _ => "Scope"
+        };
+        return string.IsNullOrWhiteSpace(scope.Name) ? label : $"{label}: {scope.Name}";
     }
 
     private static string FormatRemoteObject(JsonObject? value)
@@ -1420,7 +1577,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             {
                 ["callFrameId"] = frame.CallFrameId,
                 ["expression"] = DebuggerEvaluationExpression,
-                ["objectGroup"] = "cdp-inspector-watch",
+                ["objectGroup"] = DebugConsoleObjectGroup,
                 ["includeCommandLineAPI"] = true,
                 ["silent"] = false,
                 ["returnByValue"] = false,
@@ -1435,6 +1592,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             DebuggerEvaluationResult = ex.Message;
             Logger.LogErrorMessage("SourcesVM", "Call-frame evaluation failed", ex);
+        }
+        finally
+        {
+            await TryReleaseObjectGroupAsync(DebugConsoleObjectGroup);
         }
     }
 
@@ -1452,7 +1613,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             {
                 ["callFrameId"] = frame.CallFrameId,
                 ["expression"] = expression,
-                ["objectGroup"] = "cdp-inspector-hover",
+                ["objectGroup"] = HoverObjectGroup,
                 ["includeCommandLineAPI"] = false,
                 ["silent"] = true,
                 ["returnByValue"] = false,
@@ -1466,6 +1627,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             Logger.LogDebug(ex, "Side-effect-free hover evaluation failed for {Expression}", expression);
             return null;
+        }
+        finally
+        {
+            await TryReleaseObjectGroupAsync(HoverObjectGroup);
         }
     }
 
@@ -1482,7 +1647,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             {
                 ["callFrameId"] = frame.CallFrameId,
                 ["expression"] = expression,
-                ["objectGroup"] = "cdp-inspector-variable-edit",
+                ["objectGroup"] = VariableEditObjectGroup,
                 ["includeCommandLineAPI"] = true,
                 ["silent"] = false,
                 ["returnByValue"] = false,
@@ -1514,6 +1679,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             DebuggerEvaluationResult = ex.Message;
             Logger.LogErrorMessage("SourcesVM", $"Unable to set variable {variable.Name}", ex);
+        }
+        finally
+        {
+            await TryReleaseObjectGroupAsync(VariableEditObjectGroup);
         }
     }
 
@@ -1596,7 +1765,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             {
                 ["callFrameId"] = frame.CallFrameId,
                 ["expression"] = watch.Expression,
-                ["objectGroup"] = "cdp-inspector-watch",
+                ["objectGroup"] = WatchObjectGroup,
                 ["includeCommandLineAPI"] = true,
                 ["silent"] = true,
                 ["returnByValue"] = false,
@@ -1610,6 +1779,34 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         catch (Exception ex)
         {
             watch.Value = ex.Message;
+        }
+        finally
+        {
+            await TryReleaseObjectGroupAsync(WatchObjectGroup);
+        }
+    }
+
+    private async Task ReleaseDebuggerObjectGroupsAsync()
+    {
+        await TryReleaseObjectGroupAsync(DebugConsoleObjectGroup);
+        await TryReleaseObjectGroupAsync(HoverObjectGroup);
+        await TryReleaseObjectGroupAsync(VariableEditObjectGroup);
+        await TryReleaseObjectGroupAsync(WatchObjectGroup);
+    }
+
+    private async Task TryReleaseObjectGroupAsync(string objectGroup)
+    {
+        if (!_cdpService.IsConnected) return;
+        try
+        {
+            await _cdpService.SendCommandAsync("Runtime.releaseObjectGroup", new JsonObject
+            {
+                ["objectGroup"] = objectGroup
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Unable to release V8 object group {ObjectGroup}", objectGroup);
         }
     }
 
