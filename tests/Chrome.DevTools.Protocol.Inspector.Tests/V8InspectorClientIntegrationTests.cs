@@ -210,7 +210,17 @@ public sealed class V8InspectorClientIntegrationTests
             // active-frame live edit. Resume this source-map fixture before applying the
             // authored-source patch so this test exercises the stable, production
             // mutation path and can verify the replacement by invoking the function.
-            await inspector.SendCommandAsync("Debugger.resume");
+            try
+            {
+                await inspector.SendCommandAsync("Debugger.resume");
+            }
+            catch (V8InspectorProtocolException error) when (
+                error.Method == "Debugger.resume" && error.Code == -32000)
+            {
+                // Node on Windows can leave the active frame while processing the
+                // preceding dry run. In that case the desired resumed state has
+                // already been reached; all other protocol errors remain fatal.
+            }
             var applied = await inspector.SendCommandAsync("Debugger.setScriptSource", new JsonObject
             {
                 ["scriptId"] = script["scriptId"]!.GetValue<string>(),
