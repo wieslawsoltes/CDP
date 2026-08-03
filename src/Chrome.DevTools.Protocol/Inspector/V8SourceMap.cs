@@ -63,6 +63,61 @@ public sealed class V8SourceMap
 
     public bool IsIgnoredSource(int sourceIndex) => _ignoredSourceIndexes.Contains(sourceIndex);
 
+    /// <summary>
+    /// Moves a compiler-emitted source to the requested stable index while preserving every
+    /// mapping, source root, map URI, ignored-source flag, and the source displaced by the move.
+    /// This lets live-edit regenerators keep editor source indexes stable when a bundler orders
+    /// dependencies before its entry point.
+    /// </summary>
+    public V8SourceMap RemapSourceIndex(
+        int currentSourceIndex,
+        int targetSourceIndex,
+        string source,
+        string? sourceContent)
+    {
+        if (currentSourceIndex < 0 || currentSourceIndex >= Sources.Count)
+            throw new ArgumentOutOfRangeException(nameof(currentSourceIndex));
+        if (targetSourceIndex < 0 || targetSourceIndex >= Sources.Count)
+            throw new ArgumentOutOfRangeException(nameof(targetSourceIndex));
+        ArgumentNullException.ThrowIfNull(source);
+
+        var sources = Sources.ToArray();
+        var content = SourcesContent.ToArray();
+        var roots = _sourceRoots.ToArray();
+        var uris = _sourceMapUris.ToArray();
+        Swap(sources, currentSourceIndex, targetSourceIndex);
+        Swap(content, currentSourceIndex, targetSourceIndex);
+        Swap(roots, currentSourceIndex, targetSourceIndex);
+        Swap(uris, currentSourceIndex, targetSourceIndex);
+        sources[targetSourceIndex] = source;
+        content[targetSourceIndex] = sourceContent;
+
+        var entries = _entries.Select(entry => entry with
+        {
+            SourceIndex = entry.SourceIndex == currentSourceIndex
+                ? targetSourceIndex
+                : entry.SourceIndex == targetSourceIndex
+                    ? currentSourceIndex
+                    : entry.SourceIndex
+        }).ToArray();
+        var ignored = _ignoredSourceIndexes.Select(index => index == currentSourceIndex
+            ? targetSourceIndex
+            : index == targetSourceIndex
+                ? currentSourceIndex
+                : index).ToHashSet();
+        return new V8SourceMap(
+            sources,
+            content,
+            Names,
+            entries,
+            roots,
+            uris,
+            ignored,
+            File,
+            SourceRoot,
+            _isIndexed);
+    }
+
     public string ResolveSourceUrl(int sourceIndex)
     {
         if (sourceIndex < 0 || sourceIndex >= Sources.Count) return "";
@@ -193,6 +248,12 @@ public sealed class V8SourceMap
             File,
             SourceRoot,
             _isIndexed);
+    }
+
+    private static void Swap<T>(T[] values, int left, int right)
+    {
+        if (left == right) return;
+        (values[left], values[right]) = (values[right], values[left]);
     }
 
     private static JsonObject ParseRoot(string json) =>

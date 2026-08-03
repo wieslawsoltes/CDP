@@ -138,6 +138,30 @@ public sealed class V8SourceMapTests
     }
 
     [Fact]
+    public void RemapsBundlerSourceIndexesWithoutChangingMappedLocations()
+    {
+        var map = V8SourceMap.Parse("""
+            {
+              "version": 3,
+              "sources": ["dep.ts", "entry.ts"],
+              "sourcesContent": ["export const dep = 2;", "import { dep } from './dep';"],
+              "names": [],
+              "ignoreList": [1],
+              "mappings": "AAAA,CCAA"
+            }
+            """);
+
+        var remapped = map.RemapSourceIndex(1, 0, "webpack:///src/entry.ts", "edited entry");
+
+        Assert.Equal(new[] { "webpack:///src/entry.ts", "dep.ts" }, remapped.Sources);
+        Assert.Equal(new string?[] { "edited entry", "export const dep = 2;" }, remapped.SourcesContent);
+        Assert.Equal(1, remapped.FindOriginalLocation(0, 0)?.SourceIndex);
+        Assert.Equal(0, remapped.FindOriginalLocation(0, 1)?.SourceIndex);
+        Assert.True(remapped.IsIgnoredSource(0));
+        Assert.False(remapped.IsIgnoredSource(1));
+    }
+
+    [Fact]
     public void RejectsOverlappingIndexedSections()
     {
         const string json = """
