@@ -47,6 +47,7 @@ public sealed class SourcesV8DebuggerTests
                         ["lineNumber"] = 4,
                         ["columnNumber"] = 2
                     },
+                    ["returnValue"] = new JsonObject { ["type"] = "number", ["value"] = 5 },
                     ["scopeChain"] = new JsonArray
                     {
                         new JsonObject
@@ -105,6 +106,15 @@ public sealed class SourcesV8DebuggerTests
         Assert.True(hover.Parameters?["throwOnSideEffect"]?.GetValue<bool>());
         Assert.Contains(service.Commands, command => command.Method == "Runtime.releaseObjectGroup" &&
             command.Parameters?["objectGroup"]?.GetValue<string>() == "cdp-inspector-hover");
+
+        viewModel.DebuggerEvaluationExpression = "sum * 3";
+        Assert.True(viewModel.SetReturnValueCommand.CanExecute(null));
+        await viewModel.SetReturnValueAsync();
+        var setReturnValue = Assert.Single(service.Commands, command => command.Method == "Debugger.setReturnValue");
+        Assert.Equal(10, setReturnValue.Parameters?["newValue"]?["value"]?.GetValue<int>());
+        Assert.Equal("Return value = 10", viewModel.DebuggerEvaluationResult);
+        Assert.Contains(service.Commands, command => command.Method == "Runtime.releaseObjectGroup" &&
+            command.Parameters?["objectGroup"]?.GetValue<string>() == "cdp-inspector-return-value");
 
         viewModel.SelectedScopeVariable = sumVariable;
         viewModel.NewVariableValueExpression = "42";

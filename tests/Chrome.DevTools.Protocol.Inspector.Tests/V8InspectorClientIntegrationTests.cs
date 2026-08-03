@@ -326,6 +326,86 @@ public sealed class V8InspectorClientIntegrationTests
         }
     }
 
+    [Fact(Timeout = 30_000)]
+    public async Task NodeInspectorChangesPausedFunctionReturnValue()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var port = GetAvailablePort();
+        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "v8-return-value-target.js");
+        Assert.True(File.Exists(fixture), $"Missing return-value fixture: {fixture}");
+
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "node",
+            ArgumentList = { $"--inspect-brk=127.0.0.1:{port}", fixture },
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+        Assert.NotNull(process);
+
+        try
+        {
+            var target = Assert.Single(await WaitForTargetsAsync(new Uri($"http://127.0.0.1:{port}")));
+            await using var inspector = new V8InspectorClient();
+            var pauses = Channel.CreateUnbounded<JsonObject>();
+            inspector.EventReceived += (_, e) =>
+            {
+                if (e.Method == "Debugger.paused") pauses.Writer.TryWrite(e.Params);
+            };
+
+            await inspector.ConnectAsync(new Uri(target.WebSocketDebuggerUrl));
+            await inspector.SendCommandAsync("Runtime.enable");
+            await inspector.SendCommandAsync("Debugger.enable");
+            await inspector.SendCommandAsync("Runtime.runIfWaitingForDebugger");
+
+            await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            await inspector.SendCommandAsync("Debugger.resume");
+            var debuggerPause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            var debuggerFrame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(debuggerPause["callFrames"])[0]);
+            Assert.Equal("computeReturnValue", debuggerFrame["functionName"]?.GetValue<string>());
+
+            JsonObject? returnFrame = null;
+            JsonObject returnPause = new();
+            for (var attempt = 0; attempt < 4 && returnFrame is null; attempt++)
+            {
+                await inspector.SendCommandAsync("Debugger.stepInto");
+                returnPause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+                var candidate = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(returnPause["callFrames"])[0]);
+                if (candidate["returnValue"] is JsonObject) returnFrame = candidate;
+            }
+            Assert.NotNull(returnFrame);
+            Assert.Equal(5, returnFrame["returnValue"]?["value"]?.GetValue<int>());
+            await inspector.SendCommandAsync("Debugger.setReturnValue", new JsonObject
+            {
+                ["newValue"] = new JsonObject { ["value"] = 42 }
+            });
+            await inspector.SendCommandAsync("Debugger.resume");
+
+            JsonObject result = new();
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                result = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+                {
+                    ["expression"] = "globalThis.returnValueResult",
+                    ["returnByValue"] = true
+                });
+                if (result["result"]?["value"]?.GetValue<int>() == 42) break;
+                await Task.Delay(25, cancellationToken);
+            }
+            Assert.Equal(42, result["result"]?["value"]?.GetValue<int>());
+        }
+        finally
+        {
+            if (!process!.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(cancellationToken);
+        }
+    }
+
     [Fact(Timeout = 65_000)]
     public async Task NodeInspectorSupportsFullDebuggingSession()
     {

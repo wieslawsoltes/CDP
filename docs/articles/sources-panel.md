@@ -56,9 +56,11 @@ The right sidebar is dedicated to execution control and pausing states during co
 ### Stepping Control Toolbar
 When execution hits a breakpoint on the target application, the target pauses and the inspector toolbar buttons are activated:
 - **Resume (Play)**: Sends `Debugger.resume` to continue running the application until the next breakpoint or exception.
+- **Run to Cursor (`Ctrl+F10`)**: Maps an original source position through its source map, asks V8 for the nearest executable location with `Debugger.getPossibleBreakpoints`, then resumes with `Debugger.continueToLocation`.
 - **Step Over**: Steps past the current line of code, staying within the active function block.
 - **Step Into**: Steps inside the function call present on the active line.
 - **Step Out**: Executes the remainder of the current function and pauses immediately upon returning to the calling block.
+- **Set Return**: At a V8 return boundary, evaluates the debug expression in the top frame and changes the pending function result with `Debugger.setReturnValue`. The action stays disabled at ordinary pause positions.
 
 ---
 

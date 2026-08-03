@@ -45,9 +45,11 @@ public sealed class V8CallFrameModel
     public int ColumnNumber { get; init; }
     public bool IsAsyncFrame { get; init; }
     public bool IsAsyncBoundary { get; init; }
+    public bool HasReturnValue { get; init; }
     public string AsyncDescription { get; init; } = "";
     public IReadOnlyList<V8ScopeModel> ScopeChain { get; init; } = Array.Empty<V8ScopeModel>();
     public bool CanInspect => !string.IsNullOrWhiteSpace(CallFrameId) && !IsAsyncBoundary;
+    public bool CanSetReturnValue => CanInspect && HasReturnValue;
     public string DisplayName => IsAsyncBoundary
         ? $"— async: {(string.IsNullOrWhiteSpace(AsyncDescription) ? "continuation" : AsyncDescription)} —"
         : $"{(IsAsyncFrame ? "async · " : "")}{(string.IsNullOrWhiteSpace(FunctionName) ? "(anonymous)" : FunctionName)} ({GetFileName()}:{LineNumber + 1}:{ColumnNumber + 1})";

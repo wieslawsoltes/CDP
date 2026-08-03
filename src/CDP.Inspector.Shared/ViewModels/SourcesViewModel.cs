@@ -23,6 +23,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private static readonly ILogger Logger = CdpLogging.CreateLogger<SourcesViewModel>();
     private const string DebugConsoleObjectGroup = "cdp-inspector-debug-console";
     private const string HoverObjectGroup = "cdp-inspector-hover";
+    private const string ReturnValueObjectGroup = "cdp-inspector-return-value";
     private const string VariableEditObjectGroup = "cdp-inspector-variable-edit";
     private const string WatchObjectGroup = "cdp-inspector-watch";
     private readonly V8SourceMutationEngine _sourceMutationEngine;
@@ -167,6 +168,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             if (RaiseAndSetIfChanged(ref _debuggerEvaluationExpression, value))
             {
                 ((RelayCommand)EvaluateOnCallFrameCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)SetReturnValueCommand).RaiseCanExecuteChanged();
             }
         }
     }
@@ -242,6 +244,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 _ = LoadScopesForFrameAsync(value);
                 _ = RefreshWatchExpressionsAsync();
                 ((RelayCommand)EvaluateOnCallFrameCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)SetReturnValueCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)RestartFrameCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)SetVariableValueCommand).RaiseCanExecuteChanged();
                 if (value is not null)
@@ -390,6 +393,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public System.Windows.Input.ICommand RunToCursorCommand { get; }
     public System.Windows.Input.ICommand ToggleBreakpointCommand { get; }
     public System.Windows.Input.ICommand EvaluateOnCallFrameCommand { get; }
+    public System.Windows.Input.ICommand SetReturnValueCommand { get; }
     public System.Windows.Input.ICommand ApplySourceChangesCommand { get; }
     public System.Windows.Input.ICommand RestartFrameCommand { get; }
     public System.Windows.Input.ICommand AddWatchExpressionCommand { get; }
@@ -688,6 +692,13 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 !string.IsNullOrWhiteSpace(DebuggerEvaluationExpression)
         );
 
+        SetReturnValueCommand = new RelayCommand(
+            async () => await SetReturnValueAsync(),
+            () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame?.CanSetReturnValue == true &&
+                ReferenceEquals(SelectedCallFrame, CallFrames.FirstOrDefault(frame => frame.CanInspect)) &&
+                !string.IsNullOrWhiteSpace(DebuggerEvaluationExpression)
+        );
+
         RestartFrameCommand = new RelayCommand(
             async () => await RestartFrameAsync(),
             () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame?.CanInspect == true
@@ -835,6 +846,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (RunToCursorCommand != null) ((RelayCommand<int>)RunToCursorCommand).RaiseCanExecuteChanged();
         if (ToggleBreakpointCommand != null) ((RelayCommand<int>)ToggleBreakpointCommand).RaiseCanExecuteChanged();
         if (EvaluateOnCallFrameCommand != null) ((RelayCommand)EvaluateOnCallFrameCommand).RaiseCanExecuteChanged();
+        if (SetReturnValueCommand != null) ((RelayCommand)SetReturnValueCommand).RaiseCanExecuteChanged();
         if (ApplySourceChangesCommand != null) ((RelayCommand<string>)ApplySourceChangesCommand).RaiseCanExecuteChanged();
         if (RestartFrameCommand != null) ((RelayCommand)RestartFrameCommand).RaiseCanExecuteChanged();
         if (RefreshWatchExpressionsCommand != null) ((RelayCommand)RefreshWatchExpressionsCommand).RaiseCanExecuteChanged();
@@ -1190,6 +1202,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     ScriptId = location?["scriptId"]?.GetValue<string>() ?? "",
                     LineNumber = location?["lineNumber"]?.GetValue<int>() ?? 0,
                     ColumnNumber = location?["columnNumber"]?.GetValue<int>() ?? 0,
+                    HasReturnValue = frameNode.ContainsKey("returnValue"),
                     ScopeChain = scopes
                 });
             }
@@ -1609,6 +1622,59 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         finally
         {
             await TryReleaseObjectGroupAsync(DebugConsoleObjectGroup);
+        }
+    }
+
+    public async Task SetReturnValueAsync()
+    {
+        var frame = SelectedCallFrame;
+        if (!_cdpService.IsConnected || !IsDebuggerPaused || frame?.CanSetReturnValue != true ||
+            !ReferenceEquals(frame, CallFrames.FirstOrDefault(candidate => candidate.CanInspect)) ||
+            string.IsNullOrWhiteSpace(DebuggerEvaluationExpression))
+        {
+            return;
+        }
+
+        try
+        {
+            var evaluation = await _cdpService.SendCommandAsync("Debugger.evaluateOnCallFrame", new JsonObject
+            {
+                ["callFrameId"] = frame.CallFrameId,
+                ["expression"] = DebuggerEvaluationExpression,
+                ["objectGroup"] = ReturnValueObjectGroup,
+                ["includeCommandLineAPI"] = true,
+                ["silent"] = false,
+                ["returnByValue"] = false,
+                ["generatePreview"] = true,
+                ["throwOnSideEffect"] = false
+            });
+            if (evaluation["exceptionDetails"] is JsonObject exception)
+            {
+                DebuggerEvaluationResult = exception["text"]?.GetValue<string>() ?? "Return value evaluation failed";
+                return;
+            }
+
+            var remoteObject = evaluation["result"] as JsonObject;
+            if (remoteObject is null)
+            {
+                DebuggerEvaluationResult = "Return value evaluation produced no result";
+                return;
+            }
+
+            await _cdpService.SendCommandAsync("Debugger.setReturnValue", new JsonObject
+            {
+                ["newValue"] = CreateCallArgument(remoteObject)
+            });
+            DebuggerEvaluationResult = $"Return value = {FormatRemoteObject(remoteObject)}";
+        }
+        catch (Exception ex)
+        {
+            DebuggerEvaluationResult = $"Set return value failed: {ex.Message}";
+            Logger.LogErrorMessage("SourcesVM", "Set return value failed", ex);
+        }
+        finally
+        {
+            await TryReleaseObjectGroupAsync(ReturnValueObjectGroup);
         }
     }
 

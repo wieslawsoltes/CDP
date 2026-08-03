@@ -236,10 +236,13 @@
                     </StackPanel>
                     </Border>
 
-                    <Grid Grid.Row="2" ColumnDefinitions="*, Auto" Margin="6,5">
+                    <Grid Grid.Row="2" ColumnDefinitions="*, Auto, Auto" Margin="6,5">
                         <TextBox Name="txtDebuggerExpression" Text="{Binding Sources.DebuggerEvaluationExpression, Mode=TwoWay}"
                                  PlaceholderText="Debug console expression" FontSize="11" Height="26"/>
                         <Button Name="btnDebuggerEvaluate" Classes="sources-compact" Grid.Column="1" Command="{Binding Sources.EvaluateOnCallFrameCommand}" Content="Run" Margin="4,0,0,0"/>
+                        <Button Name="btnDebuggerSetReturnValue" Classes="sources-compact" Grid.Column="2" Command="{Binding Sources.SetReturnValueCommand}"
+                                Content="Set return" Margin="4,0,0,0" ToolTip.Tip="Change the top frame return value when paused at a function return"
+                                AutomationProperties.Name="Set return value"/>
                     </Grid>
 
                     <Border Grid.Row="3" Classes="sources-section" Padding="7,3">
