@@ -224,6 +224,7 @@ public sealed class SourcesV8DebuggerTests
         const string editedSource = "function compute() { return 42; }";
         await viewModel.ApplySourceChangesAsync(editedSource);
         Assert.Equal("Live edit applied", viewModel.LiveEditStatus);
+        Assert.Equal("direct script edit · source 1→1 lines · output 1→1 lines", viewModel.LiveEditPreview);
         Assert.Equal(editedSource, viewModel.SelectedFileContent);
         var liveEdits = service.Commands.Where(command => command.Method == "Debugger.setScriptSource").ToArray();
         Assert.Equal(2, liveEdits.Length);
@@ -241,6 +242,34 @@ public sealed class SourcesV8DebuggerTests
         Assert.Equal(3, viewModel.SearchResults[0].LineNumber);
         Assert.Equal("  return 42;", viewModel.SearchResults[0].LineContent);
         Assert.Contains(service.Commands, command => command.Method == "Debugger.searchInContent");
+    }
+
+    [AvaloniaFact]
+    public async Task LiveEditCancelsWhenScriptChangesAfterDryRunPreview()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+        service.Raise("Debugger.scriptParsed", new JsonObject
+        {
+            ["scriptId"] = "42",
+            ["url"] = "file:///app/example.js",
+            ["endLine"] = 1
+        });
+        await WaitUntilAsync(() => viewModel.RuntimeScripts.Count == 1);
+        viewModel.SelectedRuntimeScript = viewModel.RuntimeScripts[0];
+        await WaitUntilAsync(() => viewModel.SelectedFileContent.Contains("compute", StringComparison.Ordinal));
+        service.ScriptSourceResponses.Enqueue(service.GeneratedScriptSource);
+        service.ScriptSourceResponses.Enqueue("function compute() { return 'changed elsewhere'; }");
+
+        await viewModel.ApplySourceChangesAsync("function compute() { return 42; }");
+
+        Assert.Contains("changed after preview", viewModel.LiveEditStatus, StringComparison.OrdinalIgnoreCase);
+        var liveEdits = service.Commands.Where(command => command.Method == "Debugger.setScriptSource").ToArray();
+        Assert.Single(liveEdits);
+        Assert.True(liveEdits[0].Parameters?["dryRun"]?.GetValue<bool>());
+        Assert.NotEmpty(viewModel.LiveEditPreview);
     }
 
     [AvaloniaFact]
@@ -770,6 +799,7 @@ public sealed class SourcesV8DebuggerTests
         public bool RejectOptionalDebuggerCommands { get; init; }
         public bool ProvideNestedScopeValues { get; init; }
         public string GeneratedScriptSource { get; init; } = "function compute() {}";
+        public Queue<string> ScriptSourceResponses { get; } = new();
         private int _nextBreakpointId;
 
         public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>());
@@ -799,7 +829,12 @@ public sealed class SourcesV8DebuggerTests
             }
             return Task.FromResult(method switch
             {
-                "Debugger.getScriptSource" => new JsonObject { ["scriptSource"] = GeneratedScriptSource },
+                "Debugger.getScriptSource" => new JsonObject
+                {
+                    ["scriptSource"] = ScriptSourceResponses.Count > 0
+                        ? ScriptSourceResponses.Dequeue()
+                        : GeneratedScriptSource
+                },
                 "Runtime.getProperties" => GetProperties(parameters),
                 "Debugger.evaluateOnCallFrame" => Evaluate(parameters),
                 "Runtime.evaluate" => Evaluate(parameters),

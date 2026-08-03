@@ -142,7 +142,12 @@
                     <PathIcon Data="{StaticResource CodeIcon}" Width="13" Height="13" Foreground="{DynamicResource Brush.Sources.Accent}" VerticalAlignment="Center"/>
                     <TextBlock Name="lblSourceFileName" Grid.Column="1" Text="{Binding Sources.SelectedFileName}" Classes="sources-pane-title" Margin="7,0" TextTrimming="CharacterEllipsis"/>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
-                        <TextBlock Name="txtLiveEditStatus" Text="{Binding Sources.LiveEditStatus}" Classes="sources-meta" Foreground="{DynamicResource Brush.Sources.Accent}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBlock Name="txtLiveEditPreview" Text="{Binding Sources.LiveEditPreview}" Classes="sources-meta"
+                                   MaxWidth="190" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                   ToolTip.Tip="{Binding Sources.LiveEditPreview}"/>
+                        <TextBlock Name="txtLiveEditStatus" Text="{Binding Sources.LiveEditStatus}" Classes="sources-meta" Foreground="{DynamicResource Brush.Sources.Accent}"
+                                   MaxWidth="210" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,5,0"
+                                   ToolTip.Tip="{Binding Sources.LiveEditStatus}"/>
                         <ToggleButton Name="btnToggleMarkdownMode"
                                       IsVisible="{Binding Sources.IsMarkdownFile}"
                                       IsChecked="{Binding Sources.IsMarkdownPreviewMode, Mode=TwoWay}"

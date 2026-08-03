@@ -68,6 +68,7 @@ public class ViewsLayoutTests
             Assert.NotNull(sourcesView.FindControl<GridSplitter>("splitIgnoreListSections"));
             Assert.NotNull(sourcesView.FindControl<ListBox>("lstExecutionContexts"));
             Assert.NotNull(sourcesView.FindControl<Button>("btnToggleExecutionContextBlackboxed"));
+            Assert.NotNull(sourcesView.FindControl<TextBlock>("txtLiveEditPreview"));
 
             var applicationView = new ApplicationView();
             Assert.NotNull(applicationView);

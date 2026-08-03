@@ -53,6 +53,8 @@ For V8 targets, an editor tab can represent generated JavaScript or an original 
 
 The built-in esbuild adapter supports JS, JSX, TS, and TSX module variants. It can transform a single mapped source or rebuild a local first-source project entry with imports. Project rebuilds read the edited entry from stdin, resolve dependencies and the nearest `tsconfig.json` from the source directory, and do not modify the source file on disk. Regenerated source indexes are normalized when bundler ordering changes. Before accepting an edit, the Inspector asks V8 to dry-run the complete generated script; applying the script, replacing its map, and rebinding breakpoints then behaves transactionally with rollback on failure.
 
+The editor header shows a compact mutation preview such as `esbuild regeneration · source 4→4 lines · output 6→8 lines`. Internally, the plan records SHA-256 fingerprints for every input and output revision. After dry-run validation, the Inspector reads the V8 script again and cancels the edit if its fingerprint changed, preventing one debugger session from silently overwriting a newer live edit. If multiple compiler adapters support the source, failures are collected and the next compatible adapter is tried in registration order.
+
 Editing an arbitrary dependency within an existing framework bundle requires a host-provided adapter for the owning webpack, Vite, Rollup, Babel, SWC, or other build pipeline. A source map alone does not contain enough configuration to reproduce those transforms safely.
 
 ---

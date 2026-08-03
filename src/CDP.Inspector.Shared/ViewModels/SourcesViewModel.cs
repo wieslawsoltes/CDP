@@ -101,6 +101,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private string _debuggerEvaluationExpression = "";
     private string _debuggerEvaluationResult = "";
     private string _liveEditStatus = "";
+    private string _liveEditPreview = "";
     private string _newWatchExpression = "";
     private V8WatchExpressionModel? _selectedWatchExpression;
     private V8ScriptModel? _selectedRuntimeScript;
@@ -203,6 +204,12 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         set => RaiseAndSetIfChanged(ref _liveEditStatus, value);
     }
 
+    public string LiveEditPreview
+    {
+        get => _liveEditPreview;
+        set => RaiseAndSetIfChanged(ref _liveEditPreview, value);
+    }
+
     public int? ActiveDebugLine
     {
         get => _activeDebugLine;
@@ -252,6 +259,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 _ = LoadRuntimeScriptSourceAsync(value);
             }
             LiveEditStatus = "";
+            LiveEditPreview = "";
             OnPropertyChanged(nameof(CanEditCurrentSource));
             if (ApplySourceChangesCommand != null) ((RelayCommand<string>)ApplySourceChangesCommand).RaiseCanExecuteChanged();
             RaiseDebuggerCommandCanExecuteChanged();
@@ -644,6 +652,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     _selectedRuntimeScript = null;
                     OnPropertyChanged(nameof(SelectedRuntimeScript));
                 }
+                LiveEditStatus = "";
+                LiveEditPreview = "";
                 if (_localPreviewFilePath != null)
                 {
                     try
@@ -2783,6 +2793,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (string.IsNullOrWhiteSpace(generatedScriptId)) return;
 
         LiveEditStatus = "Applying live edit...";
+        LiveEditPreview = "";
         try
         {
             var currentSourceResponse = await _cdpService.SendCommandAsync("Debugger.getScriptSource", new JsonObject
@@ -2790,6 +2801,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 ["scriptId"] = generatedScriptId
             });
             var previousGeneratedSource = currentSourceResponse["scriptSource"]?.GetValue<string>() ?? "";
+            var previousGeneratedRevision = V8SourceRevision.Create(previousGeneratedSource);
             var nextGeneratedSource = content;
             V8SourceMap? previousSourceMap = null;
             V8SourceMap? updatedSourceMap = null;
@@ -2825,13 +2837,38 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 nextGeneratedSource = mutation.GeneratedSource;
                 updatedSourceMap = mutation.UpdatedSourceMap;
                 mutationKind = mutation.Kind;
+                LiveEditPreview = mutation.Preview?.Summary ?? "";
+            }
+            else
+            {
+                var preview = V8SourceMutationPreview.CreateDirect(previousGeneratedSource, content);
+                if (preview.GeneratedRevision == preview.ResultRevision)
+                {
+                    LiveEditStatus = "Source unchanged";
+                    LiveEditPreview = preview.Summary;
+                    return;
+                }
+                LiveEditPreview = preview.Summary;
+                mutationKind = V8SourceMutationKind.DirectScript;
             }
 
+            LiveEditStatus = $"Validating {LiveEditPreview}...";
             var validation = await SetScriptSourceAsync(generatedScriptId, nextGeneratedSource, dryRun: true);
             var validationFailure = GetLiveEditFailure(validation);
             if (validationFailure is not null)
             {
                 LiveEditStatus = $"Live edit validation failed: {validationFailure}";
+                return;
+            }
+
+            var currentBeforeApply = await _cdpService.SendCommandAsync("Debugger.getScriptSource", new JsonObject
+            {
+                ["scriptId"] = generatedScriptId
+            });
+            var currentBeforeApplySource = currentBeforeApply["scriptSource"]?.GetValue<string>() ?? "";
+            if (!previousGeneratedRevision.Matches(currentBeforeApplySource))
+            {
+                LiveEditStatus = "Live edit cancelled: the V8 script changed after preview; reload and retry";
                 return;
             }
 
