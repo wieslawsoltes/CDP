@@ -121,6 +121,21 @@ public sealed class SourcesV8DebuggerTests
         Assert.Contains(service.Commands, command => command.Method == "Debugger.searchInContent");
     }
 
+    [AvaloniaFact]
+    public async Task OptionalDebuggerActionsDoNotDisableSourcesDebugger()
+    {
+        var service = new V8FakeCdpService { RejectOptionalDebuggerCommands = true };
+        var viewModel = new SourcesViewModel(service);
+
+        service.IsConnected = true;
+
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+        Assert.Equal("Debugger ready (node)", viewModel.DebuggerStatusText);
+        Assert.Contains(service.Commands, command => command.Method == "Debugger.enable");
+        Assert.Contains(service.Commands, command => command.Method == "Debugger.setAsyncCallStackDepth");
+        Assert.Contains(service.Commands, command => command.Method == "Debugger.setPauseOnExceptions");
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         for (var attempt = 0; attempt < 100 && !condition(); attempt++) await Task.Delay(10);
@@ -150,6 +165,7 @@ public sealed class SourcesV8DebuggerTests
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<CdpEventEventArgs>? EventReceived;
         public List<(string Method, JsonObject? Parameters)> Commands { get; } = new();
+        public bool RejectOptionalDebuggerCommands { get; init; }
 
         public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>());
         public Task ConnectAsync(string host, TargetItem target) => Task.CompletedTask;
@@ -158,6 +174,11 @@ public sealed class SourcesV8DebuggerTests
         public Task<JsonObject> SendCommandAsync(string method, JsonObject? parameters = null)
         {
             Commands.Add((method, parameters));
+            if (RejectOptionalDebuggerCommands &&
+                method is "Debugger.setAsyncCallStackDepth" or "Debugger.setPauseOnExceptions")
+            {
+                return Task.FromException<JsonObject>(new InvalidOperationException($"Action {method} is not supported."));
+            }
             return Task.FromResult(method switch
             {
                 "Debugger.getScriptSource" => new JsonObject { ["scriptSource"] = "function compute() {}" },

@@ -602,9 +602,13 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 await _cdpService.SendCommandAsync("Runtime.enable");
             }
             await _cdpService.SendCommandAsync("Debugger.enable");
-            await _cdpService.SendCommandAsync("Debugger.setAsyncCallStackDepth", new JsonObject { ["maxDepth"] = 32 });
-            await _cdpService.SendCommandAsync("Debugger.setPauseOnExceptions", new JsonObject { ["state"] = PauseOnExceptionsState });
             IsDebuggerEnabled = true;
+            await TrySendOptionalDebuggerCommandAsync(
+                "Debugger.setAsyncCallStackDepth",
+                new JsonObject { ["maxDepth"] = 32 });
+            await TrySendOptionalDebuggerCommandAsync(
+                "Debugger.setPauseOnExceptions",
+                new JsonObject { ["state"] = PauseOnExceptionsState });
             if (!IsDebuggerPaused)
             {
                 DebuggerStatusText = $"Debugger ready ({(_cdpService.ConnectedTargetType.Length == 0 ? "CDP" : _cdpService.ConnectedTargetType)})";
@@ -633,6 +637,18 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         catch (Exception ex)
         {
             Logger.LogDebug(ex, "Target does not provide the optional Sources workspace domain");
+        }
+    }
+
+    private async Task TrySendOptionalDebuggerCommandAsync(string method, JsonObject parameters)
+    {
+        try
+        {
+            await _cdpService.SendCommandAsync(method, parameters);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Target does not provide optional debugger action {DebuggerAction}", method);
         }
     }
 
