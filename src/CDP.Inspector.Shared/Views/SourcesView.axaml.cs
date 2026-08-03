@@ -62,6 +62,11 @@ public partial class SourcesView : UserControl
         else if (viewName == "SourcesSearch") cacheKey = "pnlSourcesSearch";
         else if (viewName == "CodeViewer") cacheKey = "pnlCodeViewer";
         else if (viewName == "Debugger") cacheKey = "pnlDebugger";
+        else if (viewName == "DebuggerWatch") cacheKey = "pnlDebuggerWatch";
+        else if (viewName == "DebuggerCallStack") cacheKey = "pnlDebuggerCallStack";
+        else if (viewName == "DebuggerVariables") cacheKey = "pnlDebuggerVariables";
+        else if (viewName == "DebuggerBreakpoints") cacheKey = "pnlDebuggerBreakpoints";
+        else if (viewName == "DebuggerIgnoreList") cacheKey = "pnlDebuggerIgnoreList";
 
         if (_viewsCache.TryGetValue(cacheKey, out var cached))
         {
@@ -125,6 +130,7 @@ public partial class SourcesView : UserControl
         }
 
         SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
+        DebuggerSplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
         
         var editor = txtSourceContent;
         if (editor != null)

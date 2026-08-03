@@ -22,6 +22,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private static readonly ILogger Logger = CdpLogging.CreateLogger<SourcesViewModel>();
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
+    private SplitNode? _debuggerLayoutRoot;
+    private BoxNode? _selectedDebuggerPane;
 
     public SplitNode? LayoutRoot
     {
@@ -33,6 +35,18 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     {
         get => _selectedPane;
         set => RaiseAndSetIfChanged(ref _selectedPane, value);
+    }
+
+    public SplitNode? DebuggerLayoutRoot
+    {
+        get => _debuggerLayoutRoot;
+        set => RaiseAndSetIfChanged(ref _debuggerLayoutRoot, value);
+    }
+
+    public BoxNode? SelectedDebuggerPane
+    {
+        get => _selectedDebuggerPane;
+        set => RaiseAndSetIfChanged(ref _selectedDebuggerPane, value);
     }
 
     private string? _pendingFilePathToSelect;
@@ -740,9 +754,22 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         var right = new BoxNode();
         right.AddTab("Debugger", "DeveloperBoardIcon", "Debugger");
 
-        var rightContainer = new SplitContainerNode(Orientation.Horizontal, mid, right) { SplitterRatio = 0.65 };
-        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, rightContainer) { SplitterRatio = 0.25 };
+        var rightContainer = new SplitContainerNode(Orientation.Horizontal, mid, right) { SplitterRatio = 0.71 };
+        LayoutRoot = new SplitContainerNode(Orientation.Horizontal, left, rightContainer) { SplitterRatio = 0.21 };
         SelectedPane = left;
+
+        var watch = new BoxNode();
+        watch.AddTab("Watch", "EyeIcon", "DebuggerWatch");
+        watch.AddTab("Ignore List", "FilterIcon", "DebuggerIgnoreList");
+
+        var callStack = new BoxNode("DebuggerCallStack", "Call Stack", "ListIcon");
+        var variables = new BoxNode("DebuggerVariables", "Variables", "TableIcon");
+        var breakpoints = new BoxNode("DebuggerBreakpoints", "Breakpoints", "BreakpointIcon");
+
+        var variablesAndBreakpoints = new SplitContainerNode(Orientation.Vertical, variables, breakpoints) { SplitterRatio = 0.48 };
+        var stackAndDetails = new SplitContainerNode(Orientation.Vertical, callStack, variablesAndBreakpoints) { SplitterRatio = 0.26 };
+        DebuggerLayoutRoot = new SplitContainerNode(Orientation.Vertical, watch, stackAndDetails) { SplitterRatio = 0.22 };
+        SelectedDebuggerPane = watch;
     }
 
     private void RaiseDebuggerCommandCanExecuteChanged()
