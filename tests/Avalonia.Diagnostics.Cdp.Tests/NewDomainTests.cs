@@ -25,6 +25,95 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 public class NewDomainTests
 {
     [AvaloniaFact]
+    public async Task TestPlaywrightViewportPollingReturnsSerializedDimensions()
+    {
+        var window = new Window
+        {
+            Width = 960,
+            Height = 640
+        };
+        window.Show();
+
+        using var clientWs = new ClientWebSocket();
+        using var session = new CdpSession(clientWs, window);
+
+        try
+        {
+            var utilityResponse = await RuntimeDomain.HandleAsync(session, "evaluate", new JsonObject
+            {
+                ["expression"] = "new UtilityScript()"
+            });
+            var utilityObjectId = utilityResponse["result"]?["objectId"]?.GetValue<string>();
+            Assert.False(string.IsNullOrWhiteSpace(utilityObjectId));
+
+            var startPollingResponse = await RuntimeDomain.HandleAsync(session, "callFunctionOn", new JsonObject
+            {
+                ["objectId"] = utilityObjectId,
+                ["functionDeclaration"] = "(utilityScript, ...args) => utilityScript.evaluate(...args)",
+                ["arguments"] = new JsonArray
+                {
+                    new JsonObject { ["objectId"] = utilityObjectId },
+                    new JsonObject { ["value"] = true },
+                    new JsonObject { ["value"] = false },
+                    new JsonObject
+                    {
+                        ["value"] = "(injected, { expression }) => { return { result: expression, abort: () => undefined }; }"
+                    },
+                    new JsonObject { ["value"] = 2 },
+                    new JsonObject { ["value"] = new JsonObject { ["h"] = 0 } },
+                    new JsonObject
+                    {
+                        ["value"] = new JsonObject
+                        {
+                            ["o"] = new JsonArray
+                            {
+                                new JsonObject
+                                {
+                                    ["k"] = "expression",
+                                    ["v"] = "() => { const result = { width: window.innerWidth, height: window.innerHeight }; return JSON.stringify(result); }"
+                                }
+                            },
+                            ["id"] = 1
+                        }
+                    },
+                    new JsonObject { ["objectId"] = utilityObjectId }
+                },
+                ["returnByValue"] = false,
+                ["awaitPromise"] = true
+            });
+            var pollObjectId = startPollingResponse["result"]?["objectId"]?.GetValue<string>();
+            Assert.False(string.IsNullOrWhiteSpace(pollObjectId));
+
+            var readPollingResponse = await RuntimeDomain.HandleAsync(session, "callFunctionOn", new JsonObject
+            {
+                ["objectId"] = utilityObjectId,
+                ["functionDeclaration"] = "(utilityScript, ...args) => utilityScript.evaluate(...args)",
+                ["arguments"] = new JsonArray
+                {
+                    new JsonObject { ["objectId"] = utilityObjectId },
+                    new JsonObject { ["value"] = true },
+                    new JsonObject { ["value"] = false },
+                    new JsonObject { ["value"] = "(h) => h.result" },
+                    new JsonObject { ["objectId"] = pollObjectId }
+                },
+                ["returnByValue"] = false,
+                ["awaitPromise"] = true
+            });
+
+            var serializedViewport = readPollingResponse["result"]?["value"]?.GetValue<string>();
+            Assert.False(string.IsNullOrWhiteSpace(serializedViewport));
+            var viewport = JsonNode.Parse(serializedViewport!) as JsonObject;
+            Assert.NotNull(viewport);
+            Assert.True(viewport["width"]?.GetValue<double>() > 0);
+            Assert.True(viewport["height"]?.GetValue<double>() > 0);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task TestEmulationDomainResizing()
     {
         var window = new Window
