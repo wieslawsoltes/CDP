@@ -250,6 +250,104 @@ public sealed class SourcesV8DebuggerTests
     }
 
     [AvaloniaFact]
+    public async Task SourceMappedOriginalsNavigateAndBindBreakpointsToGeneratedCode()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+        const string sourceMapJson = """
+            {
+              "version": 3,
+              "sourceRoot": "../src",
+              "sources": ["App.tsx", "vendor.ts"],
+              "sourcesContent": ["export const App = () => <main>Hello</main>;", "export const vendor = true;"],
+              "names": [],
+              "ignoreList": [1],
+              "mappings": "AAAA;ACAA"
+            }
+            """;
+
+        service.Raise("Debugger.scriptParsed", new JsonObject
+        {
+            ["scriptId"] = "42",
+            ["url"] = "file:///app/dist/bundle.js",
+            ["sourceMapURL"] = $"data:application/json,{Uri.EscapeDataString(sourceMapJson)}",
+            ["endLine"] = 2
+        });
+
+        await WaitUntilAsync(() => viewModel.RuntimeScripts.Count == 3);
+        var app = Assert.Single(viewModel.RuntimeScripts, script => script.Url == "file:///app/src/App.tsx");
+        var vendor = Assert.Single(viewModel.RuntimeScripts, script => script.Url == "file:///app/src/vendor.ts");
+        Assert.True(app.IsOriginalSource);
+        Assert.False(app.IsIgnoredSource);
+        Assert.True(vendor.IsIgnoredSource);
+
+        await WaitUntilAsync(() => service.Commands.Any(command => command.Method == "Debugger.setBlackboxedRanges"));
+        var blackbox = service.Commands.Last(command => command.Method == "Debugger.setBlackboxedRanges");
+        Assert.Equal("42", blackbox.Parameters?["scriptId"]?.GetValue<string>());
+        var position = Assert.Single(Assert.IsType<JsonArray>(blackbox.Parameters?["positions"]));
+        Assert.Equal(1, position?["lineNumber"]?.GetValue<int>());
+        Assert.Equal(0, position?["columnNumber"]?.GetValue<int>());
+
+        viewModel.SelectedRuntimeScript = app;
+        await WaitUntilAsync(() => viewModel.SelectedFileContent.Contains("<main>Hello</main>", StringComparison.Ordinal));
+        await viewModel.ToggleBreakpointAsync(1);
+
+        var breakpoint = Assert.Single(viewModel.V8Breakpoints);
+        Assert.Equal("file:///app/src/App.tsx", breakpoint.Url);
+        Assert.Equal("file:///app/dist/bundle.js", breakpoint.BindingUrl);
+        Assert.Equal(0, breakpoint.LineNumber);
+        Assert.Equal(0, breakpoint.ColumnNumber);
+        var bind = service.Commands.Last(command => command.Method == "Debugger.setBreakpointByUrl");
+        Assert.Equal("file:///app/dist/bundle.js", bind.Parameters?["url"]?.GetValue<string>());
+        Assert.Equal(0, bind.Parameters?["lineNumber"]?.GetValue<int>());
+    }
+
+    [AvaloniaFact]
+    public async Task ScriptParsedResolvedBreakpointsUpdateEditorState()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        service.Raise("Debugger.scriptParsed", new JsonObject
+        {
+            ["scriptId"] = "42",
+            ["url"] = "file:///app/example.js",
+            ["endLine"] = 10
+        });
+        await WaitUntilAsync(() => viewModel.RuntimeScripts.Count == 1);
+        viewModel.SelectedRuntimeScript = viewModel.RuntimeScripts[0];
+        await viewModel.ToggleBreakpointAsync(5);
+        var breakpoint = Assert.Single(viewModel.V8Breakpoints);
+        breakpoint.IsResolved = false;
+
+        service.Raise("Debugger.scriptParsed", new JsonObject
+        {
+            ["scriptId"] = "43",
+            ["url"] = "file:///app/late.js",
+            ["resolvedBreakpoints"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["breakpointId"] = breakpoint.BreakpointId,
+                    ["location"] = new JsonObject
+                    {
+                        ["scriptId"] = "43",
+                        ["lineNumber"] = 7,
+                        ["columnNumber"] = 3
+                    }
+                }
+            }
+        });
+
+        await WaitUntilAsync(() => breakpoint.IsResolved && breakpoint.ResolvedLineNumber == 7);
+        Assert.Equal(3, breakpoint.ResolvedColumnNumber);
+    }
+
+    [AvaloniaFact]
     public async Task ExternalAsyncStackTraceIsResolved()
     {
         var service = new V8FakeCdpService();
@@ -319,7 +417,8 @@ public sealed class SourcesV8DebuggerTests
             Commands.Add((method, parameters));
             if (RejectOptionalDebuggerCommands &&
                 method is "Debugger.setAsyncCallStackDepth" or "Debugger.setPauseOnExceptions" or
-                    "Debugger.setBreakpointsActive" or "Debugger.setBlackboxPatterns")
+                    "Debugger.setBreakpointsActive" or "Debugger.setBlackboxPatterns" or
+                    "Debugger.setBlackboxedRanges")
             {
                 return Task.FromException<JsonObject>(new InvalidOperationException($"Action {method} is not supported."));
             }

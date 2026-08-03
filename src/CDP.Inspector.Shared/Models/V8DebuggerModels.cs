@@ -23,13 +23,14 @@ public sealed class V8ScriptModel
     public int SourceIndex { get; init; } = -1;
     public string? SourceContent { get; init; }
     public V8SourceMap? SourceMap { get; init; }
+    public bool IsIgnoredSource { get; init; }
     public bool HasSourceMap => !string.IsNullOrWhiteSpace(SourceMapUrl);
     public string DisplayName => string.IsNullOrWhiteSpace(Url)
         ? $"(anonymous script {ScriptId})"
         : Uri.TryCreate(Url, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.LocalPath)
             ? Path.GetFileName(uri.LocalPath)
             : Path.GetFileName(Url.Replace('\\', '/'));
-    public string LocationDisplay => $"{DisplayName}:{StartLine + 1}";
+    public string LocationDisplay => $"{DisplayName}:{StartLine + 1}{(IsIgnoredSource ? " · ignored" : "")}";
     public override string ToString() => DisplayName;
 }
 

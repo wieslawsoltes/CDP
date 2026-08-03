@@ -953,6 +953,13 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             if (existing is not null) RuntimeScripts.Remove(existing);
             RuntimeScripts.Add(script);
         });
+        if (parameters["resolvedBreakpoints"] is JsonArray resolvedBreakpoints)
+        {
+            foreach (var resolvedBreakpoint in resolvedBreakpoints.OfType<JsonObject>())
+            {
+                HandleBreakpointResolved(resolvedBreakpoint);
+            }
+        }
         if (script.HasSourceMap) _ = LoadSourceMapAsync(script);
     }
 
@@ -961,11 +968,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         try
         {
             var (json, mapUri) = await ReadSourceMapAsync(generatedScript.Url, generatedScript.SourceMapUrl);
-            var sourceMap = V8SourceMap.Parse(json);
+            var sourceMap = await V8SourceMap.ParseAsync(json, mapUri, ReadSourceMapSectionAsync);
             var originals = new System.Collections.Generic.List<V8ScriptModel>();
             for (var index = 0; index < sourceMap.Sources.Count; index++)
             {
-                var sourceUrl = ResolveSourceUrl(mapUri, sourceMap.SourceRoot, sourceMap.Sources[index]);
+                var sourceUrl = sourceMap.ResolveSourceUrl(index);
                 var sourceContent = index < sourceMap.SourcesContent.Count ? sourceMap.SourcesContent[index] : null;
                 originals.Add(new V8ScriptModel
                 {
@@ -977,6 +984,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     SourceContent = sourceContent,
                     SourceMap = sourceMap,
                     IsOriginalSource = true,
+                    IsIgnoredSource = sourceMap.IsIgnoredSource(index),
                     IsModule = generatedScript.IsModule
                 });
             }
@@ -988,6 +996,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     if (!RuntimeScripts.Any(item => item.ScriptId == original.ScriptId)) RuntimeScripts.Add(original);
                 }
             });
+            await ApplySourceMapBlackboxingAsync(generatedScript.ScriptId, sourceMap);
         }
         catch (Exception ex)
         {
@@ -1003,9 +1012,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             if (comma < 0) throw new FormatException("Invalid source-map data URI.");
             var metadata = sourceMapUrl[..comma];
             var payload = sourceMapUrl[(comma + 1)..];
+            var baseUri = Uri.TryCreate(scriptUrl, UriKind.Absolute, out var inlineScriptUri) ? inlineScriptUri : null;
             return metadata.Contains(";base64", StringComparison.OrdinalIgnoreCase)
-                ? (System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload)), null)
-                : (Uri.UnescapeDataString(payload), null);
+                ? (System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload)), baseUri)
+                : (Uri.UnescapeDataString(payload), baseUri);
         }
 
         Uri? mapUri = null;
@@ -1022,13 +1032,42 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         return (await System.IO.File.ReadAllTextAsync(path), new Uri(path));
     }
 
-    private static string ResolveSourceUrl(Uri? mapUri, string sourceRoot, string source)
+    private static async Task<string> ReadSourceMapSectionAsync(Uri sectionUri, CancellationToken cancellationToken)
     {
-        if (Uri.TryCreate(source, UriKind.Absolute, out var sourceUri)) return sourceUri.ToString();
-        var rootedSource = string.IsNullOrWhiteSpace(sourceRoot) ? source : sourceRoot.TrimEnd('/') + "/" + source.TrimStart('/');
-        if (Uri.TryCreate(rootedSource, UriKind.Absolute, out var rootedUri)) return rootedUri.ToString();
-        if (mapUri is not null) return new Uri(mapUri, rootedSource).ToString();
-        return rootedSource;
+        if (sectionUri.Scheme.Equals("data", StringComparison.OrdinalIgnoreCase))
+        {
+            var value = sectionUri.OriginalString;
+            var comma = value.IndexOf(',');
+            if (comma < 0) throw new FormatException("Invalid source-map section data URI.");
+            var metadata = value[..comma];
+            var payload = value[(comma + 1)..];
+            return metadata.Contains(";base64", StringComparison.OrdinalIgnoreCase)
+                ? System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload))
+                : Uri.UnescapeDataString(payload);
+        }
+        if (sectionUri.IsFile) return await System.IO.File.ReadAllTextAsync(sectionUri.LocalPath, cancellationToken);
+        if (sectionUri.Scheme is "http" or "https") return await SourceMapHttpClient.GetStringAsync(sectionUri, cancellationToken);
+        throw new NotSupportedException($"Unsupported source-map section URI scheme '{sectionUri.Scheme}'.");
+    }
+
+    private async Task ApplySourceMapBlackboxingAsync(string scriptId, V8SourceMap sourceMap)
+    {
+        var transitions = sourceMap.GetBlackboxedStateTransitions();
+        if (transitions.Count == 0 || !_cdpService.IsConnected || !IsDebuggerEnabled) return;
+        var positions = new JsonArray();
+        foreach (var transition in transitions)
+        {
+            positions.Add((JsonNode)new JsonObject
+            {
+                ["lineNumber"] = transition.LineNumber,
+                ["columnNumber"] = transition.ColumnNumber
+            });
+        }
+        await TrySendOptionalDebuggerCommandAsync("Debugger.setBlackboxedRanges", new JsonObject
+        {
+            ["scriptId"] = scriptId,
+            ["positions"] = positions
+        });
     }
 
     private void HandleDebuggerPaused(JsonObject parameters)
@@ -1185,7 +1224,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             if (script.IsOriginalSource)
             {
-                SelectedFileContent = script.SourceContent ?? "Source map does not embed this original source.";
+                SelectedFileContent = script.SourceContent ?? await ReadOriginalSourceAsync(script.Url);
                 return;
             }
             var response = await _cdpService.SendCommandAsync("Debugger.getScriptSource", new JsonObject
@@ -1206,6 +1245,28 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             IsLoadingContent = false;
         }
+    }
+
+    private static async Task<string> ReadOriginalSourceAsync(string sourceUrl)
+    {
+        if (!Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri))
+        {
+            return "Source map does not embed this original source and its URL cannot be resolved.";
+        }
+        if (sourceUri.IsFile) return await System.IO.File.ReadAllTextAsync(sourceUri.LocalPath);
+        if (sourceUri.Scheme is "http" or "https") return await SourceMapHttpClient.GetStringAsync(sourceUri);
+        if (sourceUri.Scheme.Equals("data", StringComparison.OrdinalIgnoreCase))
+        {
+            var value = sourceUri.OriginalString;
+            var comma = value.IndexOf(',');
+            if (comma < 0) throw new FormatException("Invalid original-source data URI.");
+            var metadata = value[..comma];
+            var payload = value[(comma + 1)..];
+            return metadata.Contains(";base64", StringComparison.OrdinalIgnoreCase)
+                ? System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload))
+                : Uri.UnescapeDataString(payload);
+        }
+        return $"Source map does not embed this original source; unsupported URI scheme '{sourceUri.Scheme}'.";
     }
 
     private async Task NavigateToCallFrameAsync(V8CallFrameModel frame)
