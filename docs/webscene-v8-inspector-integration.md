@@ -2,7 +2,7 @@
 
 `Chrome.DevTools.Protocol` contains a lightweight, raw V8 Inspector host intended for WebScene. It serves Chrome discovery metadata and copies complete UTF-8 Inspector messages between Chrome DevTools and WebScene's native V8 inspector without routing them through the managed `CdpDispatcher`.
 
-This is the CDP-side implementation required by [WebScene issue #7](https://github.com/wieslawsoltes/WebScene/issues/7). WebScene still needs to provide the native V8 adapter described below.
+This is the CDP-side implementation required by [WebScene issue #7](https://github.com/wieslawsoltes/WebScene/issues/7). WebScene now provides the native adapter and a dependency-free `WebScene.Diagnostics.Cdp` Chrome discovery host. CDP Inspector can connect to that endpoint directly; hosts that already depend on `Chrome.DevTools.Protocol` may instead adapt the same `INativeV8InspectorSession` to `IRawCdpTransport`.
 
 ## Package boundaries
 
@@ -20,6 +20,30 @@ The core package depends only on `Microsoft.Extensions.Logging.Abstractions` (pl
 XAML mutation is now coupled through `ICdpMutationEngine`; Jint values through `ICdpRemoteObjectAdapter`; optional session cleanup through `CdpSessionCleanupRegistry`; and profiler domains through explicit composition.
 
 ## WebScene adapter
+
+WebScene's `NativeWebSceneView.OpenV8InspectorSession()` returns a raw duplex
+session whose messages match `IRawCdpTransport` semantics. Its native ABI queues
+connect, dispatch, and disconnect actions onto the isolate worker, registers the
+outer and iframe contexts, implements the nested pause loop, and reports timer /
+animation-frame async tasks. The optional WebScene host can be started directly:
+
+```csharp
+var inspector = new WebSceneV8InspectorHost(
+    view,
+    new WebSceneV8InspectorOptions
+    {
+        Enabled = true,
+        Address = IPAddress.Loopback,
+        Port = 9229
+    });
+await inspector.StartAsync();
+```
+
+Chrome discovers this endpoint through `chrome://inspect`; CDP Inspector uses
+the token-bearing `webSocketDebuggerUrl` from `/json/list`.
+
+The generic CDP-core composition below remains useful when an application wants
+one server to publish WebScene alongside other raw V8 targets.
 
 WebScene should implement one `IRawCdpTarget` per V8 context group or debuggable page and one `IRawCdpTransport` per attached DevTools session. `RawCdpTransportBase` supplies a bounded, backpressure-aware outgoing queue for native V8 callbacks.
 
@@ -123,7 +147,7 @@ Chrome's discovery polling cannot add a token, so HTTP discovery is available wi
 
 ## Native V8 requirements
 
-The CDP host does not replace V8 Inspector. WebScene must compile V8 with Inspector support and own the following native lifecycle:
+The CDP host does not replace V8 Inspector. WebScene's dedicated-isolate lane now owns the following native lifecycle:
 
 1. Create one `v8_inspector::V8Inspector` for the isolate and an appropriate `V8InspectorClient`.
 2. Call `contextCreated` and `contextDestroyed` for every debug context, using stable context-group ids.
@@ -132,6 +156,9 @@ The CDP host does not replace V8 Inspector. WebScene must compile V8 with Inspec
 5. Forward both `sendResponse` and `sendNotification` callbacks unchanged through `TryPublish`/`PublishAsync`.
 6. Implement pause-loop scheduling (`runMessageLoopOnPause` and `quitMessageLoopOnPause`) without blocking WebScene's UI/render thread.
 7. Dispose the Inspector session when the WebSocket closes and detach all sessions before destroying the isolate.
+
+The opt-in shared-isolate lane deliberately reports Inspector unavailable: its
+independent engine workers cannot safely own one isolate-level pause loop.
 
 Do not implement managed substitutes for V8 `Runtime`, `Debugger`, `Console`, `Profiler`, or `HeapProfiler`. Unsupported browser-oriented methods should reach V8 and return its normal method-not-found response without terminating the connection.
 
