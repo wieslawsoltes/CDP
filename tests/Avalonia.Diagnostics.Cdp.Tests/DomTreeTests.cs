@@ -1,4 +1,6 @@
 using System;
+using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.Json.Nodes;
 using System.Net.WebSockets;
 using System.Threading.Tasks;
@@ -104,6 +106,14 @@ public class DomTreeTests
         // Verify content boundaries are offset from padding by padding
         Assert.Equal(paddingQuad[0]!.GetValue<double>() + 5, contentQuad![0]!.GetValue<double>(), 1);
 
+        var aotOptions = new JsonSerializerOptions
+        {
+            TypeInfoResolver = JsonTypeInfoResolver.Combine()
+        };
+        var json = result.ToJsonString(aotOptions);
+        Assert.Contains("\"content\"", json);
+        Assert.Contains("\"border\"", json);
+
         window.Close();
     }
 
@@ -128,6 +138,14 @@ public class DomTreeTests
         Assert.Equal("btnAutomation", pairs["AccessibilityId"]);
         Assert.Equal("btnAutomation", pairs["AutomationId"]);
         Assert.Equal("btnAutomation", pairs["AutomationProperties.AutomationId"]);
+
+        var aotOptions = new JsonSerializerOptions
+        {
+            TypeInfoResolver = JsonTypeInfoResolver.Combine()
+        };
+        var json = attributes.ToJsonString(aotOptions);
+        Assert.Contains("\"btnClickMe\"", json);
+        Assert.Contains("\"btnAutomation\"", json);
     }
 
     [AvaloniaFact]
@@ -205,4 +223,3 @@ public class DomTreeTests
     }
 
 }
-
