@@ -663,10 +663,12 @@ public class ApplicationViewModel : ViewModelBase, IStateProvider
 
     private async Task InitializeDomainAsync()
     {
+        if (!_cdpService.SupportsDomain("DOMStorage") && !_cdpService.SupportsDomain("IndexedDB")) return;
+
         try
         {
-            await _cdpService.SendCommandAsync("DOMStorage.enable");
-            await _cdpService.SendCommandAsync("IndexedDB.enable");
+            if (_cdpService.SupportsDomain("DOMStorage")) await _cdpService.SendCommandAsync("DOMStorage.enable");
+            if (_cdpService.SupportsDomain("IndexedDB")) await _cdpService.SendCommandAsync("IndexedDB.enable");
             _ = RefreshResourcesAsync();
             if (IsStorageEditorVisible)
             {

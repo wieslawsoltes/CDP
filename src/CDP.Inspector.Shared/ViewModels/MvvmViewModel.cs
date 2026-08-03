@@ -324,6 +324,8 @@ public class MvvmViewModel : ViewModelBase, IStateProvider
 
     private async Task InitializeMvvmAsync()
     {
+        if (!_cdpService.SupportsDomain("Mvvm")) return;
+
         try
         {
             await _cdpService.SendCommandAsync("Mvvm.enable");

@@ -240,10 +240,12 @@ public class NetworkViewModel : ViewModelBase, IStateProvider
 
     private async Task InitializeDomainAsync()
     {
+        if (!_cdpService.SupportsDomain("Network")) return;
+
         try
         {
             await _cdpService.SendCommandAsync("Network.enable");
-            await _cdpService.SendCommandAsync("Fetch.enable");
+            if (_cdpService.SupportsDomain("Fetch")) await _cdpService.SendCommandAsync("Fetch.enable");
             await ApplyThrottlingAsync();
             await SyncBlockedUrlsAsync();
         }

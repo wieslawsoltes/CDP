@@ -1226,7 +1226,7 @@ public class SimulationViewModel : ViewModelBase, IStateProvider
     private async Task StartScreencastAsync()
     {
         Logger.LogScreencastDebug("StartScreencastAsync called!");
-        if (!_cdpService.IsConnected) return;
+        if (!_cdpService.IsConnected || !_cdpService.SupportsDomain("Page")) return;
         try
         {
             try
