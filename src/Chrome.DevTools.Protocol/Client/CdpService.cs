@@ -543,17 +543,18 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
         var bytes = Encoding.UTF8.GetBytes(request.ToJsonString());
         
-        await _sendSemaphore.WaitAsync();
+        await _sendSemaphore.WaitAsync().ConfigureAwait(false);
         try
         {
-            await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+            await ws.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None)
+                .ConfigureAwait(false);
         }
         finally
         {
             _sendSemaphore.Release();
         }
 
-        var response = await tcs.Task;
+        var response = await tcs.Task.ConfigureAwait(false);
         Logger.ReceivedResponse(id);
         if (response.ContainsKey("error"))
         {
