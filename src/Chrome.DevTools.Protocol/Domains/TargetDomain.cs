@@ -50,7 +50,7 @@ public static class TargetDomain
                         }
 
                         // Attach all current targets
-                        var activeTabSession = session.CurrentTargetSession;
+                        var requestingSession = session.CurrentTargetSession;
                         foreach (var target in CdpServer.GetTargets())
                         {
                             if (target.Type == "page" && excludePages)
@@ -58,9 +58,13 @@ public static class TargetDomain
                                 continue;
                             }
 
-                            if (target.Type == "page" && activeTabSession != null && activeTabSession.Target.Type == "tab")
+                            if (requestingSession?.IsBrowserSession == true)
                             {
-                                session.AutoAttachTarget(target, activeTabSession);
+                                session.AutoAttachTarget(target, requestingSession);
+                            }
+                            else if (target.Type == "page" && requestingSession != null && requestingSession.Target.Type == "tab")
+                            {
+                                session.AutoAttachTarget(target, requestingSession);
                             }
                             else
                             {
@@ -197,6 +201,10 @@ public static class TargetDomain
                     var sessionId = Guid.NewGuid().ToString();
                     var targetSession = CdpServer.TargetSessionFactory?.Invoke(session, sessionId, targetId, target)
                                         ?? new CdpTargetSession(session, sessionId, targetId, target);
+                    var parentSession = session.CurrentTargetSession?.IsBrowserSession == true
+                        ? session.CurrentTargetSession
+                        : null;
+                    targetSession.ParentSessionId = parentSession?.SessionId;
                     session.AttachTarget(sessionId, targetSession);
 
                     _ = session.SendEventAsync("Target.attachedToTarget", new JsonObject
@@ -212,9 +220,14 @@ public static class TargetDomain
                             ["browserContextId"] = "1"
                         },
                         ["waitingForDebugger"] = CdpServer.IsTargetWaitingForDebugger(targetId)
-                    });
+                    }, parentSession);
 
                     return new JsonObject { ["sessionId"] = sessionId };
+                }
+
+            case "attachToBrowserTarget":
+                {
+                    return new JsonObject { ["sessionId"] = session.AttachBrowserTarget() };
                 }
 
             case "closeTarget":

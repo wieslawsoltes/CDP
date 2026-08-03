@@ -21,7 +21,8 @@ public class CdpSession : IDisposable
     public event Action<JsonObject>? EventSentForTesting;
 
     private readonly ConcurrentDictionary<string, CdpTargetSession> _attachedTargets = new();
-    public bool IsTargetAttached(string targetId) => _attachedTargets.Values.Any(x => x.TargetId == targetId);
+    public bool IsTargetAttached(string targetId) =>
+        _attachedTargets.Values.Any(x => !x.IsBrowserSession && x.TargetId == targetId);
     private readonly CdpTargetSession? _defaultTargetSession;
     private readonly AsyncLocal<CdpTargetSession?> _currentTargetSession = new();
 
@@ -186,14 +187,33 @@ public class CdpSession : IDisposable
         _attachedTargets[sessionId] = targetSession;
     }
 
+    public string AttachBrowserTarget()
+    {
+        var target = _defaultTargetSession?.Target ?? CdpServer.GetTargets().FirstOrDefault();
+        if (target == null)
+        {
+            throw new Exception("No browser target is available");
+        }
+
+        var sessionId = Guid.NewGuid().ToString();
+        var browserSession = new CdpTargetSession(
+            this,
+            sessionId,
+            "browser",
+            target,
+            isBrowserSession: true);
+        AttachTarget(sessionId, browserSession);
+        return sessionId;
+    }
+
     public CdpTargetSession? GetAttachedSessionForTarget(string targetId)
     {
-        return _attachedTargets.Values.FirstOrDefault(x => x.TargetId == targetId);
+        return _attachedTargets.Values.FirstOrDefault(x => !x.IsBrowserSession && x.TargetId == targetId);
     }
 
     public void AutoAttachTarget(ICdpTarget target, CdpTargetSession? parentSession = null, bool isNewTarget = false)
     {
-        if (_attachedTargets.Values.Any(x => x.TargetId == target.Id))
+        if (_attachedTargets.Values.Any(x => !x.IsBrowserSession && x.TargetId == target.Id))
         {
             return;
         }
@@ -263,7 +283,7 @@ public class CdpSession : IDisposable
 
     public string? GetSessionIdForTarget(string targetId)
     {
-        return _attachedTargets.FirstOrDefault(x => x.Value.TargetId == targetId).Key;
+        return _attachedTargets.FirstOrDefault(x => !x.Value.IsBrowserSession && x.Value.TargetId == targetId).Key;
     }
 
     public void DetachTargetById(string targetId)
