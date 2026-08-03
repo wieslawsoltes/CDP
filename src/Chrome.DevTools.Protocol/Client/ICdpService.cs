@@ -25,6 +25,10 @@ public interface ICdpService : INotifyPropertyChanged
     string ConnectionStatus { get; }
     string ConnectedHost { get; }
     string ConnectedTargetId { get; }
+    string ConnectedTargetType => "";
+    string ConnectedTargetUrl => "";
+    IReadOnlySet<string> SupportedDomains => new HashSet<string>();
+    bool SupportsDomain(string domain) => SupportedDomains.Count == 0 || SupportedDomains.Contains(domain);
     bool IsPreviewScreencastActive { get; set; }
     bool RecordFullFrames { get => false; set { } }
     byte[]? LastReconstructedFrameBytes => null;

@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.WebSockets;
 using System.Text;
@@ -24,11 +25,15 @@ public class CdpService : ICdpService, INotifyPropertyChanged
     private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonObject>> _pendingRequests = new();
     private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(5) };
     private readonly SemaphoreSlim _sendSemaphore = new(1, 1);
+    private SynchronizationContext? _notificationContext;
 
     private bool _isConnected;
     private string _connectionStatus = "Disconnected";
     private string _connectedHost = "";
     private string _connectedTargetId = "";
+    private string _connectedTargetType = "";
+    private string _connectedTargetUrl = "";
+    private IReadOnlySet<string> _supportedDomains = new HashSet<string>();
 
     public bool IsConnected
     {
@@ -53,6 +58,26 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         get => _connectedTargetId;
         private set { _connectedTargetId = value; OnPropertyChanged(nameof(ConnectedTargetId)); }
     }
+
+    public string ConnectedTargetType
+    {
+        get => _connectedTargetType;
+        private set { _connectedTargetType = value; OnPropertyChanged(nameof(ConnectedTargetType)); }
+    }
+
+    public string ConnectedTargetUrl
+    {
+        get => _connectedTargetUrl;
+        private set { _connectedTargetUrl = value; OnPropertyChanged(nameof(ConnectedTargetUrl)); }
+    }
+
+    public IReadOnlySet<string> SupportedDomains
+    {
+        get => _supportedDomains;
+        private set { _supportedDomains = value; OnPropertyChanged(nameof(SupportedDomains)); }
+    }
+
+    public bool SupportsDomain(string domain) => SupportedDomains.Count == 0 || SupportedDomains.Contains(domain);
 
     private bool _isPreviewScreencastActive;
     public bool IsPreviewScreencastActive
@@ -130,7 +155,36 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
     protected virtual void OnPropertyChanged(string propertyName)
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        var context = _notificationContext;
+        if (context is not null && !ReferenceEquals(SynchronizationContext.Current, context))
+        {
+            context.Post(static state =>
+            {
+                var (service, name) = ((CdpService Service, string Name))state!;
+                service.RaisePropertyChanged(name);
+            }, (this, propertyName));
+            return;
+        }
+
+        RaisePropertyChanged(propertyName);
+    }
+
+    private void RaisePropertyChanged(string propertyName)
+    {
+        var subscribers = PropertyChanged;
+        if (subscribers is null) return;
+        var args = new PropertyChangedEventArgs(propertyName);
+        foreach (PropertyChangedEventHandler subscriber in subscribers.GetInvocationList())
+        {
+            try
+            {
+                subscriber(this, args);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogErrorMessage("CdpService", $"Property subscriber failed for {propertyName}", ex);
+            }
+        }
     }
 
     public async Task<List<TargetItem>> GetTargetsAsync(string host)
@@ -199,12 +253,14 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                     var obj = item as JsonObject;
                     if (obj == null) continue;
                     string type = obj["type"]?.GetValue<string>() ?? "";
-                    if (type == "page" || type == "app")
+                    if (type is "page" or "app" or "node" or "worker")
                     {
                         string title = obj["title"]?.GetValue<string>() ?? "Unnamed";
                         string wsUrl = obj["webSocketDebuggerUrl"]?.GetValue<string>() ?? "";
                         string id = obj["id"]?.GetValue<string>() ?? "";
-                        list.Add(new TargetItem(title, wsUrl, id));
+                        string targetUrl = obj["url"]?.GetValue<string>() ?? "";
+                        string description = obj["description"]?.GetValue<string>() ?? "";
+                        list.Add(new TargetItem(title, wsUrl, id, type, targetUrl, description));
                     }
                 }
             }
@@ -220,6 +276,9 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
     public async Task ConnectAsync(string host, TargetItem target, bool autoResume)
     {
+        // Preserve the caller's notification context (Avalonia's UI dispatcher
+        // in the desktop inspector) across protocol awaits and receive-loop work.
+        _notificationContext = SynchronizationContext.Current ?? _notificationContext;
         await DisconnectAsync();
         TimeMachine.IsReplaying = false;
 
@@ -268,6 +327,9 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                 }
                 ConnectedHost = host;
                 ConnectedTargetId = target.Id;
+                ConnectedTargetType = target.Type;
+                ConnectedTargetUrl = target.Url;
+                SupportedDomains = new HashSet<string>();
                 Logger.ClientConnected(target.Id, host);
                 return;
             }
@@ -282,7 +344,6 @@ public class CdpService : ICdpService, INotifyPropertyChanged
 
         _ws = new ClientWebSocket();
         _cts = new CancellationTokenSource();
-        _messageId = 1;
         _pendingRequests.Clear();
 
         ConnectionStatus = "Connecting...";
@@ -290,22 +351,42 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         {
             using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             await _ws.ConnectAsync(new Uri(target.WebSocketUrl), connectCts.Token);
-            IsConnected = true;
-            ConnectionStatus = "Connected";
             ConnectedHost = host;
             ConnectedTargetId = target.Id;
+            ConnectedTargetType = target.Type;
+            ConnectedTargetUrl = target.Url;
             Logger.ClientConnected(target.Id, host);
 
-            // Start reader thread
-            _ = Task.Run(ReceiveLoopAsync);
+            // Bind the reader to this exact connection. A stale reader from a
+            // previous session must never consume or close a newer session.
+            var connectedSocket = _ws;
+            var connectedCancellation = _cts;
+            _ = Task.Run(() => ReceiveLoopAsync(connectedSocket, connectedCancellation));
 
-            // Enable real-time target discovery
-            _ = SendCommandAsync("Target.setDiscoverTargets", new JsonObject { ["discover"] = true });
+            await DiscoverSupportedDomainsAsync().ConfigureAwait(false);
+
+            // Node starts behind a Runtime waiting gate. Enable the two V8
+            // debugger domains before publishing IsConnected so no startup pause
+            // or scriptParsed event can be lost during panel initialization.
+            if (autoResume && target.Type is "node" or "worker")
+            {
+                if (SupportsDomain("Runtime")) await SendCommandAsync("Runtime.enable").ConfigureAwait(false);
+                if (SupportsDomain("Debugger")) await SendCommandAsync("Debugger.enable").ConfigureAwait(false);
+            }
+
+            IsConnected = true;
+            ConnectionStatus = "Connected";
+
+            // Standalone V8 Inspector targets do not implement the browser Target domain.
+            if (SupportsDomain("Target") && target.Type is "page" or "app")
+            {
+                _ = SendCommandAsync("Target.setDiscoverTargets", new JsonObject { ["discover"] = true });
+            }
 
             if (autoResume)
             {
                 // Automatically resume targets that are blocked waiting for debugger connections
-                _ = SendCommandAsync("Runtime.runIfWaitingForDebugger");
+                await SendCommandAsync("Runtime.runIfWaitingForDebugger").ConfigureAwait(false);
             }
         }
         catch (Exception ex)
@@ -336,6 +417,9 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                 ConnectionStatus = "Disconnected";
                 ConnectedHost = "";
                 ConnectedTargetId = "";
+                ConnectedTargetType = "";
+                ConnectedTargetUrl = "";
+                SupportedDomains = new HashSet<string>();
             }
             Logger.ClientDisconnected();
             return;
@@ -377,7 +461,36 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             ConnectionStatus = "Disconnected";
             ConnectedHost = "";
             ConnectedTargetId = "";
+            ConnectedTargetType = "";
+            ConnectedTargetUrl = "";
+            SupportedDomains = new HashSet<string>();
             _screencastReconstructor.Dispose();
+        }
+    }
+
+    private async Task DiscoverSupportedDomainsAsync()
+    {
+        try
+        {
+            var response = await SendCommandAsync("Schema.getDomains").ConfigureAwait(false);
+            var domains = response["domains"] as JsonArray;
+            if (domains is null)
+            {
+                SupportedDomains = new HashSet<string>();
+                return;
+            }
+
+            SupportedDomains = domains
+                .OfType<JsonObject>()
+                .Select(domain => domain["name"]?.GetValue<string>())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Select(name => name!)
+                .ToHashSet(StringComparer.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Target does not expose Schema.getDomains; capabilities will be discovered lazily");
+            SupportedDomains = new HashSet<string>();
         }
     }
 
@@ -413,7 +526,7 @@ public class CdpService : ICdpService, INotifyPropertyChanged
             ["params"] = parameters ?? new JsonObject()
         };
 
-        var tcs = new TaskCompletionSource<JsonObject>();
+        var tcs = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pendingRequests[id] = tcs;
         Logger.SendingCommand(method, id);
 
@@ -445,18 +558,18 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         return resultNode;
     }
 
-    private async Task ReceiveLoopAsync()
+    private async Task ReceiveLoopAsync(ClientWebSocket socket, CancellationTokenSource cancellation)
     {
         var buffer = new byte[8192];
         try
         {
-            while (_ws != null && _ws.State == WebSocketState.Open && !_cts!.IsCancellationRequested)
+            while (socket.State == WebSocketState.Open && !cancellation.IsCancellationRequested)
             {
                 using var ms = new MemoryStream();
                 WebSocketReceiveResult result;
                 do
                 {
-                    result = await _ws.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
+                    result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellation.Token);
                     ms.Write(buffer, 0, result.Count);
                 } while (!result.EndOfMessage);
 
@@ -525,10 +638,30 @@ public class CdpService : ICdpService, INotifyPropertyChanged
                     // Record event
                     TimeMachine.RecordEvent(method, parameters);
 
-                    // Raise event to subscribers
-                    EventReceived?.Invoke(this, new CdpEventEventArgs(method, parameters));
+                    // A UI subscriber must not be able to terminate the transport
+                    // receive loop and disconnect every other protocol consumer.
+                    var eventArgs = new CdpEventEventArgs(method, parameters);
+                    var subscribers = EventReceived;
+                    if (subscribers is not null)
+                    {
+                        foreach (EventHandler<CdpEventEventArgs> subscriber in subscribers.GetInvocationList())
+                        {
+                            try
+                            {
+                                subscriber(this, eventArgs);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogErrorMessage("CdpService", $"Event subscriber failed for {method}", ex);
+                            }
+                        }
+                    }
                 }
             }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            // Expected during an explicit disconnect or reconnect.
         }
         catch (Exception ex)
         {
@@ -536,10 +669,27 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         }
         finally
         {
-            if (IsConnected)
+            bool ownsCurrentConnection;
+            lock (_disconnectLock)
             {
-                // Force disconnection cleanup in a background task
-                _ = Task.Run(DisconnectAsync);
+                ownsCurrentConnection = ReferenceEquals(_ws, socket) && ReferenceEquals(_cts, cancellation);
+            }
+
+            if (ownsCurrentConnection)
+            {
+                foreach (var pending in _pendingRequests.ToArray())
+                {
+                    if (_pendingRequests.TryRemove(pending.Key, out var completion))
+                    {
+                        completion.TrySetException(new WebSocketException("The CDP connection closed before a response was received."));
+                    }
+                }
+
+                if (IsConnected)
+                {
+                    // Force disconnection cleanup in a background task.
+                    _ = Task.Run(DisconnectAsync);
+                }
             }
         }
     }

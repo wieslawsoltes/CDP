@@ -15,4 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures/**/*.js" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
