@@ -58,6 +58,58 @@ public sealed class V8SourceMutationEngineTests
         Assert.Contains("one mapping-preserving line", multiline.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task RegeneratesTransformedMultilineTypeScriptWithCompilerAdapter()
+    {
+        const string original = "const value: number = 2;\nconsole.log(value);\n";
+        const string edited = "const value: number = 3;\nconsole.log(value);\nconsole.log('again');\n";
+        const string generated = "const value = 2;\nconsole.log(value);\n";
+        const string regenerated = "const value = 3;\nconsole.log(value);\nconsole.log('again');\n";
+        var originalMap = ParseLineMappedSource("source.ts", original);
+        var regeneratedMap = ParseLineMappedSource("source.ts", edited);
+        var adapter = new TestRegenerator(regenerated, regeneratedMap);
+
+        var result = await new V8SourceMutationEngine([adapter]).CreatePatchAsync(
+            originalMap,
+            0,
+            original,
+            edited,
+            generated,
+            "file:///app/source.ts",
+            "file:///app/source.js");
+
+        Assert.True(result.CanApply);
+        Assert.True(result.HasChanges);
+        Assert.Equal(V8SourceMutationKind.Regenerated, result.Kind);
+        Assert.Equal(regenerated, result.GeneratedSource);
+        Assert.Same(regeneratedMap, result.UpdatedSourceMap);
+        Assert.Null(result.OriginalRange);
+        Assert.Null(result.GeneratedRange);
+        Assert.Equal("file:///app/source.ts", adapter.Request!.SourceUrl);
+        Assert.Equal("file:///app/source.js", adapter.Request.GeneratedUrl);
+        Assert.Equal(edited, adapter.Request.EditedSource);
+    }
+
+    [Fact]
+    public async Task ReportsCompilerFailureAndRejectsStaleSourceMapContent()
+    {
+        const string original = "const value: number = 2;\n";
+        const string edited = "const value: number = 3;\nconst next = value + 1;\n";
+        var map = ParseLineMappedSource("source.ts", original);
+
+        var failed = await new V8SourceMutationEngine([
+            new TestRegenerator(V8SourceRegenerationResult.Failed("TypeScript diagnostic TS1005"))
+        ]).CreatePatchAsync(map, 0, original, edited, "const value = 2;\n");
+        Assert.False(failed.CanApply);
+        Assert.Contains("TS1005", failed.Message, StringComparison.Ordinal);
+
+        var stale = await new V8SourceMutationEngine([
+            new TestRegenerator("const value = 3;\n", map)
+        ]).CreatePatchAsync(map, 0, original, edited, "const value = 2;\n");
+        Assert.False(stale.CanApply);
+        Assert.Contains("edited source", stale.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static V8SourceMap ParseLineMappedSource(string source, string content) => V8SourceMap.Parse($$"""
         {
           "version": 3,
@@ -67,4 +119,31 @@ public sealed class V8SourceMutationEngineTests
           "mappings": "AAAA;AACA;AACA;AACA"
         }
         """);
+
+    private sealed class TestRegenerator : IV8SourceRegenerator
+    {
+        private readonly V8SourceRegenerationResult _result;
+
+        public TestRegenerator(string generatedSource, V8SourceMap sourceMap)
+            : this(V8SourceRegenerationResult.Regenerated(generatedSource, sourceMap, "Test compilation completed."))
+        {
+        }
+
+        public TestRegenerator(V8SourceRegenerationResult result)
+        {
+            _result = result;
+        }
+
+        public string Name => "Test compiler";
+        public V8SourceRegenerationRequest? Request { get; private set; }
+        public bool CanRegenerate(V8SourceRegenerationRequest request) => request.SourceUrl.EndsWith(".ts", StringComparison.Ordinal);
+
+        public ValueTask<V8SourceRegenerationResult> RegenerateAsync(
+            V8SourceRegenerationRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Request = request;
+            return ValueTask.FromResult(_result);
+        }
+    }
 }
