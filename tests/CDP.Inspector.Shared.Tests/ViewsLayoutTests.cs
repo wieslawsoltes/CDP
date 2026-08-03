@@ -1162,18 +1162,48 @@ public class ViewsLayoutTests
             var tabBorder = tabsPanel.Children[0] as Border;
             Assert.NotNull(tabBorder);
 
-            var tabCenter = tabBorder.TranslatePoint(
-                new Point(tabBorder.Bounds.Width / 2, tabBorder.Bounds.Height / 2),
-                window);
-            Assert.NotNull(tabCenter);
+            // Raise the routed pointer sequence directly. Driving this through the
+            // headless root's raw-input helpers can leave the macOS input pump waiting
+            // for a native capture transition even though the test has no native
+            // window. The routed sequence exercises the control's real handlers and
+            // capture state without introducing that platform-only wait.
+            var pointer = new Pointer(0, PointerType.Mouse, true);
+            var tabCenter = new Point(
+                tabBorder.Bounds.Width / 2,
+                tabBorder.Bounds.Height / 2);
+            var pressed = new PointerPressedEventArgs(
+                tabBorder,
+                pointer,
+                tabBorder,
+                tabCenter,
+                0UL,
+                new PointerPointProperties(
+                    RawInputModifiers.LeftMouseButton,
+                    PointerUpdateKind.LeftButtonPressed),
+                KeyModifiers.None)
+            {
+                RoutedEvent = InputElement.PointerPressedEvent,
+                Source = tabBorder
+            };
+            tabBorder.RaiseEvent(pressed);
+            Assert.Equal(tabBorder, pointer.Captured);
 
-            window.MouseDown(tabCenter.Value, MouseButton.Left, RawInputModifiers.None);
-            // Leave the header while staying inside the headless root. Sending raw
-            // pointer input outside a zero/default-sized root is platform-sensitive
-            // and can stall the macOS headless input pump.
-            var outsideHeader = new Point(tabCenter.Value.X, tabCenter.Value.Y + 100);
-            window.MouseMove(outsideHeader, RawInputModifiers.LeftMouseButton);
-            window.MouseUp(outsideHeader, MouseButton.Left, RawInputModifiers.None);
+            var outsideHeader = new Point(tabCenter.X, tabCenter.Y + 100);
+            var moved = new PointerEventArgs(
+                InputElement.PointerMovedEvent,
+                tabBorder,
+                pointer,
+                tabBorder,
+                outsideHeader,
+                1UL,
+                new PointerPointProperties(
+                    RawInputModifiers.LeftMouseButton,
+                    PointerUpdateKind.Other),
+                KeyModifiers.None)
+            {
+                Source = tabBorder
+            };
+            tabBorder.RaiseEvent(moved);
 
             Assert.True(eventFired);
             Assert.Equal(tab1, eventTab);
