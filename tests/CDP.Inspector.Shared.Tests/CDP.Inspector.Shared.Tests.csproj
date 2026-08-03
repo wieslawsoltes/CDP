@@ -35,6 +35,9 @@
     <None Include="../Chrome.DevTools.Protocol.Inspector.Tests/Fixtures/v8-debug-target.js"
           Link="Fixtures/v8-debug-target.js"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Chrome.DevTools.Protocol.Inspector.Tests/Fixtures/v8-source-map-target.js"
+          Link="Fixtures/v8-source-map-target.js"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
