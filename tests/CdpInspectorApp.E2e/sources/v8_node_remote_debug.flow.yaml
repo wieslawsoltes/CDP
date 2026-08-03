@@ -1,0 +1,35 @@
+appId: "CdpInspectorApp"
+description: "Control the Inspector over its own CDP endpoint while it debugs a paused Node V8 target"
+tags:
+  - "sources"
+  - "v8"
+  - "node"
+  - "remote-cdp"
+---
+- runFlow: "shared/navigate_to_sources.yaml"
+- assertTrue: "__raw_window.DataContext.Connection.IsConnected"
+- assertTrue: "__raw_window.DataContext.Sources.IsDebuggerPaused"
+- assertTrue: "__raw_window.DataContext.Sources.CallFrames.Count > 0"
+- assertTrue: "__raw_window.DataContext.Sources.ScopeVariables.Count > 0"
+- assertVisible: "#btnDebuggerResume"
+- assertVisible: "#lstDebuggerCallFrames"
+- assertVisible: "#dgDebuggerScopes"
+- assertVisible: "#txtNewWatchExpression"
+- assertVisible: "#btnDebuggerRestartFrame"
+- evalScript: |
+    var sources = __raw_window.DataContext.Sources;
+    sources.DebuggerEvaluationExpression = "typeof require";
+    sources.EvaluateOnCallFrameCommand.Execute(null);
+- delay: "500"
+- assertTrue: "__raw_window.DataContext.Sources.DebuggerEvaluationResult == \"function\""
+- evalScript: |
+    var sources = __raw_window.DataContext.Sources;
+    sources.NewWatchExpression = "typeof require";
+    sources.AddWatchExpressionCommand.Execute(null);
+- delay: "500"
+- assertTrue: "__raw_window.DataContext.Sources.WatchExpressions.Count == 1"
+- assertTrue: "__raw_window.DataContext.Sources.WatchExpressions[0].Value == \"function\""
+- evalScript: "__raw_window.DataContext.Sources.ResumeCommand.Execute(null)"
+- delay: "300"
+- assertFalse: "__raw_window.DataContext.Sources.IsDebuggerPaused"
+- assertTrue: "__raw_window.DataContext.Connection.IsConnected"

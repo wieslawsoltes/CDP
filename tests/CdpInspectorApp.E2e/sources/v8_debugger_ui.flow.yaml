@@ -1,0 +1,40 @@
+appId: "CdpInspectorApp"
+description: "Verify the V8 debugger Sources UI exposes runtime scripts, pause controls, call frames, scopes, evaluation, exception mode, and breakpoints"
+tags:
+  - "sources"
+  - "v8"
+  - "debugger"
+---
+- runFlow: "shared/connect_to_sample.yaml"
+- runFlow: "shared/navigate_to_sources.yaml"
+- evalScript: |
+    var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;
+    var box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesRuntimeScripts");
+    if (box != null) {
+        for (var i = 0; i < box.Tabs.Count; i++) {
+            if (box.Tabs[i].SelectedViewName == "SourcesRuntimeScripts") {
+                box.ActiveTab = box.Tabs[i];
+                break;
+            }
+        }
+    }
+- delay: "300"
+- assertVisible: "#lstRuntimeScripts"
+- assertVisible: "#txtV8DebuggerStatus"
+- assertVisible: "#btnDebuggerResume"
+- assertVisible: "#btnDebuggerPause"
+- assertVisible: "#btnDebuggerStepOver"
+- assertVisible: "#btnDebuggerStepInto"
+- assertVisible: "#btnDebuggerStepOut"
+- assertVisible: "#btnDebuggerRestartFrame"
+- assertVisible: "#cmbPauseOnExceptions"
+- assertVisible: "#txtDebuggerExpression"
+- assertVisible: "#btnDebuggerEvaluate"
+- assertVisible: "#txtNewWatchExpression"
+- assertVisible: "#btnAddWatchExpression"
+- assertVisible: "#lstDebuggerWatches"
+- assertVisible: "#txtLiveEditStatus"
+- assertVisible: "#lstDebuggerCallFrames"
+- assertVisible: "#dgDebuggerScopes"
+- assertVisible: "#lstV8Breakpoints"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Sources.PauseOnExceptionsStates.Count == 4"
