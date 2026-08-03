@@ -3,12 +3,101 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
+using Chrome.DevTools.Protocol;
 using Chrome.DevTools.Protocol.Inspector;
 
 namespace Chrome.DevTools.Protocol.Inspector.Tests;
 
 public sealed class V8InspectorClientIntegrationTests
 {
+    [Fact(Timeout = 30_000)]
+    public async Task CdpServiceMaintainsPausedNodeInspectorSession()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var port = GetAvailablePort();
+        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "v8-debug-target.js");
+        Assert.True(File.Exists(fixture), $"Missing V8 fixture: {fixture}");
+
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "node",
+            ArgumentList = { $"--inspect-brk=127.0.0.1:{port}", fixture },
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+        Assert.NotNull(process);
+
+        var service = new CdpService();
+        try
+        {
+            var endpoint = $"http://127.0.0.1:{port}";
+            var target = Assert.Single(await WaitForCdpTargetsAsync(service, endpoint, cancellationToken));
+            var pauses = Channel.CreateUnbounded<JsonObject>();
+            service.EventReceived += (_, e) =>
+            {
+                if (e.Method == "Debugger.paused") pauses.Writer.TryWrite(e.Params);
+            };
+
+            await service.ConnectAsync(endpoint, target, autoResume: false);
+            await service.SendCommandAsync("Runtime.enable");
+            await service.SendCommandAsync("Debugger.enable");
+            await service.SendCommandAsync("Debugger.setBreakpointByUrl", new JsonObject
+            {
+                ["urlRegex"] = "v8-debug-target\\.js$",
+                ["lineNumber"] = 4,
+                ["columnNumber"] = 0
+            });
+            await service.SendCommandAsync("Runtime.runIfWaitingForDebugger");
+
+            JsonObject computePause;
+            while (true)
+            {
+                computePause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+                var frame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(computePause["callFrames"])[0]);
+                if (frame["functionName"]?.GetValue<string>() == "compute") break;
+                await service.SendCommandAsync("Debugger.resume");
+            }
+
+            Assert.True(service.IsConnected);
+            await Task.Delay(TimeSpan.FromSeconds(8), cancellationToken);
+            Assert.True(service.IsConnected);
+
+            var computeFrame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(computePause["callFrames"])[0]);
+            var localScope = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(computeFrame["scopeChain"])[0]);
+            var scopeObject = Assert.IsType<JsonObject>(localScope["object"]);
+            var localProperties = await service.SendCommandAsync("Runtime.getProperties", new JsonObject
+            {
+                ["objectId"] = scopeObject["objectId"]!.GetValue<string>(),
+                ["ownProperties"] = false,
+                ["accessorPropertiesOnly"] = false,
+                ["generatePreview"] = true
+            });
+            var state = Assert.Single(Assert.IsType<JsonArray>(localProperties["result"]).OfType<JsonObject>(),
+                property => property["name"]?.GetValue<string>() == "state");
+            var stateProperties = await service.SendCommandAsync("Runtime.getProperties", new JsonObject
+            {
+                ["objectId"] = state["value"]?["objectId"]!.GetValue<string>(),
+                ["ownProperties"] = true,
+                ["accessorPropertiesOnly"] = false,
+                ["generatePreview"] = true
+            });
+            Assert.Contains(Assert.IsType<JsonArray>(stateProperties["result"]).OfType<JsonObject>(),
+                property => property["name"]?.GetValue<string>() == "nested");
+
+            await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+            Assert.True(service.IsConnected);
+        }
+        finally
+        {
+            await service.DisconnectAsync();
+            if (!process!.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(cancellationToken);
+        }
+    }
+
     [Fact(Timeout = 30_000)]
     public async Task NodeInspectorPublishesSourceMapAndPausesAtMappedOriginalBreakpoint()
     {
@@ -364,6 +453,28 @@ public sealed class V8InspectorClientIntegrationTests
                 lastError = ex;
             }
             await Task.Delay(100);
+        }
+        throw new TimeoutException("Node V8 Inspector discovery endpoint did not become ready.", lastError);
+    }
+
+    private static async Task<IReadOnlyList<TargetItem>> WaitForCdpTargetsAsync(
+        CdpService service,
+        string endpoint,
+        CancellationToken cancellationToken)
+    {
+        Exception? lastError = null;
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            try
+            {
+                var targets = await service.GetTargetsAsync(endpoint);
+                if (targets.Count > 0) return targets;
+            }
+            catch (Exception ex) when (ex.InnerException is HttpRequestException or TaskCanceledException)
+            {
+                lastError = ex;
+            }
+            await Task.Delay(100, cancellationToken);
         }
         throw new TimeoutException("Node V8 Inspector discovery endpoint did not become ready.", lastError);
     }

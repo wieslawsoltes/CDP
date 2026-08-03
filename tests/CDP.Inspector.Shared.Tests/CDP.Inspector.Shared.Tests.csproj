@@ -31,4 +31,10 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="../Chrome.DevTools.Protocol.Inspector.Tests/Fixtures/v8-debug-target.js"
+          Link="Fixtures/v8-debug-target.js"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
