@@ -5,6 +5,33 @@ namespace Chrome.DevTools.Protocol.Inspector.Tests;
 public sealed class V8SourceMapTests
 {
     [Fact]
+    public void SerializesNormalizedMapWithoutLosingMappingsContentOrIgnoreList()
+    {
+        var source = V8SourceMap.Parse("""
+            {
+              "version": 3,
+              "file": "bundle.js",
+              "sourceRoot": "webpack:///src/",
+              "sources": ["main.ts", "dependency.ts"],
+              "sourcesContent": ["const value = dependency;", "export const dependency = 7;"],
+              "names": ["value", "dependency"],
+              "mappings": "AAAAA,MAAMC;ACAN",
+              "ignoreList": [1]
+            }
+            """);
+
+        var roundTripped = V8SourceMap.Parse(source.ToJsonString());
+
+        Assert.Equal(source.File, roundTripped.File);
+        Assert.Equal(source.SourceRoot, roundTripped.SourceRoot);
+        Assert.Equal(source.Sources, roundTripped.Sources);
+        Assert.Equal(source.SourcesContent, roundTripped.SourcesContent);
+        Assert.Equal(source.Names, roundTripped.Names);
+        Assert.Equal(source.Entries, roundTripped.Entries);
+        Assert.Equal(source.IgnoredSourceIndexes, roundTripped.IgnoredSourceIndexes);
+    }
+
+    [Fact]
     public void ParsesRevisionThreeMappingsAndEmbeddedSources()
     {
         const string json = """

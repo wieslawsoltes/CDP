@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json.Nodes;
 
 namespace Chrome.DevTools.Protocol.Inspector;
@@ -62,6 +63,52 @@ public sealed class V8SourceMap
     }
 
     public bool IsIgnoredSource(int sourceIndex) => _ignoredSourceIndexes.Contains(sourceIndex);
+
+    /// <summary>
+    /// Serializes this map as a normalized revision 3 regular source map. Indexed maps are
+    /// flattened and use resolved source URLs so section-specific roots remain unambiguous.
+    /// </summary>
+    public JsonObject ToJsonObject()
+    {
+        var flattenSources = _isIndexed || _sourceRoots.Distinct(StringComparer.Ordinal).Skip(1).Any();
+        var sources = new JsonArray();
+        for (var index = 0; index < Sources.Count; index++)
+        {
+            sources.Add((JsonNode?)JsonValue.Create(
+                flattenSources ? ResolveSourceUrl(index) : Sources[index]));
+        }
+
+        var sourcesContent = new JsonArray();
+        foreach (var content in SourcesContent)
+        {
+            sourcesContent.Add(content is null ? null : (JsonNode?)JsonValue.Create(content));
+        }
+        var names = new JsonArray();
+        foreach (var name in Names) names.Add((JsonNode?)JsonValue.Create(name));
+
+        var result = new JsonObject
+        {
+            ["version"] = 3,
+            ["sources"] = sources,
+            ["sourcesContent"] = sourcesContent,
+            ["names"] = names,
+            ["mappings"] = EncodeMappings(_entries)
+        };
+        if (!string.IsNullOrWhiteSpace(File)) result["file"] = File;
+        if (!flattenSources && !string.IsNullOrWhiteSpace(SourceRoot)) result["sourceRoot"] = SourceRoot;
+        if (_ignoredSourceIndexes.Count > 0)
+        {
+            var ignoreList = new JsonArray();
+            foreach (var index in _ignoredSourceIndexes.Order())
+            {
+                ignoreList.Add((JsonNode?)JsonValue.Create(index));
+            }
+            result["ignoreList"] = ignoreList;
+        }
+        return result;
+    }
+
+    public string ToJsonString() => ToJsonObject().ToJsonString();
 
     /// <summary>
     /// Moves a compiler-emitted source to the requested stable index while preserving every
@@ -519,6 +566,61 @@ public sealed class V8SourceMap
         }
         if (shift != 0) throw new FormatException("Incomplete source-map VLQ segment.");
         return result;
+    }
+
+    private static string EncodeMappings(IReadOnlyList<V8SourceMapEntry> entries)
+    {
+        if (entries.Count == 0) return "";
+        var ordered = entries
+            .OrderBy(entry => entry.GeneratedLine)
+            .ThenBy(entry => entry.GeneratedColumn)
+            .ToArray();
+        var result = new StringBuilder();
+        var previousSourceIndex = 0;
+        var previousOriginalLine = 0;
+        var previousOriginalColumn = 0;
+        var previousNameIndex = 0;
+        var entryIndex = 0;
+        for (var generatedLine = 0; generatedLine <= ordered[^1].GeneratedLine; generatedLine++)
+        {
+            if (generatedLine > 0) result.Append(';');
+            var previousGeneratedColumn = 0;
+            var firstSegment = true;
+            while (entryIndex < ordered.Length && ordered[entryIndex].GeneratedLine == generatedLine)
+            {
+                var entry = ordered[entryIndex++];
+                if (!firstSegment) result.Append(',');
+                firstSegment = false;
+                AppendVlq(result, entry.GeneratedColumn - previousGeneratedColumn);
+                AppendVlq(result, entry.SourceIndex - previousSourceIndex);
+                AppendVlq(result, entry.OriginalLine - previousOriginalLine);
+                AppendVlq(result, entry.OriginalColumn - previousOriginalColumn);
+                previousGeneratedColumn = entry.GeneratedColumn;
+                previousSourceIndex = entry.SourceIndex;
+                previousOriginalLine = entry.OriginalLine;
+                previousOriginalColumn = entry.OriginalColumn;
+                if (entry.NameIndex is int nameIndex)
+                {
+                    AppendVlq(result, nameIndex - previousNameIndex);
+                    previousNameIndex = nameIndex;
+                }
+            }
+        }
+        return result.ToString();
+    }
+
+    private static void AppendVlq(StringBuilder result, int signedValue)
+    {
+        const string base64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        var absolute = (ulong)Math.Abs((long)signedValue);
+        var value = (absolute << 1) | (signedValue < 0 ? 1UL : 0UL);
+        do
+        {
+            var digit = value & 31UL;
+            value >>= 5;
+            if (value != 0) digit |= 32UL;
+            result.Append(base64[(int)digit]);
+        } while (value != 0);
     }
 
     private static int DecodeBase64(char character) => character switch
