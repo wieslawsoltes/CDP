@@ -330,7 +330,7 @@
             </Border>
 
             <Border Name="pnlDebuggerBreakpoints" Classes="sources-section" Padding="5">
-                <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto">
+                <Grid RowDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto,Auto">
                     <CheckBox Name="chkBreakpointsActive" Content="Breakpoints active" IsChecked="{Binding Sources.AreBreakpointsActive, Mode=TwoWay}" ToolTip.Tip="Globally activate or deactivate all breakpoints" FontSize="10" Margin="1,0,0,4"/>
                     <ListBox Name="lstV8Breakpoints" Grid.Row="1" ItemsSource="{Binding Sources.V8Breakpoints}" SelectedItem="{Binding Sources.SelectedBreakpoint, Mode=TwoWay}" MinHeight="40" FontSize="11" Margin="0,0,0,4">
                         <ListBox.ItemTemplate>
@@ -345,15 +345,19 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
-                    <ComboBox Name="cmbBreakpointKind" Grid.Row="2" ItemsSource="{Binding Sources.BreakpointKinds}" SelectedItem="{Binding Sources.BreakpointKind, Mode=TwoWay}" FontSize="10" Height="25" Margin="0,0,0,4"/>
-                    <TextBox Name="txtBreakpointCondition" Grid.Row="3" Text="{Binding Sources.BreakpointCondition, Mode=TwoWay}" PlaceholderText="Condition, e.g. count &gt; 5" FontSize="10" Height="25" Margin="0,0,0,4"/>
-                    <TextBox Name="txtBreakpointLogMessage" Grid.Row="4" Text="{Binding Sources.BreakpointLogMessage, Mode=TwoWay}" PlaceholderText="Log message, e.g. count = {count}" FontSize="10" Height="25" Margin="0,0,0,4"/>
-                    <Grid Grid.Row="5" ColumnDefinitions="*,*,*" ColumnSpacing="3" Margin="0,0,0,4">
+                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                        <TextBox Name="txtFunctionBreakpointExpression" Text="{Binding Sources.FunctionBreakpointExpression, Mode=TwoWay}" PlaceholderText="Function expression, e.g. app.render" FontSize="10" Height="25"/>
+                        <Button Name="btnAddFunctionBreakpoint" Classes="sources-compact" Grid.Column="1" Command="{Binding Sources.AddFunctionBreakpointCommand}" Content="Add function" Margin="4,0,0,0" AutomationProperties.Name="Add function breakpoint"/>
+                    </Grid>
+                    <ComboBox Name="cmbBreakpointKind" Grid.Row="3" ItemsSource="{Binding Sources.BreakpointKinds}" SelectedItem="{Binding Sources.BreakpointKind, Mode=TwoWay}" FontSize="10" Height="25" Margin="0,0,0,4"/>
+                    <TextBox Name="txtBreakpointCondition" Grid.Row="4" Text="{Binding Sources.BreakpointCondition, Mode=TwoWay}" PlaceholderText="Condition, e.g. count &gt; 5" FontSize="10" Height="25" Margin="0,0,0,4"/>
+                    <TextBox Name="txtBreakpointLogMessage" Grid.Row="5" Text="{Binding Sources.BreakpointLogMessage, Mode=TwoWay}" PlaceholderText="Log message, e.g. count = {count}" FontSize="10" Height="25" Margin="0,0,0,4"/>
+                    <Grid Grid.Row="6" ColumnDefinitions="*,*,*" ColumnSpacing="3" Margin="0,0,0,4">
                         <Button Name="btnUpdateBreakpoint" Classes="sources-compact" Command="{Binding Sources.UpdateSelectedBreakpointCommand}" Content="Apply"/>
                         <Button Name="btnToggleBreakpointEnabled" Classes="sources-compact" Grid.Column="1" Command="{Binding Sources.ToggleSelectedBreakpointEnabledCommand}" Content="Toggle"/>
                         <Button Name="btnRemoveBreakpoint" Classes="sources-compact" Grid.Column="2" Command="{Binding Sources.RemoveSelectedBreakpointCommand}" Content="Remove"/>
                     </Grid>
-                    <Button Name="btnToggleBreakpoint" Grid.Row="6" Classes="sources-compact" Content="Toggle breakpoint at caret · F9" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
+                    <Button Name="btnToggleBreakpoint" Grid.Row="7" Classes="sources-compact" Content="Toggle breakpoint at caret · F9" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
                 </Grid>
             </Border>
 

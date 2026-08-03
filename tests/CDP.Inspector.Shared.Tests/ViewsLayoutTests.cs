@@ -61,6 +61,7 @@ public class ViewsLayoutTests
             Assert.NotNull(sourcesView);
             Assert.NotNull(sourcesView.FindControl<Button>("btnDebuggerRunToCursor"));
             Assert.NotNull(sourcesView.FindControl<Button>("btnDebuggerSetReturnValue"));
+            Assert.NotNull(sourcesView.FindControl<Button>("btnAddFunctionBreakpoint"));
 
             var applicationView = new ApplicationView();
             Assert.NotNull(applicationView);

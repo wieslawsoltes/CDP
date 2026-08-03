@@ -70,6 +70,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private string _breakpointCondition = "";
     private string _breakpointLogMessage = "";
     private string _breakpointKind = V8BreakpointKinds.Breakpoint;
+    private string _functionBreakpointExpression = "";
     private bool _areBreakpointsActive = true;
     private V8BreakpointModel? _selectedBreakpoint;
     private string _newBlackboxPattern = "";
@@ -287,7 +288,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             if (!RaiseAndSetIfChanged(ref _selectedBreakpoint, value)) return;
             if (value is not null)
             {
-                BreakpointKind = value.Kind;
+                if (value.Kind != V8BreakpointKinds.FunctionCall) BreakpointKind = value.Kind;
                 BreakpointCondition = value.Condition;
                 BreakpointLogMessage = value.LogMessage;
             }
@@ -402,6 +403,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public System.Windows.Input.ICommand ToggleSelectedBreakpointEnabledCommand { get; }
     public System.Windows.Input.ICommand UpdateSelectedBreakpointCommand { get; }
     public System.Windows.Input.ICommand RemoveSelectedBreakpointCommand { get; }
+    public System.Windows.Input.ICommand AddFunctionBreakpointCommand { get; }
     public System.Windows.Input.ICommand SetVariableValueCommand { get; }
     public System.Windows.Input.ICommand AddBlackboxPatternCommand { get; }
     public System.Windows.Input.ICommand RemoveBlackboxPatternCommand { get; }
@@ -443,6 +445,18 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     {
         get => _breakpointKind;
         set => RaiseAndSetIfChanged(ref _breakpointKind, V8BreakpointKinds.Normalize(value));
+    }
+
+    public string FunctionBreakpointExpression
+    {
+        get => _functionBreakpointExpression;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _functionBreakpointExpression, value))
+            {
+                ((RelayCommand)AddFunctionBreakpointCommand).RaiseCanExecuteChanged();
+            }
+        }
     }
 
     public bool AreBreakpointsActive
@@ -748,6 +762,12 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             () => SelectedBreakpoint is not null
         );
 
+        AddFunctionBreakpointCommand = new RelayCommand(
+            async () => await AddFunctionBreakpointAsync(),
+            () => _cdpService.IsConnected && IsDebuggerEnabled &&
+                !string.IsNullOrWhiteSpace(FunctionBreakpointExpression)
+        );
+
         SetVariableValueCommand = new RelayCommand(
             async () => await SetVariableValueAsync(),
             () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame?.CanInspect == true &&
@@ -853,6 +873,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (ToggleSelectedBreakpointEnabledCommand != null) ((RelayCommand)ToggleSelectedBreakpointEnabledCommand).RaiseCanExecuteChanged();
         if (UpdateSelectedBreakpointCommand != null) ((RelayCommand)UpdateSelectedBreakpointCommand).RaiseCanExecuteChanged();
         if (RemoveSelectedBreakpointCommand != null) ((RelayCommand)RemoveSelectedBreakpointCommand).RaiseCanExecuteChanged();
+        if (AddFunctionBreakpointCommand != null) ((RelayCommand)AddFunctionBreakpointCommand).RaiseCanExecuteChanged();
         if (SetVariableValueCommand != null) ((RelayCommand)SetVariableValueCommand).RaiseCanExecuteChanged();
         if (ApplyBlackboxPatternsCommand != null) ((RelayCommand)ApplyBlackboxPatternsCommand).RaiseCanExecuteChanged();
     }
@@ -2126,16 +2147,76 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         RefreshLegacyBreakpoints();
     }
 
+    public async Task AddFunctionBreakpointAsync()
+    {
+        var expression = FunctionBreakpointExpression.Trim();
+        if (!_cdpService.IsConnected || !IsDebuggerEnabled || expression.Length == 0) return;
+        var key = $"function:{expression}";
+        if (V8Breakpoints.Any(breakpoint => breakpoint.Key == key))
+        {
+            DebuggerEvaluationResult = $"Function breakpoint already exists: {expression}";
+            return;
+        }
+
+        var breakpoint = new V8BreakpointModel
+        {
+            Key = key,
+            FunctionExpression = expression,
+            Kind = V8BreakpointKinds.FunctionCall,
+            Condition = BreakpointCondition.Trim(),
+            IsEnabled = true
+        };
+        V8Breakpoints.Add(breakpoint);
+        SelectedBreakpoint = breakpoint;
+        FunctionBreakpointExpression = "";
+        RefreshLegacyBreakpoints();
+        await BindBreakpointAsync(breakpoint);
+    }
+
     private async Task BindBreakpointAsync(V8BreakpointModel breakpoint)
     {
         if (!_cdpService.IsConnected || !IsDebuggerEnabled || !breakpoint.IsEnabled) return;
-        if (string.IsNullOrWhiteSpace(breakpoint.BindingUrl) && string.IsNullOrWhiteSpace(breakpoint.ScriptId)) return;
+        if (breakpoint.Kind != V8BreakpointKinds.FunctionCall &&
+            string.IsNullOrWhiteSpace(breakpoint.BindingUrl) && string.IsNullOrWhiteSpace(breakpoint.ScriptId)) return;
 
         try
         {
             JsonObject parameters;
             string method;
-            if (!string.IsNullOrWhiteSpace(breakpoint.BindingUrl))
+            if (breakpoint.Kind == V8BreakpointKinds.FunctionCall)
+            {
+                var evaluationParameters = new JsonObject
+                {
+                    ["expression"] = breakpoint.FunctionExpression,
+                    ["silent"] = true,
+                    ["returnByValue"] = false
+                };
+                JsonObject evaluation;
+                if (IsDebuggerPaused && SelectedCallFrame?.CanInspect == true)
+                {
+                    evaluationParameters["callFrameId"] = SelectedCallFrame.CallFrameId;
+                    evaluation = await _cdpService.SendCommandAsync("Debugger.evaluateOnCallFrame", evaluationParameters);
+                }
+                else
+                {
+                    evaluation = await _cdpService.SendCommandAsync("Runtime.evaluate", evaluationParameters);
+                }
+                if (evaluation["exceptionDetails"] is JsonObject exception)
+                {
+                    throw new InvalidOperationException(exception["text"]?.GetValue<string>() ?? "Function evaluation failed");
+                }
+                var remoteFunction = evaluation["result"] as JsonObject;
+                var objectId = remoteFunction?["objectId"]?.GetValue<string>();
+                if (remoteFunction?["type"]?.GetValue<string>() != "function" || string.IsNullOrWhiteSpace(objectId))
+                {
+                    throw new InvalidOperationException($"Expression '{breakpoint.FunctionExpression}' did not evaluate to a function");
+                }
+
+                method = "Debugger.setBreakpointOnFunctionCall";
+                parameters = new JsonObject { ["objectId"] = objectId };
+                if (!string.IsNullOrWhiteSpace(breakpoint.Condition)) parameters["condition"] = breakpoint.Condition;
+            }
+            else if (!string.IsNullOrWhiteSpace(breakpoint.BindingUrl))
             {
                 method = "Debugger.setBreakpointByUrl";
                 parameters = new JsonObject
@@ -2166,7 +2247,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             var resolvedLocation = response["actualLocation"] as JsonObject ??
                 (response["locations"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
             breakpoint.BreakpointId = response["breakpointId"]?.GetValue<string>() ?? breakpoint.Key;
-            breakpoint.IsResolved = resolvedLocation is not null;
+            breakpoint.IsResolved = breakpoint.Kind == V8BreakpointKinds.FunctionCall || resolvedLocation is not null;
             breakpoint.ResolvedLineNumber = resolvedLocation?["lineNumber"]?.GetValue<int>();
             breakpoint.ResolvedColumnNumber = resolvedLocation?["columnNumber"]?.GetValue<int>();
             RefreshLegacyBreakpoints();
@@ -2175,6 +2256,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             breakpoint.BreakpointId = "";
             breakpoint.IsResolved = false;
+            if (breakpoint.Kind == V8BreakpointKinds.FunctionCall)
+            {
+                DebuggerEvaluationResult = $"Function breakpoint failed: {ex.Message}";
+            }
             Logger.LogErrorMessage("SourcesVM", $"Unable to bind breakpoint {breakpoint.DisplayName}", ex);
         }
     }
@@ -2215,7 +2300,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         var breakpoint = SelectedBreakpoint;
         if (breakpoint is null) return;
         await UnbindBreakpointAsync(breakpoint);
-        breakpoint.Kind = BreakpointKind;
+        if (breakpoint.Kind != V8BreakpointKinds.FunctionCall) breakpoint.Kind = BreakpointKind;
         breakpoint.Condition = BreakpointCondition.Trim();
         breakpoint.LogMessage = BreakpointLogMessage.Trim();
         if (breakpoint.IsEnabled) await BindBreakpointAsync(breakpoint);
@@ -2821,6 +2906,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 ["key"] = breakpoint.Key,
                 ["url"] = breakpoint.Url,
                 ["bindingUrl"] = breakpoint.BindingUrl,
+                ["functionExpression"] = breakpoint.FunctionExpression,
                 ["scriptId"] = breakpoint.ScriptId,
                 ["lineNumber"] = breakpoint.LineNumber,
                 ["columnNumber"] = breakpoint.ColumnNumber,
@@ -2890,6 +2976,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     Key = breakpointNode["key"]?.GetValue<string>() ?? CreateBreakpointKey(url, displayLineNumber ?? lineNumber),
                     Url = url,
                     BindingUrl = breakpointNode["bindingUrl"]?.GetValue<string>() ?? url,
+                    FunctionExpression = breakpointNode["functionExpression"]?.GetValue<string>() ?? "",
                     ScriptId = breakpointNode["scriptId"]?.GetValue<string>() ?? "",
                     LineNumber = lineNumber,
                     ColumnNumber = breakpointNode["columnNumber"]?.GetValue<int>() ?? 0,

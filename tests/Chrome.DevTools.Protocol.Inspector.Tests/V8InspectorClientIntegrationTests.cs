@@ -406,6 +406,74 @@ public sealed class V8InspectorClientIntegrationTests
         }
     }
 
+    [Fact(Timeout = 30_000)]
+    public async Task NodeInspectorBreaksOnFunctionCall()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var port = GetAvailablePort();
+        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "v8-function-breakpoint-target.js");
+        Assert.True(File.Exists(fixture), $"Missing function-breakpoint fixture: {fixture}");
+
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "node",
+            ArgumentList = { $"--inspect-brk=127.0.0.1:{port}", fixture },
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+        Assert.NotNull(process);
+
+        try
+        {
+            var target = Assert.Single(await WaitForTargetsAsync(new Uri($"http://127.0.0.1:{port}")));
+            await using var inspector = new V8InspectorClient();
+            var pauses = Channel.CreateUnbounded<JsonObject>();
+            inspector.EventReceived += (_, e) =>
+            {
+                if (e.Method == "Debugger.paused") pauses.Writer.TryWrite(e.Params);
+            };
+
+            await inspector.ConnectAsync(new Uri(target.WebSocketDebuggerUrl));
+            await inspector.SendCommandAsync("Runtime.enable");
+            await inspector.SendCommandAsync("Debugger.enable");
+            await inspector.SendCommandAsync("Runtime.runIfWaitingForDebugger");
+            await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            await inspector.SendCommandAsync("Debugger.resume");
+            var declarationPause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            var declarationFrame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(declarationPause["callFrames"])[0]);
+
+            var function = await inspector.SendCommandAsync("Debugger.evaluateOnCallFrame", new JsonObject
+            {
+                ["callFrameId"] = declarationFrame["callFrameId"]!.GetValue<string>(),
+                ["expression"] = "observedFunction",
+                ["returnByValue"] = false
+            });
+            Assert.Equal("function", function["result"]?["type"]?.GetValue<string>());
+            var breakpoint = await inspector.SendCommandAsync("Debugger.setBreakpointOnFunctionCall", new JsonObject
+            {
+                ["objectId"] = function["result"]?["objectId"]!.GetValue<string>()
+            });
+            Assert.False(string.IsNullOrWhiteSpace(breakpoint["breakpointId"]?.GetValue<string>()));
+
+            await inspector.SendCommandAsync("Debugger.resume");
+            var functionPause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            var frame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(functionPause["callFrames"])[0]);
+            Assert.Equal("observedFunction", frame["functionName"]?.GetValue<string>());
+            Assert.Contains(breakpoint["breakpointId"]!.GetValue<string>(),
+                Assert.IsType<JsonArray>(functionPause["hitBreakpoints"]).Select(node => node!.GetValue<string>()));
+        }
+        finally
+        {
+            if (!process!.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(cancellationToken);
+        }
+    }
+
     [Fact(Timeout = 65_000)]
     public async Task NodeInspectorSupportsFullDebuggingSession()
     {

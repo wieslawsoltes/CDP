@@ -93,6 +93,9 @@ Before toggling a breakpoint, developers can enter a C# conditional code snippet
 - The condition is saved along with the breakpoint file path and line number.
 - When the target application encounters the line, it evaluates the condition locally. It will pause execution only if the conditional script evaluates to `true`, preventing unnecessary stops in loops.
 
+### V8 Function-call Breakpoints
+For V8 targets, enter a JavaScript function expression such as `app.render` in the compact function field. The Inspector evaluates it in the selected paused frame (or the runtime context while running), verifies that the result is a function object, and binds `Debugger.setBreakpointOnFunctionCall`. The optional condition field is forwarded to V8, and the definition participates in the same enable, disable, remove, reconnect, and persisted-layout workflows as source breakpoints.
+
 ---
 
 ## 6. CDP Backend Architecture Mappings

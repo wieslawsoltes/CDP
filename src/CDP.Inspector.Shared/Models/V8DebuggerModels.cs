@@ -225,6 +225,7 @@ public sealed class V8BreakpointModel : ViewModelBase
     public string ScriptId { get; init; } = "";
     public string Url { get; init; } = "";
     public string BindingUrl { get; init; } = "";
+    public string FunctionExpression { get; init; } = "";
     public int LineNumber { get; set; }
     public int ColumnNumber { get; set; }
     public int? DisplayLineNumber { get; init; }
@@ -286,12 +287,15 @@ public sealed class V8BreakpointModel : ViewModelBase
     }
 
     public string Status => !IsEnabled ? "Disabled" : IsResolved ? "Resolved" : "Unbound";
-    public string DisplayName => $"{GetFileName()}:{(DisplayLineNumber ?? LineNumber) + 1}:{ColumnNumber + 1}{GetDetailSuffix()} [{Status}]";
+    public string DisplayName => Kind == V8BreakpointKinds.FunctionCall
+        ? $"Function: {FunctionExpression}{GetDetailSuffix()} [{Status}]"
+        : $"{GetFileName()}:{(DisplayLineNumber ?? LineNumber) + 1}:{ColumnNumber + 1}{GetDetailSuffix()} [{Status}]";
 
     private string GetDetailSuffix() => Kind switch
     {
         V8BreakpointKinds.Conditional when !string.IsNullOrWhiteSpace(Condition) => $" if {Condition}",
         V8BreakpointKinds.Logpoint when !string.IsNullOrWhiteSpace(LogMessage) => $" log {LogMessage}",
+        V8BreakpointKinds.FunctionCall when !string.IsNullOrWhiteSpace(Condition) => $" if {Condition}",
         _ => ""
     };
 
@@ -317,11 +321,13 @@ public static class V8BreakpointKinds
     public const string Breakpoint = "Breakpoint";
     public const string Conditional = "Conditional";
     public const string Logpoint = "Logpoint";
+    public const string FunctionCall = "Function call";
 
     public static string Normalize(string? value) => value switch
     {
         Conditional => Conditional,
         Logpoint => Logpoint,
+        FunctionCall => FunctionCall,
         _ => Breakpoint
     };
 }

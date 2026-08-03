@@ -515,6 +515,30 @@ public sealed class SourcesV8DebuggerTests
     }
 
     [AvaloniaFact]
+    public async Task FunctionBreakpointEvaluatesExpressionAndBindsByObjectId()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+        viewModel.FunctionBreakpointExpression = "computeReturnValue";
+        viewModel.BreakpointCondition = "arguments[0] > 0";
+
+        Assert.True(viewModel.AddFunctionBreakpointCommand.CanExecute(null));
+        await viewModel.AddFunctionBreakpointAsync();
+
+        var evaluation = Assert.Single(service.Commands, command => command.Method == "Runtime.evaluate");
+        Assert.Equal("computeReturnValue", evaluation.Parameters?["expression"]?.GetValue<string>());
+        var bind = Assert.Single(service.Commands, command => command.Method == "Debugger.setBreakpointOnFunctionCall");
+        Assert.Equal("function-object-1", bind.Parameters?["objectId"]?.GetValue<string>());
+        Assert.Equal("arguments[0] > 0", bind.Parameters?["condition"]?.GetValue<string>());
+        var breakpoint = Assert.Single(viewModel.V8Breakpoints);
+        Assert.Equal(V8BreakpointKinds.FunctionCall, breakpoint.Kind);
+        Assert.True(breakpoint.IsResolved);
+        Assert.Contains("computeReturnValue", breakpoint.DisplayName);
+    }
+
+    [AvaloniaFact]
     public async Task ScriptParsedResolvedBreakpointsUpdateEditorState()
     {
         var service = new V8FakeCdpService();
@@ -682,10 +706,9 @@ public sealed class SourcesV8DebuggerTests
             {
                 "Debugger.getScriptSource" => new JsonObject { ["scriptSource"] = GeneratedScriptSource },
                 "Runtime.getProperties" => GetProperties(parameters),
-                "Debugger.evaluateOnCallFrame" => new JsonObject
-                {
-                    ["result"] = new JsonObject { ["type"] = "number", ["value"] = 10 }
-                },
+                "Debugger.evaluateOnCallFrame" => Evaluate(parameters),
+                "Runtime.evaluate" => Evaluate(parameters),
+                "Debugger.setBreakpointOnFunctionCall" => new JsonObject { ["breakpointId"] = $"function-breakpoint-{++_nextBreakpointId}" },
                 "Debugger.setScriptSource" => new JsonObject { ["status"] = "Ok" },
                 "Debugger.getPossibleBreakpoints" => GetPossibleBreakpoints(parameters),
                 "Debugger.restartFrame" => new JsonObject(),
@@ -733,6 +756,24 @@ public sealed class SourcesV8DebuggerTests
                     }
                 }
             };
+        }
+
+        private static JsonObject Evaluate(JsonObject? parameters)
+        {
+            return parameters?["expression"]?.GetValue<string>() == "computeReturnValue"
+                ? new JsonObject
+                {
+                    ["result"] = new JsonObject
+                    {
+                        ["type"] = "function",
+                        ["objectId"] = "function-object-1",
+                        ["description"] = "function computeReturnValue()"
+                    }
+                }
+                : new JsonObject
+                {
+                    ["result"] = new JsonObject { ["type"] = "number", ["value"] = 10 }
+                };
         }
 
         private JsonObject GetProperties(JsonObject? parameters)
