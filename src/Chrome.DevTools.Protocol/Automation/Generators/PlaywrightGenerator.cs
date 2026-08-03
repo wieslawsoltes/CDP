@@ -41,18 +41,10 @@ public class PlaywrightGenerator : ICodeGenerator
         sb.AppendLine();
 
         bool hasViewportStep = stepsList.Any(s => s.Type == "setViewport");
-        bool hasNavigateStep = stepsList.Any(s => s.Type == "navigate");
-
         if (!hasViewportStep)
         {
             sb.AppendLine("    await test.step('Set viewport size', async () => {");
             sb.AppendLine("      await page.setViewportSize({ width: 800, height: 600 });");
-            sb.AppendLine("    });");
-        }
-        if (!hasNavigateStep)
-        {
-            sb.AppendLine("    await test.step('Navigate to application', async () => {");
-            sb.AppendLine($"      await page.goto('{EscapeJsString(host)}/');");
             sb.AppendLine("    });");
         }
 
