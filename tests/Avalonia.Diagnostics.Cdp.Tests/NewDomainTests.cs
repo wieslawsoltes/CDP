@@ -106,6 +106,30 @@ public class NewDomainTests
             Assert.NotNull(viewport);
             Assert.True(viewport["width"]?.GetValue<double>() > 0);
             Assert.True(viewport["height"]?.GetValue<double>() > 0);
+
+            foreach (var screenshotProbe in new[]
+                     {
+                         "(function inPagePrepareForScreenshots() {})()",
+                         "document.fonts.ready"
+                     })
+            {
+                var probeResponse = await RuntimeDomain.HandleAsync(session, "callFunctionOn", new JsonObject
+                {
+                    ["objectId"] = utilityObjectId,
+                    ["functionDeclaration"] = "(utilityScript, ...args) => utilityScript.evaluate(...args)",
+                    ["arguments"] = new JsonArray
+                    {
+                        new JsonObject { ["objectId"] = utilityObjectId },
+                        new JsonObject { ["value"] = false },
+                        new JsonObject { ["value"] = true },
+                        new JsonObject { ["value"] = screenshotProbe }
+                    },
+                    ["returnByValue"] = true,
+                    ["awaitPromise"] = true
+                });
+
+                Assert.Equal("undefined", probeResponse["result"]?["type"]?.GetValue<string>());
+            }
         }
         finally
         {

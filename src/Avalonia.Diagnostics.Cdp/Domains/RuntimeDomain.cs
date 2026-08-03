@@ -602,6 +602,15 @@ public static class RuntimeDomain
                                  }
                              }
 
+                             if (expression.Contains("inPagePrepareForScreenshots") ||
+                                 expression.Trim() == "document.fonts.ready")
+                             {
+                                 return new JsonObject
+                                 {
+                                     ["result"] = new JsonObject { ["type"] = "undefined" }
+                                 };
+                             }
+
                              if (expression.Contains("setupHitTargetInterceptor") || expression.Contains("dispatchEvent") || expression.Contains("scrollIntoView") || expression.Contains("setTimeout") || expression.Contains("stop()"))
                              {
                                  string? mockVal = expression.Contains("scrollIntoView") ? "done" : null;
