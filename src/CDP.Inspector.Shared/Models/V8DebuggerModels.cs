@@ -22,8 +22,8 @@ public sealed class V8ScriptModel
     public string GeneratedScriptId { get; init; } = "";
     public string GeneratedUrl { get; init; } = "";
     public int SourceIndex { get; init; } = -1;
-    public string? SourceContent { get; init; }
-    public V8SourceMap? SourceMap { get; init; }
+    public string? SourceContent { get; set; }
+    public V8SourceMap? SourceMap { get; set; }
     public bool IsIgnoredSource { get; init; }
     public bool HasSourceMap => !string.IsNullOrWhiteSpace(SourceMapUrl);
     public string DisplayName => string.IsNullOrWhiteSpace(Url)
@@ -197,8 +197,8 @@ public sealed class V8BreakpointModel : ViewModelBase
     public string ScriptId { get; init; } = "";
     public string Url { get; init; } = "";
     public string BindingUrl { get; init; } = "";
-    public int LineNumber { get; init; }
-    public int ColumnNumber { get; init; }
+    public int LineNumber { get; set; }
+    public int ColumnNumber { get; set; }
     public int? DisplayLineNumber { get; init; }
     public string Condition
     {

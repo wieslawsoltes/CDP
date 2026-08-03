@@ -25,6 +25,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private const string HoverObjectGroup = "cdp-inspector-hover";
     private const string VariableEditObjectGroup = "cdp-inspector-variable-edit";
     private const string WatchObjectGroup = "cdp-inspector-watch";
+    private static readonly V8SourceMutationEngine SourceMutationEngine = new();
     private const int MaximumVariableDepth = 32;
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
@@ -475,7 +476,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     public bool CanEditCurrentSource =>
         (SelectedFile != null && !SelectedFile.IsDirectory && !IsDocumentFile) ||
-        (SelectedRuntimeScript != null && !SelectedRuntimeScript.IsOriginalSource && IsDebuggerEnabled);
+        (SelectedRuntimeScript != null && IsDebuggerEnabled &&
+            (!SelectedRuntimeScript.IsOriginalSource ||
+             SelectedRuntimeScript.SourceMap is not null &&
+             !string.IsNullOrWhiteSpace(SelectedRuntimeScript.GeneratedScriptId)));
 
     public string? SelectedFilePath => SelectedFile?.Path;
 
@@ -2317,28 +2321,105 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
 
         var script = SelectedRuntimeScript;
-        if (script is null || script.IsOriginalSource || string.IsNullOrWhiteSpace(script.ScriptId)) return;
+        if (script is null) return;
+
+        var generatedScriptId = script.IsOriginalSource ? script.GeneratedScriptId : script.ScriptId;
+        if (string.IsNullOrWhiteSpace(generatedScriptId)) return;
 
         LiveEditStatus = "Applying live edit...";
         try
         {
-            var response = await _cdpService.SendCommandAsync("Debugger.setScriptSource", new JsonObject
+            var currentSourceResponse = await _cdpService.SendCommandAsync("Debugger.getScriptSource", new JsonObject
             {
-                ["scriptId"] = script.ScriptId,
-                ["scriptSource"] = content,
-                ["dryRun"] = false,
-                ["allowTopFrameEditing"] = true
+                ["scriptId"] = generatedScriptId
             });
-
-            if (response["exceptionDetails"] is JsonObject exception)
+            var previousGeneratedSource = currentSourceResponse["scriptSource"]?.GetValue<string>() ?? "";
+            var nextGeneratedSource = content;
+            V8SourceMap? previousSourceMap = null;
+            V8SourceMap? updatedSourceMap = null;
+            var previousOriginalSource = script.SourceContent;
+            if (script.IsOriginalSource)
             {
-                LiveEditStatus = exception["text"]?.GetValue<string>() ?? "Live edit failed";
+                previousSourceMap = script.SourceMap;
+                if (previousSourceMap is null)
+                {
+                    LiveEditStatus = "Live edit unavailable: source map is missing";
+                    return;
+                }
+                var originalSource = previousOriginalSource ?? await ReadOriginalSourceAsync(script.Url);
+                var mutation = SourceMutationEngine.CreatePatch(
+                    previousSourceMap,
+                    script.SourceIndex,
+                    originalSource,
+                    content,
+                    previousGeneratedSource);
+                if (!mutation.CanApply)
+                {
+                    LiveEditStatus = $"Live edit unavailable: {mutation.Message}";
+                    return;
+                }
+                if (!mutation.HasChanges)
+                {
+                    LiveEditStatus = "Source unchanged";
+                    return;
+                }
+                nextGeneratedSource = mutation.GeneratedSource;
+                updatedSourceMap = mutation.UpdatedSourceMap;
+            }
+
+            var validation = await SetScriptSourceAsync(generatedScriptId, nextGeneratedSource, dryRun: true);
+            var validationFailure = GetLiveEditFailure(validation);
+            if (validationFailure is not null)
+            {
+                LiveEditStatus = $"Live edit validation failed: {validationFailure}";
                 return;
             }
 
-            var status = response["status"]?.GetValue<string>() ?? "Ok";
-            LiveEditStatus = status == "Ok" ? "Live edit applied" : $"Live edit: {status}";
-            if (status == "Ok") SelectedFileContent = content;
+            var response = await SetScriptSourceAsync(generatedScriptId, nextGeneratedSource, dryRun: false);
+            var applyFailure = GetLiveEditFailure(response);
+            if (applyFailure is not null)
+            {
+                LiveEditStatus = $"Live edit failed: {applyFailure}";
+                return;
+            }
+
+            if (script.IsOriginalSource && updatedSourceMap is not null)
+            {
+                foreach (var original in RuntimeScripts.Where(item =>
+                    item.IsOriginalSource && item.GeneratedScriptId == generatedScriptId &&
+                    ReferenceEquals(item.SourceMap, previousSourceMap)))
+                {
+                    original.SourceMap = updatedSourceMap;
+                    if (original.SourceIndex == script.SourceIndex) original.SourceContent = content;
+                }
+            }
+
+            var rebound = await RebindBreakpointsAfterLiveEditAsync(generatedScriptId, script.GeneratedUrl.Length > 0
+                ? script.GeneratedUrl
+                : script.Url);
+            if (!rebound)
+            {
+                await SetScriptSourceAsync(generatedScriptId, previousGeneratedSource, dryRun: false);
+                if (script.IsOriginalSource && previousSourceMap is not null)
+                {
+                    foreach (var original in RuntimeScripts.Where(item =>
+                        item.IsOriginalSource && item.GeneratedScriptId == generatedScriptId &&
+                        ReferenceEquals(item.SourceMap, updatedSourceMap)))
+                    {
+                        original.SourceMap = previousSourceMap;
+                        if (original.SourceIndex == script.SourceIndex) original.SourceContent = previousOriginalSource;
+                    }
+                }
+                await RebindBreakpointsAfterLiveEditAsync(generatedScriptId,
+                    script.GeneratedUrl.Length > 0 ? script.GeneratedUrl : script.Url);
+                LiveEditStatus = "Live edit rolled back: a breakpoint could not be rebound";
+                return;
+            }
+
+            LiveEditStatus = script.IsOriginalSource
+                ? "Source-mapped live edit applied"
+                : "Live edit applied";
+            SelectedFileContent = content;
 
             if (response["callFrames"] is JsonArray callFrames)
             {
@@ -2354,6 +2435,50 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             LiveEditStatus = $"Live edit failed: {ex.Message}";
             Logger.LogErrorMessage("SourcesVM", "Set script source failed", ex);
         }
+    }
+
+    private Task<JsonObject> SetScriptSourceAsync(string scriptId, string source, bool dryRun) =>
+        _cdpService.SendCommandAsync("Debugger.setScriptSource", new JsonObject
+        {
+            ["scriptId"] = scriptId,
+            ["scriptSource"] = source,
+            ["dryRun"] = dryRun,
+            ["allowTopFrameEditing"] = true
+        });
+
+    private static string? GetLiveEditFailure(JsonObject response)
+    {
+        if (response["exceptionDetails"] is JsonObject exception)
+        {
+            return exception["text"]?.GetValue<string>() ?? "V8 rejected the source";
+        }
+        var status = response["status"]?.GetValue<string>() ?? "Ok";
+        return status == "Ok" ? null : status;
+    }
+
+    private async Task<bool> RebindBreakpointsAfterLiveEditAsync(string generatedScriptId, string generatedUrl)
+    {
+        var affected = V8Breakpoints.Where(breakpoint =>
+            breakpoint.ScriptId == generatedScriptId ||
+            string.Equals(breakpoint.BindingUrl, generatedUrl, StringComparison.Ordinal)).ToArray();
+        foreach (var breakpoint in affected)
+        {
+            var original = RuntimeScripts.FirstOrDefault(item => item.IsOriginalSource &&
+                item.GeneratedScriptId == generatedScriptId && string.Equals(item.Url, breakpoint.Url, StringComparison.Ordinal));
+            if (original?.SourceMap is not null)
+            {
+                var mapped = original.SourceMap.FindGeneratedLocation(
+                    original.SourceIndex,
+                    breakpoint.DisplayLineNumber ?? breakpoint.LineNumber,
+                    0);
+                if (mapped is null) return false;
+                breakpoint.LineNumber = mapped.GeneratedLine;
+                breakpoint.ColumnNumber = mapped.GeneratedColumn;
+            }
+            await UnbindBreakpointAsync(breakpoint);
+            if (breakpoint.IsEnabled) await BindBreakpointAsync(breakpoint);
+        }
+        return affected.All(breakpoint => !breakpoint.IsEnabled || !string.IsNullOrWhiteSpace(breakpoint.BreakpointId));
     }
 
     private async Task LoadFileContentAsync()

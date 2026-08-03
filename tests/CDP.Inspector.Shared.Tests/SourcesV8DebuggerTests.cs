@@ -214,9 +214,15 @@ public sealed class SourcesV8DebuggerTests
         await viewModel.ApplySourceChangesAsync(editedSource);
         Assert.Equal("Live edit applied", viewModel.LiveEditStatus);
         Assert.Equal(editedSource, viewModel.SelectedFileContent);
-        var liveEdit = Assert.Single(service.Commands, command => command.Method == "Debugger.setScriptSource");
-        Assert.Equal("42", liveEdit.Parameters?["scriptId"]?.GetValue<string>());
-        Assert.Equal(editedSource, liveEdit.Parameters?["scriptSource"]?.GetValue<string>());
+        var liveEdits = service.Commands.Where(command => command.Method == "Debugger.setScriptSource").ToArray();
+        Assert.Equal(2, liveEdits.Length);
+        Assert.True(liveEdits[0].Parameters?["dryRun"]?.GetValue<bool>());
+        Assert.False(liveEdits[1].Parameters?["dryRun"]?.GetValue<bool>());
+        Assert.All(liveEdits, liveEdit =>
+        {
+            Assert.Equal("42", liveEdit.Parameters?["scriptId"]?.GetValue<string>());
+            Assert.Equal(editedSource, liveEdit.Parameters?["scriptSource"]?.GetValue<string>());
+        });
 
         viewModel.SearchQuery = "return";
         await viewModel.SearchAsync();
@@ -324,7 +330,10 @@ public sealed class SourcesV8DebuggerTests
     [AvaloniaFact]
     public async Task SourceMappedOriginalsNavigateAndBindBreakpointsToGeneratedCode()
     {
-        var service = new V8FakeCdpService();
+        var service = new V8FakeCdpService
+        {
+            GeneratedScriptSource = "export const App = () => <main>Hello</main>;\nexport const vendor = true;"
+        };
         var viewModel = new SourcesViewModel(service);
         service.IsConnected = true;
         await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
@@ -374,6 +383,23 @@ public sealed class SourcesV8DebuggerTests
         var bind = service.Commands.Last(command => command.Method == "Debugger.setBreakpointByUrl");
         Assert.Equal("file:///app/dist/bundle.js", bind.Parameters?["url"]?.GetValue<string>());
         Assert.Equal(0, bind.Parameters?["lineNumber"]?.GetValue<int>());
+
+        Assert.True(viewModel.CanEditCurrentSource);
+        const string editedOriginal = "export const App = () => <main>Updated</main>;";
+        await viewModel.ApplySourceChangesAsync(editedOriginal);
+        Assert.Equal("Source-mapped live edit applied", viewModel.LiveEditStatus);
+        Assert.Equal(editedOriginal, viewModel.SelectedFileContent);
+        var liveEdits = service.Commands.Where(command => command.Method == "Debugger.setScriptSource").ToArray();
+        Assert.Equal(2, liveEdits.Length);
+        Assert.True(liveEdits[0].Parameters?["dryRun"]?.GetValue<bool>());
+        Assert.False(liveEdits[1].Parameters?["dryRun"]?.GetValue<bool>());
+        Assert.All(liveEdits, liveEdit =>
+        {
+            Assert.Equal("42", liveEdit.Parameters?["scriptId"]?.GetValue<string>());
+            Assert.Contains("<main>Updated</main>", liveEdit.Parameters?["scriptSource"]?.GetValue<string>());
+        });
+        Assert.True(breakpoint.IsResolved);
+        Assert.True(service.Commands.Count(command => command.Method == "Debugger.setBreakpointByUrl") >= 2);
     }
 
     [AvaloniaFact]
@@ -479,6 +505,7 @@ public sealed class SourcesV8DebuggerTests
         public List<(string Method, JsonObject? Parameters)> Commands { get; } = new();
         public bool RejectOptionalDebuggerCommands { get; init; }
         public bool ProvideNestedScopeValues { get; init; }
+        public string GeneratedScriptSource { get; init; } = "function compute() {}";
         private int _nextBreakpointId;
 
         public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>());
@@ -507,7 +534,7 @@ public sealed class SourcesV8DebuggerTests
             }
             return Task.FromResult(method switch
             {
-                "Debugger.getScriptSource" => new JsonObject { ["scriptSource"] = "function compute() {}" },
+                "Debugger.getScriptSource" => new JsonObject { ["scriptSource"] = GeneratedScriptSource },
                 "Runtime.getProperties" => GetProperties(parameters),
                 "Debugger.evaluateOnCallFrame" => new JsonObject
                 {
