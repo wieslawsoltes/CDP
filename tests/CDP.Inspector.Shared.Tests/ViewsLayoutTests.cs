@@ -1139,6 +1139,7 @@ public class ViewsLayoutTests
             Height = 300,
             Content = boxControl
         };
+        Pointer? pointer = null;
         try
         {
             window.Show();
@@ -1167,7 +1168,7 @@ public class ViewsLayoutTests
             // for a native capture transition even though the test has no native
             // window. The routed sequence exercises the control's real handlers and
             // capture state without introducing that platform-only wait.
-            var pointer = new Pointer(0, PointerType.Mouse, true);
+            pointer = new Pointer(0, PointerType.Mouse, true);
             var tabCenter = new Point(
                 tabBorder.Bounds.Width / 2,
                 tabBorder.Bounds.Height / 2);
@@ -1210,6 +1211,7 @@ public class ViewsLayoutTests
         }
         finally
         {
+            pointer?.Capture(null);
             window.Close();
         }
     }
@@ -1227,6 +1229,7 @@ public class ViewsLayoutTests
         };
 
         var window = new Window { Content = boxControl };
+        Pointer? pointer = null;
         try
         {
             window.Show();
@@ -1248,7 +1251,7 @@ public class ViewsLayoutTests
             Assert.NotNull(tabBorder);
 
             // Capture pointer to tabBorder
-            var pointer = new Pointer(0, PointerType.Mouse, true);
+            pointer = new Pointer(0, PointerType.Mouse, true);
             pointer.Capture(tabBorder);
             Assert.Equal(tabBorder, pointer.Captured);
 
@@ -1272,6 +1275,7 @@ public class ViewsLayoutTests
         }
         finally
         {
+            pointer?.Capture(null);
             window.Close();
         }
     }
