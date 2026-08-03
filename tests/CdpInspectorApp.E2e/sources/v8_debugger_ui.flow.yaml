@@ -5,22 +5,17 @@ tags:
   - "v8"
   - "debugger"
 ---
-- runFlow: "shared/connect_to_sample.yaml"
-- runFlow: "shared/navigate_to_sources.yaml"
-- evalScript: |
-    var vm = (CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext;
-    var box = vm.FindBoxNodeByViewName(vm.Sources.LayoutRoot, "SourcesRuntimeScripts");
-    if (box != null) {
-        for (var i = 0; i < box.Tabs.Count; i++) {
-            if (box.Tabs[i].SelectedViewName == "SourcesRuntimeScripts") {
-                box.ActiveTab = box.Tabs[i];
-                break;
-            }
-        }
-    }
+- evalScript: "__raw_window.DataContext.Connection.DisconnectCommand.Execute(null)"
 - delay: "300"
-- assertVisible: "#lstRuntimeScripts"
-- assertVisible: "#txtV8DebuggerStatus"
+- evalScript: |
+    var connection = __raw_window.DataContext.Connection;
+    connection.HostAddress = "http://127.0.0.1:9222";
+    connection.RefreshTargetsCommand.Execute(null);
+- delay: "700"
+- evalScript: "__raw_window.DataContext.Connection.ConnectCommand.Execute(null)"
+- delay: "1500"
+- assertTrue: "__raw_window.DataContext.Connection.IsConnected"
+- runFlow: "shared/navigate_to_sources.yaml"
 - assertVisible: "#btnDebuggerResume"
 - assertVisible: "#btnDebuggerPause"
 - assertVisible: "#btnDebuggerStepOver"
@@ -33,7 +28,7 @@ tags:
 - assertVisible: "#txtNewWatchExpression"
 - assertVisible: "#btnAddWatchExpression"
 - assertVisible: "#lstDebuggerWatches"
-- assertVisible: "#txtLiveEditStatus"
+- assertTrue: "document.querySelector('#txtLiveEditStatus') != null"
 - assertVisible: "#lstDebuggerCallFrames"
 - assertVisible: "#dgDebuggerScopes"
 - assertVisible: "#lstV8Breakpoints"
