@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.VisualTree;
 using System;
+using System.Linq;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using CDP.Editor.Splits.Models;
@@ -1345,6 +1346,22 @@ public class ViewsLayoutTests
 
         var sourcesVm = new SourcesViewModel(mockService);
         Assert.NotNull(sourcesVm.LayoutRoot);
+        var sourcesRoot = Assert.IsType<SplitContainerNode>(sourcesVm.LayoutRoot);
+        Assert.Equal(0.21, sourcesRoot.SplitterRatio, 2);
+        var editorAndDebugger = Assert.IsType<SplitContainerNode>(sourcesRoot.Child2);
+        Assert.Equal(0.71, editorAndDebugger.SplitterRatio, 2);
+
+        var debuggerRoot = Assert.IsType<SplitContainerNode>(sourcesVm.DebuggerLayoutRoot);
+        Assert.Equal(0.22, debuggerRoot.SplitterRatio, 2);
+        var watchPane = Assert.IsType<BoxNode>(debuggerRoot.Child1);
+        Assert.Equal(new[] { "DebuggerWatch", "DebuggerIgnoreList" },
+            watchPane.Tabs.Select(tab => tab.SelectedViewName));
+
+        var stackAndDetails = Assert.IsType<SplitContainerNode>(debuggerRoot.Child2);
+        Assert.Equal("DebuggerCallStack", Assert.IsType<BoxNode>(stackAndDetails.Child1).SelectedViewName);
+        var variablesAndBreakpoints = Assert.IsType<SplitContainerNode>(stackAndDetails.Child2);
+        Assert.Equal("DebuggerVariables", Assert.IsType<BoxNode>(variablesAndBreakpoints.Child1).SelectedViewName);
+        Assert.Equal("DebuggerBreakpoints", Assert.IsType<BoxNode>(variablesAndBreakpoints.Child2).SelectedViewName);
 
         var auditsVm = new AuditsViewModel(mockService, _ => {});
         Assert.NotNull(auditsVm.LayoutRoot);

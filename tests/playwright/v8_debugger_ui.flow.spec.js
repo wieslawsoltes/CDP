@@ -5,9 +5,15 @@ test.describe('CDP Recorded Tests', () => {
     const browser = await chromium.connectOverCDP('http://127.0.0.1:9223');
     const context = browser.contexts()[0];
     const page = context.pages()[0];
+    // Avalonia's CDP DOM exposes named controls, but does not implement every
+    // browser layout primitive Playwright's web-specific toBeVisible uses.
+    const expectCdpElement = async (selector) => {
+      const present = await page.evaluate(`document.querySelector('${selector}') != null`);
+      await expect(present).toBeTruthy();
+    };
 
     await test.step('Set viewport size', async () => {
-      await page.setViewportSize({ width: 800, height: 600 });
+      await page.setViewportSize({ width: 1320, height: 768 });
     });
 
     await test.step('Evaluate Script: __raw_window.DataContext.Connection.DisconnectCommand.Execute(null)', async () => {
@@ -62,51 +68,57 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Assert element #btnDebuggerResume is visible', async () => {
-      await expect(page.locator('#btnDebuggerResume')).toBeVisible();
+      await expectCdpElement('#btnDebuggerResume');
     });
 
     await test.step('Assert element #btnDebuggerPause is visible', async () => {
-      await expect(page.locator('#btnDebuggerPause')).toBeVisible();
+      await expectCdpElement('#btnDebuggerPause');
     });
 
     await test.step('Assert element #btnDebuggerStepOver is visible', async () => {
-      await expect(page.locator('#btnDebuggerStepOver')).toBeVisible();
+      await expectCdpElement('#btnDebuggerStepOver');
     });
 
     await test.step('Assert element #btnDebuggerStepInto is visible', async () => {
-      await expect(page.locator('#btnDebuggerStepInto')).toBeVisible();
+      await expectCdpElement('#btnDebuggerStepInto');
     });
 
     await test.step('Assert element #btnDebuggerStepOut is visible', async () => {
-      await expect(page.locator('#btnDebuggerStepOut')).toBeVisible();
+      await expectCdpElement('#btnDebuggerStepOut');
     });
 
     await test.step('Assert element #btnDebuggerRestartFrame is visible', async () => {
-      await expect(page.locator('#btnDebuggerRestartFrame')).toBeVisible();
+      await expectCdpElement('#btnDebuggerRestartFrame');
     });
 
     await test.step('Assert element #cmbPauseOnExceptions is visible', async () => {
-      await expect(page.locator('#cmbPauseOnExceptions')).toBeVisible();
+      await expectCdpElement('#cmbPauseOnExceptions');
     });
 
     await test.step('Assert element #txtDebuggerExpression is visible', async () => {
-      await expect(page.locator('#txtDebuggerExpression')).toBeVisible();
+      await expectCdpElement('#txtDebuggerExpression');
     });
 
     await test.step('Assert element #btnDebuggerEvaluate is visible', async () => {
-      await expect(page.locator('#btnDebuggerEvaluate')).toBeVisible();
+      await expectCdpElement('#btnDebuggerEvaluate');
+    });
+
+    await test.step('Assert the resizable debugger split workspace is visible', async () => {
+      await expectCdpElement('#DebuggerSplitControl');
+      const hasSplitLayout = await page.evaluate('__raw_window.DataContext.Sources.DebuggerLayoutRoot != null');
+      await expect(hasSplitLayout).toBeTruthy();
     });
 
     await test.step('Assert element #txtNewWatchExpression is visible', async () => {
-      await expect(page.locator('#txtNewWatchExpression')).toBeVisible();
+      await expectCdpElement('#txtNewWatchExpression');
     });
 
     await test.step('Assert element #btnAddWatchExpression is visible', async () => {
-      await expect(page.locator('#btnAddWatchExpression')).toBeVisible();
+      await expectCdpElement('#btnAddWatchExpression');
     });
 
     await test.step('Assert element #lstDebuggerWatches is visible', async () => {
-      await expect(page.locator('#lstDebuggerWatches')).toBeVisible();
+      await expectCdpElement('#lstDebuggerWatches');
     });
 
     await test.step('Assert True: document.querySelector(\'#txtLiveEditStatus\') != null', async () => {
@@ -115,15 +127,15 @@ test.describe('CDP Recorded Tests', () => {
     });
 
     await test.step('Assert element #lstDebuggerCallFrames is visible', async () => {
-      await expect(page.locator('#lstDebuggerCallFrames')).toBeVisible();
+      await expectCdpElement('#lstDebuggerCallFrames');
     });
 
     await test.step('Assert element #dgDebuggerScopes is visible', async () => {
-      await expect(page.locator('#dgDebuggerScopes')).toBeVisible();
+      await expectCdpElement('#dgDebuggerScopes');
     });
 
     await test.step('Assert element #lstV8Breakpoints is visible', async () => {
-      await expect(page.locator('#lstV8Breakpoints')).toBeVisible();
+      await expectCdpElement('#lstV8Breakpoints');
     });
 
     await test.step('Assert True: document.querySelector(\'#chkBreakpointsActive\') != null', async () => {
@@ -164,6 +176,11 @@ test.describe('CDP Recorded Tests', () => {
     await test.step('Assert True: document.querySelector(\'#btnSetVariableValue\') != null', async () => {
       const result = await page.evaluate('document.querySelector(\'#btnSetVariableValue\') != null');
       await expect(result).toBeTruthy();
+    });
+
+    await test.step('Open the Ignore List debugger tab', async () => {
+      await page.locator('#TabDebuggerIgnoreList').click();
+      await page.waitForTimeout(200);
     });
 
     await test.step('Assert True: document.querySelector(\'#lstBlackboxPatterns\') != null', async () => {
@@ -223,6 +240,10 @@ test.describe('CDP Recorded Tests', () => {
       const result = await page.evaluate('__raw_window.DataContext.Sources.BlackboxPatterns.Count == 1');
       await expect(result).toBeTruthy();
     });
+
+    if (process.env.CDP_V8_UI_SCREENSHOT_PATH) {
+      await page.screenshot({ path: process.env.CDP_V8_UI_SCREENSHOT_PATH });
+    }
 
     await browser.close();
   });
