@@ -26,7 +26,12 @@ public sealed record V8SourceRegenerationRequest(
     string GeneratedUrl,
     string OriginalSource,
     string EditedSource,
-    string GeneratedSource);
+    string GeneratedSource)
+{
+    public V8SourceRevision OriginalRevision => V8SourceRevision.Create(OriginalSource);
+    public V8SourceRevision EditedRevision => V8SourceRevision.Create(EditedSource);
+    public V8SourceRevision GeneratedRevision => V8SourceRevision.Create(GeneratedSource);
+}
 
 /// <summary>JavaScript and source-map output produced by a source regenerator.</summary>
 public sealed record V8SourceRegenerationResult(

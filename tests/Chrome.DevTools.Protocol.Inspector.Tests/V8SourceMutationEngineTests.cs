@@ -17,6 +17,9 @@ public sealed class V8SourceMutationEngineTests
         Assert.Equal(edited, result.GeneratedSource);
         Assert.Equal(edited, Assert.Single(result.UpdatedSourceMap!.SourcesContent));
         Assert.Equal(new V8SourceMutationRange(1, 17, 1, 18), result.OriginalRange);
+        Assert.Equal("mapped patch · source 4→4 lines · output 4→4 lines", result.Preview?.Summary);
+        Assert.True(result.Preview?.GeneratedRevision.Matches(original));
+        Assert.True(result.Preview?.ResultRevision.Matches(edited));
     }
 
     [Fact]
@@ -88,6 +91,8 @@ public sealed class V8SourceMutationEngineTests
         Assert.Equal("file:///app/source.ts", adapter.Request!.SourceUrl);
         Assert.Equal("file:///app/source.js", adapter.Request.GeneratedUrl);
         Assert.Equal(edited, adapter.Request.EditedSource);
+        Assert.Equal("Test compiler", result.Preview?.AdapterName);
+        Assert.Equal(V8SourceMutationKind.Regenerated, result.Preview?.Kind);
     }
 
     [Fact]
@@ -110,6 +115,31 @@ public sealed class V8SourceMutationEngineTests
         Assert.Contains("edited source", stale.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task FallsBackToNextCompatibleRegeneratorAndReportsRevisionFingerprints()
+    {
+        const string original = "const value: number = 2;\n";
+        const string edited = "const value: number = 3;\nconst next = value + 1;\n";
+        const string generated = "const value = 2;\n";
+        const string regenerated = "const value = 3;\nconst next = value + 1;\n";
+        var originalMap = ParseLineMappedSource("source.ts", original);
+        var regeneratedMap = ParseLineMappedSource("source.ts", edited);
+        var failing = new TestRegenerator(
+            V8SourceRegenerationResult.Failed("primary compiler failed"),
+            "Primary compiler");
+        var fallback = new TestRegenerator(regenerated, regeneratedMap, "Fallback compiler");
+
+        var result = await new V8SourceMutationEngine([failing, fallback]).CreatePatchAsync(
+            originalMap, 0, original, edited, generated, "file:///app/source.ts", "file:///app/source.js");
+
+        Assert.True(result.CanApply, result.Message);
+        Assert.NotNull(failing.Request);
+        Assert.NotNull(fallback.Request);
+        Assert.Equal("Fallback compiler", result.Preview?.AdapterName);
+        Assert.Equal(V8SourceRevision.Create(original), fallback.Request!.OriginalRevision);
+        Assert.Equal(V8SourceRevision.Create(generated), fallback.Request.GeneratedRevision);
+    }
+
     private static V8SourceMap ParseLineMappedSource(string source, string content) => V8SourceMap.Parse($$"""
         {
           "version": 3,
@@ -124,17 +154,18 @@ public sealed class V8SourceMutationEngineTests
     {
         private readonly V8SourceRegenerationResult _result;
 
-        public TestRegenerator(string generatedSource, V8SourceMap sourceMap)
-            : this(V8SourceRegenerationResult.Regenerated(generatedSource, sourceMap, "Test compilation completed."))
+        public TestRegenerator(string generatedSource, V8SourceMap sourceMap, string name = "Test compiler")
+            : this(V8SourceRegenerationResult.Regenerated(generatedSource, sourceMap, "Test compilation completed."), name)
         {
         }
 
-        public TestRegenerator(V8SourceRegenerationResult result)
+        public TestRegenerator(V8SourceRegenerationResult result, string name = "Test compiler")
         {
             _result = result;
+            Name = name;
         }
 
-        public string Name => "Test compiler";
+        public string Name { get; }
         public V8SourceRegenerationRequest? Request { get; private set; }
         public bool CanRegenerate(V8SourceRegenerationRequest request) => request.SourceUrl.EndsWith(".ts", StringComparison.Ordinal);
 
