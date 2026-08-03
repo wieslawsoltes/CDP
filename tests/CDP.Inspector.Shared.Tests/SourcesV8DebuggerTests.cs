@@ -55,6 +55,21 @@ public sealed class SourcesV8DebuggerTests
                         }
                     }
                 }
+            },
+            ["asyncStackTrace"] = new JsonObject
+            {
+                ["description"] = "await compute",
+                ["callFrames"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["functionName"] = "scheduleCompute",
+                        ["scriptId"] = "42",
+                        ["url"] = "file:///app/example.js",
+                        ["lineNumber"] = 1,
+                        ["columnNumber"] = 3
+                    }
+                }
             }
         });
 
@@ -62,8 +77,11 @@ public sealed class SourcesV8DebuggerTests
         Assert.True(viewModel.IsDebuggerPaused);
         Assert.Equal("breakpoint", viewModel.PauseReason);
         Assert.Equal(5, viewModel.ActiveDebugLine);
-        Assert.Equal("[local] sum", viewModel.ScopeVariables[0].Key);
+        Assert.Equal("[local] sum", viewModel.ScopeVariables[0].DisplayName);
         Assert.Equal("5", viewModel.ScopeVariables[0].Value);
+        Assert.Equal(3, viewModel.CallFrames.Count);
+        Assert.True(viewModel.CallFrames[1].IsAsyncBoundary);
+        Assert.Equal("scheduleCompute", viewModel.CallFrames[2].FunctionName);
 
         viewModel.DebuggerEvaluationExpression = "sum * 2";
         await Task.Delay(10);
@@ -71,6 +89,20 @@ public sealed class SourcesV8DebuggerTests
         viewModel.EvaluateOnCallFrameCommand.Execute(null);
         await WaitUntilAsync(() => viewModel.DebuggerEvaluationResult == "10");
         Assert.Contains(service.Commands, command => command.Method == "Debugger.evaluateOnCallFrame");
+
+        var hoverValue = await viewModel.EvaluateHoverAsync("sum");
+        Assert.Equal("10", hoverValue);
+        var hover = service.Commands.Last(command => command.Method == "Debugger.evaluateOnCallFrame");
+        Assert.True(hover.Parameters?["throwOnSideEffect"]?.GetValue<bool>());
+
+        viewModel.SelectedScopeVariable = viewModel.ScopeVariables[0];
+        viewModel.NewVariableValueExpression = "42";
+        viewModel.SetVariableValueCommand.Execute(null);
+        await WaitUntilAsync(() => service.Commands.Any(command => command.Method == "Debugger.setVariableValue"));
+        var setVariable = service.Commands.Last(command => command.Method == "Debugger.setVariableValue");
+        Assert.Equal(0, setVariable.Parameters?["scopeNumber"]?.GetValue<int>());
+        Assert.Equal("sum", setVariable.Parameters?["variableName"]?.GetValue<string>());
+        Assert.Equal(10, setVariable.Parameters?["newValue"]?["value"]?.GetValue<int>());
 
         viewModel.NewWatchExpression = "sum";
         viewModel.AddWatchExpressionCommand.Execute(null);
@@ -194,6 +226,58 @@ public sealed class SourcesV8DebuggerTests
             service.Commands.Count(command => command.Method == "Debugger.setBreakpointByUrl") > bindingCount);
     }
 
+    [AvaloniaFact]
+    public async Task BlackboxPatternsAreAppliedToV8Debugger()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        viewModel.NewBlackboxPattern = "/node_modules/";
+        viewModel.AddBlackboxPatternCommand.Execute(null);
+        await WaitUntilAsync(() => service.Commands.Count(command => command.Method == "Debugger.setBlackboxPatterns") >= 2);
+
+        var command = service.Commands.Last(item => item.Method == "Debugger.setBlackboxPatterns");
+        var patterns = Assert.IsType<JsonArray>(command.Parameters?["patterns"]);
+        Assert.Equal("/node_modules/", Assert.Single(patterns)?.GetValue<string>());
+        Assert.False(command.Parameters?["skipAnonymous"]?.GetValue<bool>());
+
+        viewModel.SkipAnonymousScripts = true;
+        await WaitUntilAsync(() => service.Commands.Last(item => item.Method == "Debugger.setBlackboxPatterns")
+            .Parameters?["skipAnonymous"]?.GetValue<bool>() == true);
+        Assert.Contains("anonymous", viewModel.BlackboxStatusText);
+    }
+
+    [AvaloniaFact]
+    public async Task ExternalAsyncStackTraceIsResolved()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        service.Raise("Debugger.paused", new JsonObject
+        {
+            ["reason"] = "promiseRejection",
+            ["callFrames"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["callFrameId"] = "frame-1",
+                    ["functionName"] = "continuation",
+                    ["location"] = new JsonObject { ["scriptId"] = "42", ["lineNumber"] = 6, ["columnNumber"] = 0 }
+                }
+            },
+            ["asyncStackTraceId"] = new JsonObject { ["id"] = "async-1", ["debuggerId"] = "debugger-1" }
+        });
+
+        await WaitUntilAsync(() => viewModel.CallFrames.Count == 3);
+        Assert.Contains(service.Commands, command => command.Method == "Debugger.getStackTrace");
+        Assert.True(viewModel.CallFrames[1].IsAsyncBoundary);
+        Assert.Equal("asyncParent", viewModel.CallFrames[2].FunctionName);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         for (var attempt = 0; attempt < 100 && !condition(); attempt++) await Task.Delay(10);
@@ -234,7 +318,8 @@ public sealed class SourcesV8DebuggerTests
         {
             Commands.Add((method, parameters));
             if (RejectOptionalDebuggerCommands &&
-                method is "Debugger.setAsyncCallStackDepth" or "Debugger.setPauseOnExceptions" or "Debugger.setBreakpointsActive")
+                method is "Debugger.setAsyncCallStackDepth" or "Debugger.setPauseOnExceptions" or
+                    "Debugger.setBreakpointsActive" or "Debugger.setBlackboxPatterns")
             {
                 return Task.FromException<JsonObject>(new InvalidOperationException($"Action {method} is not supported."));
             }
@@ -258,6 +343,7 @@ public sealed class SourcesV8DebuggerTests
                         new JsonObject
                         {
                             ["name"] = "sum",
+                            ["writable"] = true,
                             ["value"] = new JsonObject { ["type"] = "number", ["value"] = 5 }
                         }
                     }
@@ -268,6 +354,24 @@ public sealed class SourcesV8DebuggerTests
                 },
                 "Debugger.setScriptSource" => new JsonObject { ["status"] = "Ok" },
                 "Debugger.restartFrame" => new JsonObject(),
+                "Debugger.getStackTrace" => new JsonObject
+                {
+                    ["stackTrace"] = new JsonObject
+                    {
+                        ["description"] = "Promise.then",
+                        ["callFrames"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["functionName"] = "asyncParent",
+                                ["scriptId"] = "42",
+                                ["url"] = "file:///app/example.js",
+                                ["lineNumber"] = 2,
+                                ["columnNumber"] = 1
+                            }
+                        }
+                    }
+                },
                 "Debugger.searchInContent" => new JsonObject
                 {
                     ["result"] = new JsonArray

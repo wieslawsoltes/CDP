@@ -41,8 +41,14 @@ public sealed class V8CallFrameModel
     public string ScriptId { get; init; } = "";
     public int LineNumber { get; init; }
     public int ColumnNumber { get; init; }
+    public bool IsAsyncFrame { get; init; }
+    public bool IsAsyncBoundary { get; init; }
+    public string AsyncDescription { get; init; } = "";
     public IReadOnlyList<V8ScopeModel> ScopeChain { get; init; } = Array.Empty<V8ScopeModel>();
-    public string DisplayName => $"{(string.IsNullOrWhiteSpace(FunctionName) ? "(anonymous)" : FunctionName)} ({GetFileName()}:{LineNumber + 1}:{ColumnNumber + 1})";
+    public bool CanInspect => !string.IsNullOrWhiteSpace(CallFrameId) && !IsAsyncBoundary;
+    public string DisplayName => IsAsyncBoundary
+        ? $"— async: {(string.IsNullOrWhiteSpace(AsyncDescription) ? "continuation" : AsyncDescription)} —"
+        : $"{(IsAsyncFrame ? "async · " : "")}{(string.IsNullOrWhiteSpace(FunctionName) ? "(anonymous)" : FunctionName)} ({GetFileName()}:{LineNumber + 1}:{ColumnNumber + 1})";
 
     private string GetFileName()
     {
@@ -57,6 +63,7 @@ public sealed class V8CallFrameModel
 
 public sealed class V8ScopeModel
 {
+    public int Index { get; init; }
     public string Type { get; init; } = "";
     public string Name { get; init; } = "";
     public string ObjectId { get; init; } = "";
@@ -64,6 +71,25 @@ public sealed class V8ScopeModel
     public ObservableCollection<V8PropertyModel> Properties { get; } = new();
     public string DisplayName => string.IsNullOrWhiteSpace(Name) ? Type : $"{Type}: {Name}";
     public override string ToString() => DisplayName;
+}
+
+public sealed class V8ScopeVariableModel : ViewModelBase
+{
+    private string _value = "undefined";
+
+    public string ScopeType { get; init; } = "";
+    public int ScopeNumber { get; init; }
+    public string Name { get; init; } = "";
+    public string Type { get; init; } = "";
+    public string ObjectId { get; init; } = "";
+    public bool Writable { get; init; }
+    public string DisplayName => $"[{ScopeType}] {Name}";
+
+    public string Value
+    {
+        get => _value;
+        set => RaiseAndSetIfChanged(ref _value, value);
+    }
 }
 
 public sealed class V8PropertyModel

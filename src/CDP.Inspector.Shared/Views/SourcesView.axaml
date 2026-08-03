@@ -178,7 +178,7 @@
                     <map:MinimapTextEditor Name="txtSourceContent"
                                            IsVisible="{Binding Sources.IsSourceEditorVisible}"
                                            FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="11" Foreground="#e8eaed" Background="Transparent" BorderThickness="0" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                                           ToolTip.Tip="F9 breakpoint · F5 continue · F6 pause · F10 step over · F11 step into · Shift+F11 step out · Ctrl+S save/live edit"/>
+                                           ToolTip.Tip="F9 breakpoint · F5 continue · F6 pause · F10 step over · F11 step into · Shift+F11 step out · Ctrl+Shift+E evaluate selection · Ctrl+S save/live edit"/>
                     <ScrollViewer IsVisible="{Binding Sources.IsMarkdownPreviewMode}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <md:MarkdownEditor Name="mdVisualEditor"
                                            Text="{Binding Sources.SelectedFileContent, Mode=TwoWay}"
@@ -272,12 +272,20 @@
                             </ListBox>
 
                             <TextBlock Text="Scopes" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
-                            <DataGrid Name="dgDebuggerScopes" ItemsSource="{Binding Sources.ScopeVariables}" Height="180" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="None" HeadersVisibility="Column" Background="Transparent" BorderBrush="#3c4043" BorderThickness="1" FontSize="11" Margin="0,0,0,8">
+                            <DataGrid Name="dgDebuggerScopes" ItemsSource="{Binding Sources.ScopeVariables}"
+                                      SelectedItem="{Binding Sources.SelectedScopeVariable, Mode=TwoWay}"
+                                      Height="180" AutoGenerateColumns="False" IsReadOnly="True" GridLinesVisibility="None" HeadersVisibility="Column" Background="Transparent" BorderBrush="#3c4043" BorderThickness="1" FontSize="11" Margin="0,0,0,4">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Name" Binding="{Binding Key}" Width="140" Foreground="#8ab4f8"/>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="140" Foreground="#8ab4f8"/>
                                     <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*" Foreground="#e8eaed"/>
                                 </DataGrid.Columns>
                             </DataGrid>
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                                <TextBox Name="txtNewVariableValue" Text="{Binding Sources.NewVariableValueExpression, Mode=TwoWay}"
+                                         PlaceholderText="New value expression" FontSize="11"/>
+                                <Button Name="btnSetVariableValue" Grid.Column="1" Command="{Binding Sources.SetVariableValueCommand}"
+                                        Content="Set" Margin="5,0,0,0"/>
+                            </Grid>
 
                             <Grid ColumnDefinitions="*,Auto" Margin="0,5,0,2">
                                 <TextBlock Text="Breakpoints" Classes="panel-header" FontSize="12" VerticalAlignment="Center"/>
@@ -316,6 +324,26 @@
                                         Content="Remove" FontSize="10" Padding="4"/>
                             </Grid>
                             <Button Name="btnToggleBreakpoint" Content="Toggle Breakpoint at Caret" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="0,6"/>
+
+                            <TextBlock Text="Ignore List (Blackboxing)" Classes="panel-header" FontSize="12" Margin="0,12,0,2"/>
+                            <TextBlock Text="{Binding Sources.BlackboxStatusText}" FontSize="9" Foreground="#9aa0a6" Margin="0,0,0,4"/>
+                            <ListBox Name="lstBlackboxPatterns" ItemsSource="{Binding Sources.BlackboxPatterns}"
+                                     SelectedItem="{Binding Sources.SelectedBlackboxPattern, Mode=TwoWay}"
+                                     MinHeight="45" MaxHeight="90" FontSize="10" Margin="0,0,0,4"/>
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+                                <TextBox Name="txtNewBlackboxPattern" Text="{Binding Sources.NewBlackboxPattern, Mode=TwoWay}"
+                                         PlaceholderText="URL regex, e.g. /node_modules/" FontSize="10"/>
+                                <Button Name="btnAddBlackboxPattern" Grid.Column="1" Command="{Binding Sources.AddBlackboxPatternCommand}"
+                                        Content="Add" Margin="4,0,0,0" FontSize="10"/>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8">
+                                <CheckBox Name="chkSkipAnonymousScripts" Content="Skip anonymous scripts"
+                                          IsChecked="{Binding Sources.SkipAnonymousScripts, Mode=TwoWay}" FontSize="10"/>
+                                <Button Name="btnApplyBlackboxPatterns" Grid.Column="1" Command="{Binding Sources.ApplyBlackboxPatternsCommand}"
+                                        Content="Apply" FontSize="10" Padding="5,2"/>
+                                <Button Name="btnRemoveBlackboxPattern" Grid.Column="2" Command="{Binding Sources.RemoveBlackboxPatternCommand}"
+                                        Content="Remove" FontSize="10" Padding="5,2" Margin="4,0,0,0"/>
+                            </Grid>
                         </StackPanel>
                     </ScrollViewer>
                 </Grid>

@@ -51,6 +51,8 @@ public partial class SourcesView : UserControl
     private readonly LspDiagnosticColorizer _diagnosticColorizer = new();
     private DebuggerLineColorizer? _debuggerLineColorizer;
     private CompletionWindow? _completionWindow;
+    private System.Threading.CancellationTokenSource? _debuggerHoverCancellation;
+    private string _lastDebuggerHoverKey = "";
 
     private Control GetOrCreateViewInstance(string viewName, CDP.Editor.Splits.Controls.SuperSplitBox? targetBox = null)
     {
@@ -543,6 +545,28 @@ public partial class SourcesView : UserControl
                 e.Handled = true;
                 return;
             }
+            if (e.Key == Key.E && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                var expression = txtSourceContent.SelectedText;
+                if (string.IsNullOrWhiteSpace(expression) && txtSourceContent.Document is not null)
+                {
+                    var boundaries = GetWordBoundary(txtSourceContent.Text, txtSourceContent.CaretOffset);
+                    if (boundaries.end > boundaries.start)
+                    {
+                        expression = txtSourceContent.Text[boundaries.start..boundaries.end];
+                    }
+                }
+                if (!string.IsNullOrWhiteSpace(expression))
+                {
+                    vm.Sources.DebuggerEvaluationExpression = expression.Trim();
+                    if (vm.Sources.EvaluateOnCallFrameCommand.CanExecute(null))
+                    {
+                        vm.Sources.EvaluateOnCallFrameCommand.Execute(null);
+                    }
+                }
+                e.Handled = true;
+                return;
+            }
         }
 
         if (e.Key == Key.Space && e.KeyModifiers.HasFlag(KeyModifiers.Control))
@@ -659,7 +683,7 @@ public partial class SourcesView : UserControl
         return char.IsLetterOrDigit(c) || c == '_';
     }
 
-    private void TxtSourceContent_PointerMoved(object? sender, PointerEventArgs e)
+    private async void TxtSourceContent_PointerMoved(object? sender, PointerEventArgs e)
     {
         var editor = txtSourceContent;
         if (editor == null || editor.Document == null) return;
@@ -676,6 +700,40 @@ public partial class SourcesView : UserControl
             {
                 var fileName = vm.Sources.SelectedFileName;
                 string ext = Path.GetExtension(fileName).ToLowerInvariant();
+
+                if (vm.Sources.IsDebuggerPaused && vm.Sources.SelectedCallFrame?.CanInspect == true &&
+                    ext is ".js" or ".jsx" or ".mjs" or ".cjs" or ".ts" or ".tsx")
+                {
+                    var boundaries = GetWordBoundary(editor.Text, offset);
+                    var expression = boundaries.end > boundaries.start
+                        ? editor.Text[boundaries.start..boundaries.end]
+                        : "";
+                    if (!string.IsNullOrWhiteSpace(expression))
+                    {
+                        var hoverKey = $"{vm.Sources.SelectedCallFrame.CallFrameId}:{expression}";
+                        if (_lastDebuggerHoverKey == hoverKey && ToolTip.GetIsOpen(editor)) return;
+                        _debuggerHoverCancellation?.Cancel();
+                        _debuggerHoverCancellation?.Dispose();
+                        _debuggerHoverCancellation = new System.Threading.CancellationTokenSource();
+                        var cancellationToken = _debuggerHoverCancellation.Token;
+                        try
+                        {
+                            await System.Threading.Tasks.Task.Delay(250, cancellationToken);
+                            var value = await vm.Sources.EvaluateHoverAsync(expression);
+                            if (!cancellationToken.IsCancellationRequested && !string.IsNullOrWhiteSpace(value))
+                            {
+                                _lastDebuggerHoverKey = hoverKey;
+                                ToolTip.SetTip(editor, $"{expression} = {value}");
+                                ToolTip.SetIsOpen(editor, true);
+                                return;
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            return;
+                        }
+                    }
+                }
                 
                 string? contents = null;
                 if (ext == ".xaml" || ext == ".axaml")
@@ -699,6 +757,8 @@ public partial class SourcesView : UserControl
                 }
             }
         }
+        _lastDebuggerHoverKey = "";
+        _debuggerHoverCancellation?.Cancel();
         ToolTip.SetIsOpen(editor, false);
     }
 

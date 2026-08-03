@@ -443,6 +443,8 @@ public class StateServiceTests
                 LogMessage = "value = {value}",
                 IsEnabled = false
             });
+            vm.BlackboxPatterns.Add("/node_modules/");
+            vm.SkipAnonymousScripts = true;
 
             service.RegisterProvider(vm);
             service.Save();
@@ -464,6 +466,8 @@ public class StateServiceTests
             Assert.Equal(12, breakpoint.LineNumber);
             Assert.Equal(4, breakpoint.DisplayLineNumber);
             Assert.False(breakpoint.IsEnabled);
+            Assert.Equal("/node_modules/", Assert.Single(vm2.BlackboxPatterns));
+            Assert.True(vm2.SkipAnonymousScripts);
         }
         finally
         {

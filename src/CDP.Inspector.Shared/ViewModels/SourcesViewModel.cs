@@ -50,6 +50,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private string _breakpointKind = V8BreakpointKinds.Breakpoint;
     private bool _areBreakpointsActive = true;
     private V8BreakpointModel? _selectedBreakpoint;
+    private string _newBlackboxPattern = "";
+    private string? _selectedBlackboxPattern;
+    private bool _skipAnonymousScripts;
+    private string _blackboxStatusText = "";
     private ObservableCollection<SearchResultModel> _searchResults = new();
     private bool _isMarkdownPreviewMode;
     private bool _isDocumentPreviewMode;
@@ -73,6 +77,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private V8WatchExpressionModel? _selectedWatchExpression;
     private V8ScriptModel? _selectedRuntimeScript;
     private V8CallFrameModel? _selectedCallFrame;
+    private V8ScopeVariableModel? _selectedScopeVariable;
+    private string _newVariableValueExpression = "";
 
     public int? PendingScrollLine
     {
@@ -161,7 +167,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     }
 
     public ObservableCollection<string> CallStack { get; } = new();
-    public ObservableCollection<System.Collections.Generic.KeyValuePair<string, string>> ScopeVariables { get; } = new();
+    public ObservableCollection<V8ScopeVariableModel> ScopeVariables { get; } = new();
     public ObservableCollection<string> Breakpoints { get; } = new();
     public ObservableCollection<V8ScriptModel> RuntimeScripts { get; } = new();
     public ObservableCollection<V8CallFrameModel> CallFrames { get; } = new();
@@ -175,6 +181,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         V8BreakpointKinds.Conditional,
         V8BreakpointKinds.Logpoint
     };
+    public ObservableCollection<string> BlackboxPatterns { get; } = new();
 
     public V8ScriptModel? SelectedRuntimeScript
     {
@@ -212,6 +219,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 _ = RefreshWatchExpressionsAsync();
                 ((RelayCommand)EvaluateOnCallFrameCommand).RaiseCanExecuteChanged();
                 ((RelayCommand)RestartFrameCommand).RaiseCanExecuteChanged();
+                ((RelayCommand)SetVariableValueCommand).RaiseCanExecuteChanged();
                 if (value is not null)
                 {
                     _ = NavigateToCallFrameAsync(value);
@@ -262,6 +270,72 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    public V8ScopeVariableModel? SelectedScopeVariable
+    {
+        get => _selectedScopeVariable;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedScopeVariable, value))
+            {
+                ((RelayCommand)SetVariableValueCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string NewVariableValueExpression
+    {
+        get => _newVariableValueExpression;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _newVariableValueExpression, value))
+            {
+                ((RelayCommand)SetVariableValueCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string NewBlackboxPattern
+    {
+        get => _newBlackboxPattern;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _newBlackboxPattern, value))
+            {
+                ((RelayCommand)AddBlackboxPatternCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? SelectedBlackboxPattern
+    {
+        get => _selectedBlackboxPattern;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedBlackboxPattern, value))
+            {
+                ((RelayCommand)RemoveBlackboxPatternCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool SkipAnonymousScripts
+    {
+        get => _skipAnonymousScripts;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _skipAnonymousScripts, value) && _cdpService.IsConnected && IsDebuggerEnabled)
+            {
+                _ = ApplyBlackboxPatternsAsync();
+            }
+        }
+    }
+
+    public string BlackboxStatusText
+    {
+        get => _blackboxStatusText;
+        set => RaiseAndSetIfChanged(ref _blackboxStatusText, value);
+    }
+
     public System.Windows.Input.ICommand ResumeCommand { get; }
     public System.Windows.Input.ICommand PauseCommand { get; }
     public System.Windows.Input.ICommand StepOverCommand { get; }
@@ -277,6 +351,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public System.Windows.Input.ICommand ToggleSelectedBreakpointEnabledCommand { get; }
     public System.Windows.Input.ICommand UpdateSelectedBreakpointCommand { get; }
     public System.Windows.Input.ICommand RemoveSelectedBreakpointCommand { get; }
+    public System.Windows.Input.ICommand SetVariableValueCommand { get; }
+    public System.Windows.Input.ICommand AddBlackboxPatternCommand { get; }
+    public System.Windows.Input.ICommand RemoveBlackboxPatternCommand { get; }
+    public System.Windows.Input.ICommand ApplyBlackboxPatternsCommand { get; }
 
     public HierarchicalModel<WorkspaceFileNode> HierarchicalWorkspaceFiles { get; }
 
@@ -549,13 +627,13 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
         EvaluateOnCallFrameCommand = new RelayCommand(
             async () => await EvaluateOnCallFrameAsync(),
-            () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame != null &&
+            () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame?.CanInspect == true &&
                 !string.IsNullOrWhiteSpace(DebuggerEvaluationExpression)
         );
 
         RestartFrameCommand = new RelayCommand(
             async () => await RestartFrameAsync(),
-            () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame != null
+            () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame?.CanInspect == true
         );
 
         AddWatchExpressionCommand = new RelayCommand(
@@ -602,6 +680,42 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             () => SelectedBreakpoint is not null
         );
 
+        SetVariableValueCommand = new RelayCommand(
+            async () => await SetVariableValueAsync(),
+            () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame?.CanInspect == true &&
+                SelectedScopeVariable?.Writable == true && !string.IsNullOrWhiteSpace(NewVariableValueExpression)
+        );
+
+        AddBlackboxPatternCommand = new RelayCommand(
+            async () =>
+            {
+                var pattern = NewBlackboxPattern.Trim();
+                if (!string.IsNullOrWhiteSpace(pattern) && !BlackboxPatterns.Contains(pattern))
+                {
+                    BlackboxPatterns.Add(pattern);
+                    NewBlackboxPattern = "";
+                    await ApplyBlackboxPatternsAsync();
+                }
+            },
+            () => !string.IsNullOrWhiteSpace(NewBlackboxPattern)
+        );
+
+        RemoveBlackboxPatternCommand = new RelayCommand(
+            async () =>
+            {
+                if (SelectedBlackboxPattern is null) return;
+                BlackboxPatterns.Remove(SelectedBlackboxPattern);
+                SelectedBlackboxPattern = null;
+                await ApplyBlackboxPatternsAsync();
+            },
+            () => SelectedBlackboxPattern is not null
+        );
+
+        ApplyBlackboxPatternsCommand = new RelayCommand(
+            async () => await ApplyBlackboxPatternsAsync(),
+            () => _cdpService.IsConnected && IsDebuggerEnabled
+        );
+
         var options = new HierarchicalOptions<WorkspaceFileNode>
         {
             ChildrenSelector = node => node.Children,
@@ -646,6 +760,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (ToggleSelectedBreakpointEnabledCommand != null) ((RelayCommand)ToggleSelectedBreakpointEnabledCommand).RaiseCanExecuteChanged();
         if (UpdateSelectedBreakpointCommand != null) ((RelayCommand)UpdateSelectedBreakpointCommand).RaiseCanExecuteChanged();
         if (RemoveSelectedBreakpointCommand != null) ((RelayCommand)RemoveSelectedBreakpointCommand).RaiseCanExecuteChanged();
+        if (SetVariableValueCommand != null) ((RelayCommand)SetVariableValueCommand).RaiseCanExecuteChanged();
+        if (ApplyBlackboxPatternsCommand != null) ((RelayCommand)ApplyBlackboxPatternsCommand).RaiseCanExecuteChanged();
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -694,6 +810,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             await TrySendOptionalDebuggerCommandAsync(
                 "Debugger.setBreakpointsActive",
                 new JsonObject { ["active"] = AreBreakpointsActive });
+            await ApplyBlackboxPatternsAsync();
             await RestoreBreakpointBindingsAsync();
             if (!IsDebuggerPaused)
             {
@@ -752,6 +869,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             CallFrames.Clear();
             Scopes.Clear();
             ScopeVariables.Clear();
+            SelectedScopeVariable = null;
+            NewVariableValueExpression = "";
             RuntimeScripts.Clear();
             SelectedRuntimeScript = null;
             SelectedCallFrame = null;
@@ -792,6 +911,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     CallFrames.Clear();
                     Scopes.Clear();
                     ScopeVariables.Clear();
+                    SelectedScopeVariable = null;
                     SelectedCallFrame = null;
                     foreach (var watch in WatchExpressions) watch.Value = "Not paused";
                     PauseReason = "";
@@ -922,11 +1042,13 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 var scopes = new System.Collections.Generic.List<V8ScopeModel>();
                 if (frameNode["scopeChain"] is JsonArray scopeChain)
                 {
+                    var scopeIndex = 0;
                     foreach (var scopeNode in scopeChain.OfType<JsonObject>())
                     {
                         var remoteObject = scopeNode["object"] as JsonObject;
                         scopes.Add(new V8ScopeModel
                         {
+                            Index = scopeIndex++,
                             Type = scopeNode["type"]?.GetValue<string>() ?? "",
                             Name = scopeNode["name"]?.GetValue<string>() ?? "",
                             ObjectId = remoteObject?["objectId"]?.GetValue<string>() ?? "",
@@ -948,6 +1070,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             }
         }
 
+        AppendAsyncStackFrames(parameters["asyncStackTrace"] as JsonObject, frames);
+
         var reason = parameters["reason"]?.GetValue<string>() ?? "other";
         Dispatcher.UIThread.Post(() =>
         {
@@ -963,6 +1087,77 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             IsDebuggerPaused = true;
             SelectedCallFrame = CallFrames.FirstOrDefault();
         });
+
+        if (parameters["asyncStackTrace"] is null && parameters["asyncStackTraceId"] is JsonObject asyncStackTraceId)
+        {
+            _ = LoadExternalAsyncStackTraceAsync((JsonObject)asyncStackTraceId.DeepClone());
+        }
+    }
+
+    private static void AppendAsyncStackFrames(JsonObject? stackTrace, System.Collections.Generic.ICollection<V8CallFrameModel> destination)
+    {
+        var current = stackTrace;
+        while (current is not null)
+        {
+            var description = current["description"]?.GetValue<string>() ?? "continuation";
+            destination.Add(new V8CallFrameModel
+            {
+                IsAsyncBoundary = true,
+                IsAsyncFrame = true,
+                AsyncDescription = description
+            });
+            if (current["callFrames"] is JsonArray callFrames)
+            {
+                foreach (var frame in callFrames.OfType<JsonObject>())
+                {
+                    destination.Add(new V8CallFrameModel
+                    {
+                        FunctionName = frame["functionName"]?.GetValue<string>() ?? "",
+                        Url = frame["url"]?.GetValue<string>() ?? "",
+                        ScriptId = frame["scriptId"]?.GetValue<string>() ?? "",
+                        LineNumber = frame["lineNumber"]?.GetValue<int>() ?? 0,
+                        ColumnNumber = frame["columnNumber"]?.GetValue<int>() ?? 0,
+                        IsAsyncFrame = true,
+                        AsyncDescription = description
+                    });
+                }
+            }
+            current = current["parent"] as JsonObject;
+        }
+    }
+
+    private async Task LoadExternalAsyncStackTraceAsync(JsonObject stackTraceId)
+    {
+        try
+        {
+            var frames = new System.Collections.Generic.List<V8CallFrameModel>();
+            JsonObject? currentId = stackTraceId;
+            while (currentId is not null)
+            {
+                var response = await _cdpService.SendCommandAsync("Debugger.getStackTrace", new JsonObject
+                {
+                    ["stackTraceId"] = currentId
+                });
+                var stackTrace = response["stackTrace"] as JsonObject;
+                AppendAsyncStackFrames(stackTrace, frames);
+                currentId = stackTrace?["parentId"] is JsonObject parentId
+                    ? (JsonObject)parentId.DeepClone()
+                    : null;
+            }
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!IsDebuggerPaused) return;
+                foreach (var frame in frames)
+                {
+                    CallFrames.Add(frame);
+                    CallStack.Add(frame.DisplayName);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Unable to resolve external async stack trace");
+        }
     }
 
     private void HandleBreakpointResolved(JsonObject parameters)
@@ -1052,6 +1247,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             {
                 Scopes.Clear();
                 ScopeVariables.Clear();
+                SelectedScopeVariable = null;
             });
             return;
         }
@@ -1059,6 +1255,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         foreach (var scope in frame.ScopeChain)
         {
             if (string.IsNullOrWhiteSpace(scope.ObjectId)) continue;
+            scope.Properties.Clear();
             try
             {
                 var response = await _cdpService.SendCommandAsync("Runtime.getProperties", new JsonObject
@@ -1096,12 +1293,22 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             if (SelectedCallFrame?.CallFrameId != frame.CallFrameId) return;
             Scopes.Clear();
             ScopeVariables.Clear();
+            SelectedScopeVariable = null;
             foreach (var scope in frame.ScopeChain)
             {
                 Scopes.Add(scope);
                 foreach (var property in scope.Properties)
                 {
-                    ScopeVariables.Add(new System.Collections.Generic.KeyValuePair<string, string>($"[{scope.Type}] {property.Name}", property.Value));
+                    ScopeVariables.Add(new V8ScopeVariableModel
+                    {
+                        ScopeType = scope.Type,
+                        ScopeNumber = scope.Index,
+                        Name = property.Name,
+                        Type = property.Type,
+                        ObjectId = property.ObjectId,
+                        Writable = property.Writable,
+                        Value = property.Value
+                    });
                 }
             }
         });
@@ -1140,6 +1347,126 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             DebuggerEvaluationResult = ex.Message;
             Logger.LogErrorMessage("SourcesVM", "Call-frame evaluation failed", ex);
+        }
+    }
+
+    public async Task<string?> EvaluateHoverAsync(string expression)
+    {
+        var frame = SelectedCallFrame;
+        if (!_cdpService.IsConnected || !IsDebuggerPaused || frame?.CanInspect != true || string.IsNullOrWhiteSpace(expression))
+        {
+            return null;
+        }
+
+        try
+        {
+            var response = await _cdpService.SendCommandAsync("Debugger.evaluateOnCallFrame", new JsonObject
+            {
+                ["callFrameId"] = frame.CallFrameId,
+                ["expression"] = expression,
+                ["objectGroup"] = "cdp-inspector-hover",
+                ["includeCommandLineAPI"] = false,
+                ["silent"] = true,
+                ["returnByValue"] = false,
+                ["generatePreview"] = true,
+                ["throwOnSideEffect"] = true
+            });
+            if (response["exceptionDetails"] is JsonObject) return null;
+            return FormatRemoteObject(response["result"] as JsonObject);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Side-effect-free hover evaluation failed for {Expression}", expression);
+            return null;
+        }
+    }
+
+    private async Task SetVariableValueAsync()
+    {
+        var frame = SelectedCallFrame;
+        var variable = SelectedScopeVariable;
+        var expression = NewVariableValueExpression.Trim();
+        if (frame?.CanInspect != true || variable?.Writable != true || expression.Length == 0) return;
+
+        try
+        {
+            var evaluation = await _cdpService.SendCommandAsync("Debugger.evaluateOnCallFrame", new JsonObject
+            {
+                ["callFrameId"] = frame.CallFrameId,
+                ["expression"] = expression,
+                ["objectGroup"] = "cdp-inspector-variable-edit",
+                ["includeCommandLineAPI"] = true,
+                ["silent"] = false,
+                ["returnByValue"] = false,
+                ["generatePreview"] = true,
+                ["throwOnSideEffect"] = false
+            });
+            if (evaluation["exceptionDetails"] is JsonObject exception)
+            {
+                DebuggerEvaluationResult = exception["text"]?.GetValue<string>() ?? "Variable value evaluation failed";
+                return;
+            }
+
+            var remoteObject = evaluation["result"] as JsonObject;
+            var newValue = CreateCallArgument(remoteObject);
+            await _cdpService.SendCommandAsync("Debugger.setVariableValue", new JsonObject
+            {
+                ["scopeNumber"] = variable.ScopeNumber,
+                ["variableName"] = variable.Name,
+                ["newValue"] = newValue,
+                ["callFrameId"] = frame.CallFrameId
+            });
+            variable.Value = FormatRemoteObject(remoteObject);
+            DebuggerEvaluationResult = $"{variable.Name} = {variable.Value}";
+            NewVariableValueExpression = "";
+            await LoadScopesForFrameAsync(frame);
+            await RefreshWatchExpressionsAsync();
+        }
+        catch (Exception ex)
+        {
+            DebuggerEvaluationResult = ex.Message;
+            Logger.LogErrorMessage("SourcesVM", $"Unable to set variable {variable.Name}", ex);
+        }
+    }
+
+    private static JsonObject CreateCallArgument(JsonObject? remoteObject)
+    {
+        if (remoteObject is null) return new JsonObject { ["unserializableValue"] = "undefined" };
+        if (remoteObject["objectId"] is JsonNode objectId)
+        {
+            return new JsonObject { ["objectId"] = objectId.GetValue<string>() };
+        }
+        if (remoteObject["unserializableValue"] is JsonNode unserializable)
+        {
+            return new JsonObject { ["unserializableValue"] = unserializable.GetValue<string>() };
+        }
+        if (remoteObject.TryGetPropertyValue("value", out var value))
+        {
+            return new JsonObject { ["value"] = value?.DeepClone() };
+        }
+        return new JsonObject { ["unserializableValue"] = "undefined" };
+    }
+
+    private async Task ApplyBlackboxPatternsAsync()
+    {
+        if (!_cdpService.IsConnected || !IsDebuggerEnabled) return;
+        var patterns = new JsonArray();
+        foreach (var pattern in BlackboxPatterns) patterns.Add((JsonNode?)JsonValue.Create(pattern));
+        try
+        {
+            await _cdpService.SendCommandAsync("Debugger.setBlackboxPatterns", new JsonObject
+            {
+                ["patterns"] = patterns,
+                ["skipAnonymous"] = SkipAnonymousScripts
+            });
+            BlackboxStatusText = BlackboxPatterns.Count == 0 && !SkipAnonymousScripts
+                ? "No scripts ignored"
+                : $"Ignoring {BlackboxPatterns.Count} URL pattern(s){(SkipAnonymousScripts ? " + anonymous scripts" : "")}";
+        }
+        catch (Exception ex)
+        {
+            BlackboxStatusText = "Blackboxing unsupported by target";
+            Logger.LogDebug(ex, "Target does not support Debugger.setBlackboxPatterns");
         }
     }
 
@@ -1922,11 +2249,15 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         root["breakpointLogMessage"] = BreakpointLogMessage;
         root["breakpointKind"] = BreakpointKind;
         root["breakpointsActive"] = AreBreakpointsActive;
+        root["skipAnonymousScripts"] = SkipAnonymousScripts;
         root["selectedFilePath"] = SelectedFile?.Path;
+        var blackboxPatterns = new JsonArray();
+        foreach (var pattern in BlackboxPatterns) blackboxPatterns.Add((JsonNode?)JsonValue.Create(pattern));
+        root["blackboxPatterns"] = blackboxPatterns;
         var breakpoints = new JsonArray();
         foreach (var breakpoint in V8Breakpoints)
         {
-            breakpoints.Add(new JsonObject
+            breakpoints.Add((JsonNode)new JsonObject
             {
                 ["key"] = breakpoint.Key,
                 ["url"] = breakpoint.Url,
@@ -1972,6 +2303,20 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (json.TryGetPropertyValue("breakpointsActive", out var activeNode) && activeNode != null)
         {
             AreBreakpointsActive = (bool?)activeNode ?? true;
+        }
+        if (json.TryGetPropertyValue("skipAnonymousScripts", out var skipAnonymousNode) && skipAnonymousNode != null)
+        {
+            SkipAnonymousScripts = (bool?)skipAnonymousNode ?? false;
+        }
+        if (json["blackboxPatterns"] is JsonArray patterns)
+        {
+            BlackboxPatterns.Clear();
+            foreach (var pattern in patterns)
+            {
+                var value = pattern?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(value) && !BlackboxPatterns.Contains(value)) BlackboxPatterns.Add(value);
+            }
+            if (_cdpService.IsConnected && IsDebuggerEnabled) _ = ApplyBlackboxPatternsAsync();
         }
         if (json["breakpoints"] is JsonArray breakpoints)
         {

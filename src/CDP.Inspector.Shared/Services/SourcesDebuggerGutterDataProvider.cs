@@ -36,9 +36,9 @@ public sealed class SourcesDebuggerGutterDataProvider : IGutterMarginDataProvide
         {
             var arrow = new PathGeometry();
             var figure = new PathFigure { StartPoint = new Point(center.X - 5, yCenter - 6), IsClosed = true };
-            figure.Segments.Add(new LineSegment { Point = new Point(center.X - 5, yCenter + 6) });
+            figure.Segments!.Add(new LineSegment { Point = new Point(center.X - 5, yCenter + 6) });
             figure.Segments.Add(new LineSegment { Point = new Point(center.X + 6, yCenter) });
-            arrow.Figures.Add(figure);
+            arrow.Figures!.Add(figure);
             drawingContext.DrawGeometry(new SolidColorBrush(Color.FromRgb(255, 202, 40)), null, arrow);
             if (!hasBreakpoint) return;
         }
