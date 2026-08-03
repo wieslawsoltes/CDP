@@ -97,7 +97,10 @@ public sealed class V8SourceMutationEngine
 
         var originalWindow = originalSource[originalAnchorStartOffset..originalAnchorEndOffset];
         var generatedWindow = generatedSource[generatedAnchorStartOffset..generatedAnchorEndOffset];
-        if (!string.Equals(originalWindow, generatedWindow, StringComparison.Ordinal))
+        if (!string.Equals(
+                RemoveCarriageReturns(originalWindow),
+                RemoveCarriageReturns(generatedWindow),
+                StringComparison.Ordinal))
         {
             return V8SourceMutationResult.Rejected(
                 "This mapped region was transformed by the compiler and cannot be patched without its compiler adapter.");
@@ -105,14 +108,22 @@ public sealed class V8SourceMutationEngine
 
         var relativeStart = prefixLength - originalAnchorStartOffset;
         var relativeEnd = originalEndOffset - originalAnchorStartOffset;
-        var patchedWindow = string.Concat(originalWindow.AsSpan(0, relativeStart), replacement,
-            originalWindow.AsSpan(relativeEnd));
+        var generatedRelativeStart = FindOffsetByLogicalIndex(
+            generatedWindow,
+            CountLogicalCharacters(originalWindow.AsSpan(0, relativeStart)));
+        var generatedRelativeEnd = FindOffsetByLogicalIndex(
+            generatedWindow,
+            CountLogicalCharacters(originalWindow.AsSpan(0, relativeEnd)));
+        var patchedWindow = string.Concat(
+            generatedWindow.AsSpan(0, generatedRelativeStart),
+            replacement,
+            generatedWindow.AsSpan(generatedRelativeEnd));
         var patchedGeneratedSource = string.Concat(
             generatedSource.AsSpan(0, generatedAnchorStartOffset),
             patchedWindow,
             generatedSource.AsSpan(generatedAnchorEndOffset));
-        var generatedEditStartOffset = generatedAnchorStartOffset + relativeStart;
-        var generatedEditEndOffset = generatedAnchorStartOffset + relativeEnd;
+        var generatedEditStartOffset = generatedAnchorStartOffset + generatedRelativeStart;
+        var generatedEditEndOffset = generatedAnchorStartOffset + generatedRelativeEnd;
         var generatedStart = GetPosition(generatedSource, generatedEditStartOffset);
         var generatedEnd = GetPosition(generatedSource, generatedEditEndOffset);
         if (generatedStart.Line != generatedEnd.Line)
@@ -293,6 +304,34 @@ public sealed class V8SourceMutationEngine
     {
         var line = leftLine.CompareTo(rightLine);
         return line != 0 ? line : leftColumn.CompareTo(rightColumn);
+    }
+
+    private static string RemoveCarriageReturns(string value)
+        => value.Contains('\r', StringComparison.Ordinal)
+            ? value.Replace("\r", "", StringComparison.Ordinal)
+            : value;
+
+    private static int CountLogicalCharacters(ReadOnlySpan<char> value)
+    {
+        var count = 0;
+        foreach (var character in value)
+        {
+            if (character != '\r') count++;
+        }
+        return count;
+    }
+
+    private static int FindOffsetByLogicalIndex(string value, int logicalIndex)
+    {
+        if (logicalIndex < 0) throw new ArgumentOutOfRangeException(nameof(logicalIndex));
+        var logical = 0;
+        for (var offset = 0; offset < value.Length; offset++)
+        {
+            if (logical == logicalIndex) return offset;
+            if (value[offset] != '\r') logical++;
+        }
+        if (logical == logicalIndex) return value.Length;
+        throw new ArgumentOutOfRangeException(nameof(logicalIndex));
     }
 
     private sealed record V8SourceMutationPosition(int Line, int Column);

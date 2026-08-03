@@ -38,6 +38,28 @@ public sealed class V8SourceMutationEngineTests
     }
 
     [Fact]
+    public void PreservesGeneratedCrLfWhenSourceMapContentUsesLf()
+    {
+        const string original = "function compute(value: number) {\n  const doubled = value * 2;\n  return doubled;\n}\n";
+        const string edited = "function compute(value: number) {\n  const doubled = value * 4;\n  return doubled;\n}\n";
+        const string generated = "function compute(value) {\r\n  const doubled = value * 2;\r\n  return doubled;\r\n}\r\n";
+        const string expected = "function compute(value) {\r\n  const doubled = value * 4;\r\n  return doubled;\r\n}\r\n";
+        var map = ParseLineMappedSource("source.ts", original);
+
+        var result = new V8SourceMutationEngine().CreatePatch(
+            map,
+            0,
+            original,
+            edited,
+            generated);
+
+        Assert.True(result.CanApply, result.Message);
+        Assert.Equal(expected, result.GeneratedSource);
+        Assert.Equal(new V8SourceMutationRange(1, 26, 1, 27), result.GeneratedRange);
+        Assert.DoesNotContain("\n", result.GeneratedSource.Replace("\r\n", "", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void RejectsCompilerTransformedAndMultilineMutations()
     {
         const string original = "const value: number = 2;\nconsole.log(value);\n";
