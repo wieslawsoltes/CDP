@@ -5,6 +5,7 @@ using CdpInspectorApp.Views;
 using CdpInspectorApp.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.VisualTree;
 using System;
 using System.Linq;
@@ -63,6 +64,7 @@ public class ViewsLayoutTests
             Assert.NotNull(sourcesView.FindControl<Button>("btnDebuggerSetReturnValue"));
             Assert.NotNull(sourcesView.FindControl<Button>("btnAddFunctionBreakpoint"));
             Assert.NotNull(sourcesView.FindControl<Button>("btnAddInstrumentationBreakpoint"));
+            Assert.NotNull(sourcesView.FindControl<ToggleButton>("tglDebuggerSkipAllPauses"));
 
             var applicationView = new ApplicationView();
             Assert.NotNull(applicationView);

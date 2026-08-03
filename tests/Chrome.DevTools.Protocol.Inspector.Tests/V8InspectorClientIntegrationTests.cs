@@ -407,6 +407,73 @@ public sealed class V8InspectorClientIntegrationTests
     }
 
     [Fact(Timeout = 30_000)]
+    public async Task NodeInspectorCanSkipAndRestoreAllPauses()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var port = GetAvailablePort();
+        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "v8-instrumentation-target.js");
+        Assert.True(File.Exists(fixture), $"Missing pause-suppression fixture: {fixture}");
+
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "node",
+            ArgumentList = { $"--inspect-brk=127.0.0.1:{port}", fixture },
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+        Assert.NotNull(process);
+
+        try
+        {
+            var target = Assert.Single(await WaitForTargetsAsync(new Uri($"http://127.0.0.1:{port}")));
+            await using var inspector = new V8InspectorClient();
+            var pauses = Channel.CreateUnbounded<JsonObject>();
+            inspector.EventReceived += (_, e) =>
+            {
+                if (e.Method == "Debugger.paused") pauses.Writer.TryWrite(e.Params);
+            };
+
+            await inspector.ConnectAsync(new Uri(target.WebSocketDebuggerUrl));
+            await inspector.SendCommandAsync("Runtime.enable");
+            await inspector.SendCommandAsync("Debugger.enable");
+            await inspector.SendCommandAsync("Runtime.runIfWaitingForDebugger");
+            await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+
+            await inspector.SendCommandAsync("Debugger.setSkipAllPauses", new JsonObject { ["skip"] = true });
+            await inspector.SendCommandAsync("Debugger.resume");
+            var skipped = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = "debugger; globalThis.skipAllPausesResult = 1",
+                ["returnByValue"] = true
+            }).WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            Assert.Equal(1, skipped["result"]?["value"]?.GetValue<int>());
+            Assert.False(pauses.Reader.TryRead(out _));
+
+            await inspector.SendCommandAsync("Debugger.setSkipAllPauses", new JsonObject { ["skip"] = false });
+            var pausingEvaluation = inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = "debugger; globalThis.skipAllPausesResult = 2",
+                ["returnByValue"] = true
+            });
+            var restoredPause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            Assert.Equal("other", restoredPause["reason"]?.GetValue<string>());
+
+            await inspector.SendCommandAsync("Debugger.resume");
+            var restored = await pausingEvaluation.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            Assert.Equal(2, restored["result"]?["value"]?.GetValue<int>());
+        }
+        finally
+        {
+            if (!process!.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(cancellationToken);
+        }
+    }
+
+    [Fact(Timeout = 30_000)]
     public async Task NodeInspectorBreaksBeforeSourceMappedScriptExecution()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

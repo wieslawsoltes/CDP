@@ -428,6 +428,8 @@ public class StateServiceTests
                 BreakpointCondition = "cond",
                 BreakpointLogMessage = "value = {value}",
                 BreakpointKind = V8BreakpointKinds.Logpoint,
+                PauseOnExceptionsState = "uncaught",
+                SkipAllPauses = true,
                 AreBreakpointsActive = false
             };
             vm.V8Breakpoints.Add(new V8BreakpointModel
@@ -466,6 +468,8 @@ public class StateServiceTests
             Assert.Equal("cond", vm2.BreakpointCondition);
             Assert.Equal("value = {value}", vm2.BreakpointLogMessage);
             Assert.Equal(V8BreakpointKinds.Logpoint, vm2.BreakpointKind);
+            Assert.Equal("uncaught", vm2.PauseOnExceptionsState);
+            Assert.True(vm2.SkipAllPauses);
             Assert.False(vm2.AreBreakpointsActive);
             Assert.Equal(2, vm2.V8Breakpoints.Count);
             var breakpoint = Assert.Single(vm2.V8Breakpoints,

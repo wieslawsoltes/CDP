@@ -94,6 +94,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private string _debuggerStatusText = "Debugger disconnected";
     private string _pauseReason = "";
     private string _pauseOnExceptionsState = "none";
+    private bool _skipAllPauses;
     private string _debuggerEvaluationExpression = "";
     private string _debuggerEvaluationResult = "";
     private string _liveEditStatus = "";
@@ -158,6 +159,18 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             if (RaiseAndSetIfChanged(ref _pauseOnExceptionsState, value) && _cdpService.IsConnected)
             {
                 _ = SetPauseOnExceptionsAsync(value);
+            }
+        }
+    }
+
+    public bool SkipAllPauses
+    {
+        get => _skipAllPauses;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _skipAllPauses, value) && _cdpService.IsConnected && IsDebuggerEnabled)
+            {
+                _ = SetSkipAllPausesAsync(value);
             }
         }
     }
@@ -947,6 +960,9 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             await TrySendOptionalDebuggerCommandAsync(
                 "Debugger.setPauseOnExceptions",
                 new JsonObject { ["state"] = PauseOnExceptionsState });
+            await TrySendOptionalDebuggerCommandAsync(
+                "Debugger.setSkipAllPauses",
+                new JsonObject { ["skip"] = SkipAllPauses });
             await TrySendOptionalDebuggerCommandAsync(
                 "Debugger.setBreakpointsActive",
                 new JsonObject { ["active"] = AreBreakpointsActive });
@@ -2385,6 +2401,12 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         });
     }
 
+    private Task SetSkipAllPausesAsync(bool skip) =>
+        TrySendOptionalDebuggerCommandAsync("Debugger.setSkipAllPauses", new JsonObject
+        {
+            ["skip"] = skip
+        });
+
     private static string GetProtocolBreakpointCondition(V8BreakpointModel breakpoint) => breakpoint.Kind switch
     {
         V8BreakpointKinds.Conditional => breakpoint.Condition,
@@ -2954,6 +2976,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         root["breakpointCondition"] = BreakpointCondition;
         root["breakpointLogMessage"] = BreakpointLogMessage;
         root["breakpointKind"] = BreakpointKind;
+        root["pauseOnExceptionsState"] = PauseOnExceptionsState;
+        root["skipAllPauses"] = SkipAllPauses;
         root["breakpointsActive"] = AreBreakpointsActive;
         root["skipAnonymousScripts"] = SkipAnonymousScripts;
         root["selectedFilePath"] = SelectedFile?.Path;
@@ -3007,6 +3031,14 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (json.TryGetPropertyValue("breakpointKind", out var kindNode) && kindNode != null)
         {
             BreakpointKind = (string?)kindNode ?? V8BreakpointKinds.Breakpoint;
+        }
+        if (json.TryGetPropertyValue("pauseOnExceptionsState", out var pauseOnExceptionsNode) && pauseOnExceptionsNode != null)
+        {
+            PauseOnExceptionsState = (string?)pauseOnExceptionsNode ?? "none";
+        }
+        if (json.TryGetPropertyValue("skipAllPauses", out var skipAllPausesNode) && skipAllPausesNode != null)
+        {
+            SkipAllPauses = (bool?)skipAllPausesNode ?? false;
         }
         if (json.TryGetPropertyValue("breakpointsActive", out var activeNode) && activeNode != null)
         {

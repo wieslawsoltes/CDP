@@ -233,6 +233,9 @@
                             <PathIcon Data="{StaticResource ArrowStepOutIcon}" Width="13" Height="13" Foreground="{DynamicResource Brush.Sources.Text}"/>
                         </Button>
                         <Button Name="btnDebuggerRestartFrame" Classes="debug-action" Command="{Binding Sources.RestartFrameCommand}" ToolTip.Tip="Restart selected frame" AutomationProperties.Name="Restart selected frame" Content="↻" FontSize="16" Foreground="{DynamicResource Brush.Sources.Accent}"/>
+                        <ToggleButton Name="tglDebuggerSkipAllPauses" Classes="debug-action" IsChecked="{Binding Sources.SkipAllPauses, Mode=TwoWay}"
+                                      ToolTip.Tip="Skip all pauses: breakpoints, exceptions, and debugger statements"
+                                      AutomationProperties.Name="Skip all debugger pauses" Content="⊘" FontSize="15"/>
                     </StackPanel>
                     </Border>
 

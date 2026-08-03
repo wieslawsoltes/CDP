@@ -256,6 +256,25 @@ public sealed class SourcesV8DebuggerTests
         Assert.Contains(service.Commands, command => command.Method == "Debugger.enable");
         Assert.Contains(service.Commands, command => command.Method == "Debugger.setAsyncCallStackDepth");
         Assert.Contains(service.Commands, command => command.Method == "Debugger.setPauseOnExceptions");
+        Assert.Contains(service.Commands, command => command.Method == "Debugger.setSkipAllPauses");
+    }
+
+    [AvaloniaFact]
+    public async Task SkipAllPausesIsAppliedAndCanBeRestored()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        viewModel.SkipAllPauses = true;
+        await WaitUntilAsync(() => service.Commands.Any(command =>
+            command.Method == "Debugger.setSkipAllPauses" &&
+            command.Parameters?["skip"]?.GetValue<bool>() == true));
+
+        viewModel.SkipAllPauses = false;
+        await WaitUntilAsync(() => service.Commands.Last(command =>
+            command.Method == "Debugger.setSkipAllPauses").Parameters?["skip"]?.GetValue<bool>() == false);
     }
 
     [AvaloniaFact]
@@ -711,7 +730,7 @@ public sealed class SourcesV8DebuggerTests
             if (RejectOptionalDebuggerCommands &&
                 method is "Debugger.setAsyncCallStackDepth" or "Debugger.setPauseOnExceptions" or
                     "Debugger.setBreakpointsActive" or "Debugger.setBlackboxPatterns" or
-                    "Debugger.setBlackboxedRanges")
+                    "Debugger.setBlackboxedRanges" or "Debugger.setSkipAllPauses")
             {
                 return Task.FromException<JsonObject>(new InvalidOperationException($"Action {method} is not supported."));
             }
