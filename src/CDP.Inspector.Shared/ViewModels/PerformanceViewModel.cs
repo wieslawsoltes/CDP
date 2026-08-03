@@ -302,10 +302,12 @@ public class PerformanceViewModel : ViewModelBase
 
     private async Task InitializePerformanceAsync()
     {
+        if (!_cdpService.SupportsDomain("Performance")) return;
+
         try
         {
             await _cdpService.SendCommandAsync("Performance.enable");
-            await _cdpService.SendCommandAsync("Memory.enable");
+            if (_cdpService.SupportsDomain("Memory")) await _cdpService.SendCommandAsync("Memory.enable");
             await RefreshMetricsAsync();
         }
         catch (Exception ex)

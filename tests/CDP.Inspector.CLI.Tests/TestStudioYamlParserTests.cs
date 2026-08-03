@@ -514,6 +514,7 @@ description: ""E2E Flow""
         // 2. Playwright code generation verification
         var playwrightGen = new PlaywrightGenerator();
         string pwCode = playwrightGen.Generate(recordedSteps, "localhost:9222");
+        Assert.DoesNotContain("page.goto", pwCode);
         Assert.Contains("await element_0.click();", pwCode);
         Assert.Contains("await element_1.dblclick();", pwCode);
         Assert.Contains("await element_2.click({ delay: 1000 });", pwCode);
@@ -546,6 +547,26 @@ description: ""E2E Flow""
         Assert.Contains("Thread.Sleep(1500);", selCode);
         Assert.Contains("element_6.SendKeys(\"admin\");", selCode);
         Assert.Contains("action_7 = action_7.KeyDown(Keys.Control);", selCode);
+    }
+
+    [Fact]
+    public void PlaywrightGeneratorPreservesTapPointCoordinates()
+    {
+        const string yaml = """
+appId: "CdpInspectorApp"
+---
+- tapOn:
+    selector: "#imgScreenshot"
+    point: "126,509"
+""";
+
+        var recordedStep = Assert.Single(TestStudioStepConverter.ConvertYamlToRecordedSteps(yaml));
+        Assert.Equal(126, recordedStep.PointX);
+        Assert.Equal(509, recordedStep.PointY);
+
+        var generated = new PlaywrightGenerator().Generate(new[] { recordedStep }, "http://127.0.0.1:9223");
+        Assert.Contains("await page.mouse.click(126, 509);", generated);
+        Assert.DoesNotContain("await element_0.click();", generated);
     }
 
     [Fact]

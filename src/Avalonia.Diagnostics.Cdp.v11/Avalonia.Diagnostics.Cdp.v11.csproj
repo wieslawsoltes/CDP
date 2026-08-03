@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+    <ProjectReference Include="../Chrome.DevTools.Protocol.Extensions/Chrome.DevTools.Protocol.Extensions.csproj" />
     <ProjectReference Include="../Xaml.Compiler/Xaml.Compiler.csproj" />
     <ProjectReference Include="../CDP.Integration.Core/CDP.Integration.Core.csproj" />
     <ProjectReference Include="../CDP.Integration.TestMo/CDP.Integration.TestMo.csproj" />

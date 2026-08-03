@@ -11,6 +11,7 @@ using Avalonia.Diagnostics.Cdp.Domains;
 using Avalonia.Diagnostics.Cdp.Rdp;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Threading;
 using CDP.Rdp.Frames;
 using CDP.Rdp.Input;
 using CDP.Rdp.Rendering;
@@ -149,11 +150,10 @@ public class CdpRdpInputDomainTests
                 ["clickCount"] = 1
             });
 
-            DateTime timeout = DateTime.UtcNow.AddSeconds(15);
-            while (!vm.Connection.IsConnected && DateTime.UtcNow < timeout)
-            {
-                await Task.Delay(10);
-            }
+            // Raw pointer dispatch schedules the button command through Avalonia's
+            // dispatcher. Pump it explicitly so this headless assertion does not
+            // depend on a platform runner's ambient dispatcher cadence.
+            Dispatcher.UIThread.RunJobs();
 
             Assert.True(vm.Connection.IsConnected);
         }

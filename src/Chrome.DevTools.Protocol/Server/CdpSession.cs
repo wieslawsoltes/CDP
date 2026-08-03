@@ -9,8 +9,6 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Jint;
-using Xaml.Compiler.Mutation;
 
 namespace Chrome.DevTools.Protocol;
 
@@ -23,7 +21,8 @@ public class CdpSession : IDisposable
     public event Action<JsonObject>? EventSentForTesting;
 
     private readonly ConcurrentDictionary<string, CdpTargetSession> _attachedTargets = new();
-    public bool IsTargetAttached(string targetId) => _attachedTargets.Values.Any(x => x.TargetId == targetId);
+    public bool IsTargetAttached(string targetId) =>
+        _attachedTargets.Values.Any(x => !x.IsBrowserSession && x.TargetId == targetId);
     private readonly CdpTargetSession? _defaultTargetSession;
     private readonly AsyncLocal<CdpTargetSession?> _currentTargetSession = new();
 
@@ -47,7 +46,7 @@ public class CdpSession : IDisposable
     public bool DiscoverTargetsEnabled { get; set; }
     public bool AutoAttachEnabled { get; set; }
     public bool WaitForDebuggerOnStart { get; set; }
-    public IMutationEngine? MutationEngine { get; set; }
+    public ICdpMutationEngine? MutationEngine { get; set; }
     public bool IsDomEnabled => CurrentTargetSession?.IsDomEnabled ?? false;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocument => CurrentTargetSession?.ScriptsToEvaluateOnNewDocument ?? _dummyScripts;
     public ConcurrentDictionary<string, string> ScriptsToEvaluateOnNewDocumentWorlds => CurrentTargetSession?.ScriptsToEvaluateOnNewDocumentWorlds ?? _dummyScripts;
@@ -188,14 +187,33 @@ public class CdpSession : IDisposable
         _attachedTargets[sessionId] = targetSession;
     }
 
+    public string AttachBrowserTarget()
+    {
+        var target = _defaultTargetSession?.Target ?? CdpServer.GetTargets().FirstOrDefault();
+        if (target == null)
+        {
+            throw new Exception("No browser target is available");
+        }
+
+        var sessionId = Guid.NewGuid().ToString();
+        var browserSession = new CdpTargetSession(
+            this,
+            sessionId,
+            "browser",
+            target,
+            isBrowserSession: true);
+        AttachTarget(sessionId, browserSession);
+        return sessionId;
+    }
+
     public CdpTargetSession? GetAttachedSessionForTarget(string targetId)
     {
-        return _attachedTargets.Values.FirstOrDefault(x => x.TargetId == targetId);
+        return _attachedTargets.Values.FirstOrDefault(x => !x.IsBrowserSession && x.TargetId == targetId);
     }
 
     public void AutoAttachTarget(ICdpTarget target, CdpTargetSession? parentSession = null, bool isNewTarget = false)
     {
-        if (_attachedTargets.Values.Any(x => x.TargetId == target.Id))
+        if (_attachedTargets.Values.Any(x => !x.IsBrowserSession && x.TargetId == target.Id))
         {
             return;
         }
@@ -265,7 +283,7 @@ public class CdpSession : IDisposable
 
     public string? GetSessionIdForTarget(string targetId)
     {
-        return _attachedTargets.FirstOrDefault(x => x.Value.TargetId == targetId).Key;
+        return _attachedTargets.FirstOrDefault(x => !x.Value.IsBrowserSession && x.Value.TargetId == targetId).Key;
     }
 
     public void DetachTargetById(string targetId)
@@ -297,34 +315,7 @@ public class CdpSession : IDisposable
     {
         if (RemoteObjects.TryGetValue(id, out var obj) && obj != null)
         {
-            if (obj is JintObjectWrapper wrapper)
-            {
-                obj = wrapper.Value;
-            }
-
-            if (obj is Jint.Native.JsValue jsVal)
-            {
-                if (jsVal.IsObject())
-                {
-                    try
-                    {
-                        var unwrapped = jsVal.ToObject();
-                        if (unwrapped != null)
-                        {
-                            var typeName = unwrapped.GetType().FullName ?? "";
-                            if (typeName.StartsWith("Avalonia.") || typeName.Contains("CdpRuntime") || typeName.Contains("Mock"))
-                            {
-                                return unwrapped;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore
-                    }
-                }
-            }
-            return obj;
+            return CdpRemoteObjectAdapters.Unwrap(obj);
         }
         return null;
     }
@@ -606,7 +597,7 @@ public class CdpSession : IDisposable
         Chrome.DevTools.Protocol.Domains.NetworkDomain.RemoveSession(this);
         Chrome.DevTools.Protocol.Domains.FetchDomain.RemoveSession(this);
         Chrome.DevTools.Protocol.Domains.TracingDomain.CleanupSession(this);
-        Chrome.DevTools.Protocol.Domains.ProfilerDomain.CleanupSession(this);
+        CdpSessionCleanupRegistry.Cleanup(this);
         Chrome.DevTools.Protocol.Domains.BackgroundServiceDomain.RemoveSession(this);
 
         OnCleanup();
@@ -632,16 +623,5 @@ public class CdpSession : IDisposable
     public void StopObservingVisualTree()
     {
         CurrentTargetSession?.StopObservingVisualTree();
-    }
-}
-
-public class JintObjectWrapper
-{
-    public Jint.Native.JsValue Value { get; }
-    public Jint.Engine Engine { get; }
-    public JintObjectWrapper(Jint.Native.JsValue value, Jint.Engine engine)
-    {
-        Value = value;
-        Engine = engine;
     }
 }

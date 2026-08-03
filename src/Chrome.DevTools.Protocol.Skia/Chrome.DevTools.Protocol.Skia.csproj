@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Protocol.Skia</PackageId>
+    <Title>Chrome.DevTools.Protocol.Skia</Title>
+    <Description>Optional Skia screencast processing for Chrome.DevTools.Protocol.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup><None Include="../../README.md" Pack="true" PackagePath="" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Chrome.DevTools.Protocol/Client/ScreencastReconstructor.cs" Link="ScreencastReconstructor.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Server/TiledScreencastProducer.cs" Link="TiledScreencastProducer.cs" />
+  </ItemGroup>
+</Project>

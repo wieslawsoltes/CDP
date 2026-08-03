@@ -274,10 +274,61 @@ public class ConsoleViewModel : ViewModelBase, IStateProvider
                 });
             }
         }
+        else if (e.Method == "Runtime.consoleAPICalled" && e.Params != null)
+        {
+            var type = e.Params["type"]?.GetValue<string>() ?? "log";
+            var text = e.Params["args"] is JsonArray args
+                ? string.Join(" ", args.OfType<JsonObject>().Select(FormatRemoteObject))
+                : "";
+            var timestampMs = e.Params["timestamp"]?.GetValue<double>() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            AddRuntimeLog(type, text, timestampMs);
+        }
+        else if (e.Method == "Runtime.exceptionThrown" && e.Params?["exceptionDetails"] is JsonObject details)
+        {
+            var exception = details["exception"] as JsonObject;
+            var text = exception is not null
+                ? FormatRemoteObject(exception)
+                : details["text"]?.GetValue<string>() ?? "Uncaught exception";
+            var timestampMs = e.Params["timestamp"]?.GetValue<double>() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            AddRuntimeLog("error", text, timestampMs);
+        }
+    }
+
+    private void AddRuntimeLog(string level, string text, double timestampMs)
+    {
+        var timestamp = DateTimeOffset.FromUnixTimeMilliseconds((long)timestampMs).LocalDateTime;
+        Dispatcher.UIThread.Post(() =>
+        {
+            var log = new LogModel(timestamp, level, text);
+            _allLogs.Add(log);
+            if (_allLogs.Count > 500) _allLogs.RemoveAt(0);
+            if (MatchesFilter(log))
+            {
+                Logs.Add(log);
+                if (Logs.Count > 100) Logs.RemoveAt(0);
+            }
+        });
+    }
+
+    private static string FormatRemoteObject(JsonObject value)
+    {
+        if (value["unserializableValue"] is JsonNode unserializable) return unserializable.ToString();
+        if (value["value"] is JsonNode primitive) return primitive.ToJsonString().Trim('"');
+        return value["description"]?.GetValue<string>() ?? value["type"]?.GetValue<string>() ?? "undefined";
     }
 
     private async Task InitializeDomainAsync()
     {
+        try
+        {
+            await _cdpService.SendCommandAsync("Runtime.enable");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarningMessage("ConsoleViewModel", "Error enabling Runtime domain", ex);
+        }
+
+        if (!_cdpService.SupportsDomain("Log")) return;
         try
         {
             await _cdpService.SendCommandAsync("Log.enable");
@@ -429,6 +480,16 @@ public class ConsoleViewModel : ViewModelBase, IStateProvider
 
             var resultObj = res["result"] as JsonObject;
             string displayResult = "";
+
+            if (res["exceptionDetails"] is JsonObject exceptionDetails)
+            {
+                var exceptionObject = exceptionDetails["exception"] as JsonObject;
+                displayResult = exceptionObject is not null
+                    ? FormatRemoteObject(exceptionObject)
+                    : exceptionDetails["text"]?.GetValue<string>() ?? "Evaluation failed";
+                ConsoleHistory.Add(new ConsoleItemModel(expr, displayResult, true));
+                return;
+            }
 
             if (resultObj != null)
             {

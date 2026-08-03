@@ -27,6 +27,11 @@
     <Project Path="src/CDP.Integration.Xray/CDP.Integration.Xray.csproj" />
     <Project Path="src/CDP.Integration.Zephyr/CDP.Integration.Zephyr.csproj" />
     <Project Path="src/Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+    <Project Path="src/Chrome.DevTools.Protocol.Extensions/Chrome.DevTools.Protocol.Extensions.csproj" />
+    <Project Path="src/Chrome.DevTools.Protocol.Automation/Chrome.DevTools.Protocol.Automation.csproj" />
+    <Project Path="src/Chrome.DevTools.Protocol.Jint/Chrome.DevTools.Protocol.Jint.csproj" />
+    <Project Path="src/Chrome.DevTools.Protocol.Profiling/Chrome.DevTools.Protocol.Profiling.csproj" />
+    <Project Path="src/Chrome.DevTools.Protocol.Skia/Chrome.DevTools.Protocol.Skia.csproj" />
     <Project Path="src/Avalonia.Diagnostics.Cdp/Avalonia.Diagnostics.Cdp.csproj" />
     <Project Path="src/Avalonia.Diagnostics.Cdp.v11/Avalonia.Diagnostics.Cdp.v11.csproj" />
     <Project Path="src/Wpf.Diagnostics.Cdp/Wpf.Diagnostics.Cdp.csproj" />
@@ -80,6 +85,7 @@
     <Project Path="tests/CDP.Editor.Nodes.Tests/CDP.Editor.Nodes.Tests.csproj" />
     <Project Path="tests/CDP.Inspector.Controls.Tests/CDP.Inspector.Controls.Tests.csproj" />
     <Project Path="tests/Chrome.DevTools.Protocol.Tests/Chrome.DevTools.Protocol.Tests.csproj" />
+    <Project Path="tests/Chrome.DevTools.Protocol.Inspector.Tests/Chrome.DevTools.Protocol.Inspector.Tests.csproj" />
     <Project Path="tests/CDP.Inspector.Shared.Tests/CDP.Inspector.Shared.Tests.csproj" />
     <Project Path="tests/CDP.Inspector.CLI.Tests/CDP.Inspector.CLI.Tests.csproj" />
     <Project Path="tests/CDP.Automation.OS.Tests/CDP.Automation.OS.Tests.csproj" />

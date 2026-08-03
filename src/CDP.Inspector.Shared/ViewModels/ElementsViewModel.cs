@@ -855,6 +855,8 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
 
     private async Task InitializeDomainAsync()
     {
+        if (!_cdpService.SupportsDomain("DOM")) return;
+
         try
         {
             await _cdpService.SendCommandAsync("DOM.enable");
@@ -864,7 +866,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
             Logger.LogWarningMessage("ElementsViewModel", "Error enabling DOM domain", ex);
         }
 
-        try
+        if (_cdpService.SupportsDomain("CSS")) try
         {
             await _cdpService.SendCommandAsync("CSS.enable");
         }
@@ -873,7 +875,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
             Logger.LogWarningMessage("ElementsViewModel", "Error enabling CSS domain", ex);
         }
 
-        try
+        if (_cdpService.SupportsDomain("DOMDebugger")) try
         {
             await _cdpService.SendCommandAsync("DOMDebugger.enable");
         }
@@ -882,7 +884,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
             Logger.LogWarningMessage("ElementsViewModel", "Error enabling DOMDebugger domain", ex);
         }
 
-        try
+        if (_cdpService.SupportsDomain("Accessibility")) try
         {
             await _cdpService.SendCommandAsync("Accessibility.enable");
         }
@@ -892,7 +894,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
 
         await RefreshDomTreeAsync();
-        await RefreshAxTreeAsync();
+        if (_cdpService.SupportsDomain("Accessibility")) await RefreshAxTreeAsync();
     }
 
     private void ClearData()
@@ -2441,4 +2443,3 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
 
     #endregion
 }
-

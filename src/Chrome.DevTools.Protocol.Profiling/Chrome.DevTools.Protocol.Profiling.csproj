@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Protocol.Profiling</PackageId>
+    <Title>Chrome.DevTools.Protocol.Profiling</Title>
+    <Description>Optional EventPipe and JetBrains profiling domains for Chrome.DevTools.Protocol.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+  </PropertyGroup>
+  <ItemGroup><None Include="../../README.md" Pack="true" PackagePath="" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Diagnostics.NETCore.Client" />
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" />
+    <PackageReference Include="JetBrains.Profiler.SelfApi" />
+    <PackageReference Include="JetBrains.Profiler.Api" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Chrome.DevTools.Protocol/Domains/DotMemoryProfilingEngine.cs" Link="Domains/DotMemoryProfilingEngine.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Domains/DotTraceProfilingEngine.cs" Link="Domains/DotTraceProfilingEngine.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Domains/EventPipeProfilingEngine.cs" Link="Domains/EventPipeProfilingEngine.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Domains/IProfilingEngine.cs" Link="Domains/IProfilingEngine.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Domains/ProfilerDomain.cs" Link="Domains/ProfilerDomain.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Domains/SimulatedProfilingEngine.cs" Link="Domains/SimulatedProfilingEngine.cs" />
+  </ItemGroup>
+</Project>

@@ -647,6 +647,115 @@ public class CdpIntegrationTests
         return await ReceiveJsonAsync(ws);
     }
 
+    [AvaloniaFact]
+    public void TestAttachToBrowserTargetRoutesNestedSessions()
+    {
+        var window = new Window { Title = "Browser Session Routing" };
+        window.Show();
+        var targetId = CdpServer.Register(window, "Browser Session Routing");
+        int port = GetFreePort();
+
+        try
+        {
+            CdpServer.Start(port);
+
+            var clientTask = Task.Run(async () =>
+            {
+                using var ws = CreateClientWebSocket();
+                await ConnectWithTimeoutAsync(ws, new Uri($"ws://127.0.0.1:{port}/devtools/browser"));
+
+                await SendJsonAsync(ws, new JsonObject
+                {
+                    ["id"] = 1,
+                    ["method"] = "Target.attachToBrowserTarget",
+                    ["params"] = new JsonObject()
+                });
+
+                var attachResponse = await ReceiveJsonAsync(ws);
+                var browserSessionId = attachResponse["result"]?["sessionId"]?.GetValue<string>();
+                Assert.False(string.IsNullOrWhiteSpace(browserSessionId));
+
+                await SendJsonAsync(ws, new JsonObject
+                {
+                    ["id"] = 2,
+                    ["sessionId"] = browserSessionId,
+                    ["method"] = "Browser.getVersion",
+                    ["params"] = new JsonObject()
+                });
+
+                var versionResponse = await ReceiveJsonAsync(ws);
+                Assert.Equal(2, versionResponse["id"]?.GetValue<int>());
+                Assert.Equal(browserSessionId, versionResponse["sessionId"]?.GetValue<string>());
+                Assert.False(string.IsNullOrWhiteSpace(versionResponse["result"]?["product"]?.GetValue<string>()));
+
+                await SendJsonAsync(ws, new JsonObject
+                {
+                    ["id"] = 3,
+                    ["sessionId"] = browserSessionId,
+                    ["method"] = "Target.setAutoAttach",
+                    ["params"] = new JsonObject
+                    {
+                        ["autoAttach"] = true,
+                        ["waitForDebuggerOnStart"] = false,
+                        ["flatten"] = true
+                    }
+                });
+
+                JsonObject? autoAttachResponse = null;
+                JsonObject? pageAttachedEvent = null;
+                for (var i = 0; i < 50 && (autoAttachResponse == null || pageAttachedEvent == null); i++)
+                {
+                    var message = await ReceiveJsonAsync(ws);
+                    if (message["id"]?.GetValue<int>() == 3)
+                    {
+                        autoAttachResponse = message;
+                    }
+                    else if (message["method"]?.GetValue<string>() == "Target.attachedToTarget" &&
+                             message["params"]?["targetInfo"]?["targetId"]?.GetValue<string>() == targetId)
+                    {
+                        pageAttachedEvent = message;
+                    }
+                }
+
+                Assert.NotNull(autoAttachResponse);
+                Assert.Equal(browserSessionId, autoAttachResponse["sessionId"]?.GetValue<string>());
+                Assert.NotNull(pageAttachedEvent);
+                Assert.Equal(browserSessionId, pageAttachedEvent["sessionId"]?.GetValue<string>());
+
+                var pageSessionId = pageAttachedEvent["params"]?["sessionId"]?.GetValue<string>();
+                Assert.False(string.IsNullOrWhiteSpace(pageSessionId));
+                Assert.NotEqual(browserSessionId, pageSessionId);
+
+                await SendJsonAsync(ws, new JsonObject
+                {
+                    ["id"] = 4,
+                    ["sessionId"] = pageSessionId,
+                    ["method"] = "DOM.getDocument",
+                    ["params"] = new JsonObject { ["pierce"] = true }
+                });
+
+                JsonObject documentResponse;
+                do
+                {
+                    documentResponse = await ReceiveJsonAsync(ws);
+                }
+                while (documentResponse["id"]?.GetValue<int>() != 4);
+
+                Assert.Equal(pageSessionId, documentResponse["sessionId"]?.GetValue<string>());
+                Assert.NotNull(documentResponse["result"]?["root"]);
+
+                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
+            });
+
+            PumpDispatcher(clientTask);
+        }
+        finally
+        {
+            CdpServer.Stop();
+            window.Close();
+        }
+    }
+
     private static void PumpDispatcher(Task task, int timeoutMs = 15000)
     {
         int loopCount = 0;
@@ -979,4 +1088,3 @@ public class CdpIntegrationTests
         await ws.ConnectAsync(uri, cts.Token);
     }
 }
-

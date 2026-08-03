@@ -566,6 +566,51 @@ public static class RuntimeDomain
 
                              Logger.LogPlaywrightDebug($"target: PlaywrightUtilityScriptMock, checking expression: querySelectorAll={expression.Contains("querySelectorAll")}, expect={expression.Contains("expect")}, Contains(injected,)={expression.Contains("(injected,")}");
 
+                             var serializedArguments = arguments?.ToJsonString() ?? "";
+                             if ((expression.Contains("window.innerWidth") || serializedArguments.Contains("window.innerWidth")) &&
+                                 (expression.Contains("window.innerHeight") || serializedArguments.Contains("window.innerHeight")) &&
+                                 (expression.Contains("JSON.stringify") || serializedArguments.Contains("JSON.stringify")))
+                             {
+                                 var viewport = new JsonObject
+                                 {
+                                     ["width"] = session.Window?.Bounds.Width ?? 800,
+                                     ["height"] = session.Window?.Bounds.Height ?? 600
+                                 };
+                                 var pollResult = new PlaywrightPollResultMock
+                                 {
+                                     Result = viewport.ToJsonString()
+                                 };
+                                 return new JsonObject
+                                 {
+                                     ["result"] = CreateRemoteObject(session, pollResult)
+                                 };
+                             }
+
+                             if (expression.Contains("h.result") && arguments != null)
+                             {
+                                 foreach (var argument in arguments.OfType<JsonObject>())
+                                 {
+                                     var argumentObjectId = argument["objectId"]?.GetValue<string>();
+                                     if (!string.IsNullOrEmpty(argumentObjectId) &&
+                                         session.GetObject(argumentObjectId) is PlaywrightPollResultMock pollResult)
+                                     {
+                                         return new JsonObject
+                                         {
+                                             ["result"] = CreateRemoteObject(session, pollResult.Result)
+                                         };
+                                     }
+                                 }
+                             }
+
+                             if (expression.Contains("inPagePrepareForScreenshots") ||
+                                 expression.Trim() == "document.fonts.ready")
+                             {
+                                 return new JsonObject
+                                 {
+                                     ["result"] = new JsonObject { ["type"] = "undefined" }
+                                 };
+                             }
+
                              if (expression.Contains("setupHitTargetInterceptor") || expression.Contains("dispatchEvent") || expression.Contains("scrollIntoView") || expression.Contains("setTimeout") || expression.Contains("stop()"))
                              {
                                  string? mockVal = expression.Contains("scrollIntoView") ? "done" : null;
@@ -4496,6 +4541,11 @@ public class PlaywrightLookupResultMock
 
 public class PlaywrightPollFunctionMock
 {
+}
+
+public class PlaywrightPollResultMock
+{
+    public string Result { get; set; } = "";
 }
 
 public struct JintResult

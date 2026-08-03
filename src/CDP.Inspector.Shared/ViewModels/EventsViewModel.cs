@@ -236,6 +236,8 @@ public class EventsViewModel : ViewModelBase
 
     private async Task EnableInputDomainAsync()
     {
+        if (!_cdpService.SupportsDomain("Input")) return;
+
         try
         {
             await _cdpService.SendCommandAsync("Input.enable");

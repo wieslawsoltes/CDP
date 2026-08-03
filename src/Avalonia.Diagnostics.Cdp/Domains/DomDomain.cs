@@ -439,7 +439,7 @@ public static class DomDomain
                     int depth = @params["depth"]?.GetValue<int>() ?? -1;
                     var flatList = new List<JsonObject>();
 
-                    var documentChildrenIds = new JsonArray { session.NodeMap.GetOrAdd(session.Window) };
+                    var documentChildrenIds = new JsonArray { JsonValue.Create(session.NodeMap.GetOrAdd(session.Window)) };
                     var docNode = new JsonObject
                     {
                         ["nodeId"] = 1,
@@ -937,28 +937,28 @@ public static class DomDomain
         var padding = GetThicknessProperty(visual, "Padding");
 
         // Border box matches the control's Bounds
-        var borderQuad = new JsonArray { x, y, x + w, y, x + w, y + h, x, y + h };
+        var borderQuad = CreateNumberArray(x, y, x + w, y, x + w, y + h, x, y + h);
 
         // Margin box extends outwards from the border box
         double ml = x - margin.Left;
         double mt = y - margin.Top;
         double mr = x + w + margin.Right;
         double mb = y + h + margin.Bottom;
-        var marginQuad = new JsonArray { ml, mt, mr, mt, mr, mb, ml, mb };
+        var marginQuad = CreateNumberArray(ml, mt, mr, mt, mr, mb, ml, mb);
 
         // Padding box sits inside the border box
         double pl = x + border.Left;
         double pt = y + border.Top;
         double pr = x + w - border.Right;
         double pb = y + h - border.Bottom;
-        var paddingQuad = new JsonArray { pl, pt, pr, pt, pr, pb, pl, pb };
+        var paddingQuad = CreateNumberArray(pl, pt, pr, pt, pr, pb, pl, pb);
 
         // Content box sits inside the padding box
         double cl = pl + padding.Left;
         double ct = pt + padding.Top;
         double cr = pr - padding.Right;
         double cb = pb - padding.Bottom;
-        var contentQuad = new JsonArray { cl, ct, cr, ct, cr, cb, cl, cb };
+        var contentQuad = CreateNumberArray(cl, ct, cr, ct, cr, cb, cl, cb);
 
         return new JsonObject
         {
@@ -1093,21 +1093,17 @@ public static class DomDomain
     public static JsonArray BuildAttributes(Visual visual)
     {
         var attributes = new JsonArray();
-        attributes.Add("type");
-        attributes.Add(visual.GetType().FullName ?? visual.GetType().Name);
-        attributes.Add("Type");
-        attributes.Add(visual.GetType().FullName ?? visual.GetType().Name);
+        var typeName = visual.GetType().FullName ?? visual.GetType().Name;
+        AddAttribute(attributes, "type", typeName);
+        AddAttribute(attributes, "Type", typeName);
 
         if (visual is Control control)
         {
             if (!string.IsNullOrEmpty(control.Name))
             {
-                attributes.Add("id");
-                attributes.Add(control.Name);
-                attributes.Add("Name");
-                attributes.Add(control.Name);
-                attributes.Add("Id");
-                attributes.Add(control.Name);
+                AddAttribute(attributes, "id", control.Name);
+                AddAttribute(attributes, "Name", control.Name);
+                AddAttribute(attributes, "Id", control.Name);
             }
 
             if (control.Classes.Count > 0)
@@ -1115,38 +1111,26 @@ public static class DomDomain
                 var classValue = string.Join(" ", control.Classes.Where(cls => !cls.StartsWith(":", StringComparison.Ordinal)));
                 if (!string.IsNullOrEmpty(classValue))
                 {
-                    attributes.Add("class");
-                    attributes.Add(classValue);
-                    attributes.Add("Class");
-                    attributes.Add(classValue);
+                    AddAttribute(attributes, "class", classValue);
+                    AddAttribute(attributes, "Class", classValue);
                 }
             }
 
             string? text = GetControlTextOrContent(control);
             if (!string.IsNullOrEmpty(text))
             {
-                attributes.Add("text");
-                attributes.Add(text);
-                attributes.Add("Text");
-                attributes.Add(text);
+                AddAttribute(attributes, "text", text);
+                AddAttribute(attributes, "Text", text);
             }
 
-            attributes.Add("Bounds");
-            attributes.Add($"{control.Bounds.X},{control.Bounds.Y},{control.Bounds.Width},{control.Bounds.Height}");
-            
-            attributes.Add("IsEnabled");
-            attributes.Add(control.IsEnabled.ToString().ToLowerInvariant());
-            
-            attributes.Add("IsVisible");
-            attributes.Add(control.IsVisible.ToString().ToLowerInvariant());
-
-            attributes.Add("IsFocused");
-            attributes.Add(control.IsFocused.ToString().ToLowerInvariant());
+            AddAttribute(attributes, "Bounds", $"{control.Bounds.X},{control.Bounds.Y},{control.Bounds.Width},{control.Bounds.Height}");
+            AddAttribute(attributes, "IsEnabled", control.IsEnabled.ToString().ToLowerInvariant());
+            AddAttribute(attributes, "IsVisible", control.IsVisible.ToString().ToLowerInvariant());
+            AddAttribute(attributes, "IsFocused", control.IsFocused.ToString().ToLowerInvariant());
 
             if (control is Avalonia.Controls.Primitives.ToggleButton toggleButton)
             {
-                attributes.Add("IsChecked");
-                attributes.Add((toggleButton.IsChecked == true).ToString().ToLowerInvariant());
+                AddAttribute(attributes, "IsChecked", (toggleButton.IsChecked == true).ToString().ToLowerInvariant());
             }
 
             bool? isSelected = null;
@@ -1174,14 +1158,11 @@ public static class DomDomain
 
             if (isSelected.HasValue)
             {
-                attributes.Add("IsSelected");
-                attributes.Add(isSelected.Value.ToString().ToLowerInvariant());
+                AddAttribute(attributes, "IsSelected", isSelected.Value.ToString().ToLowerInvariant());
             }
 
-            attributes.Add("Width");
-            attributes.Add(Math.Round(control.Bounds.Width).ToString(System.Globalization.CultureInfo.InvariantCulture));
-            attributes.Add("Height");
-            attributes.Add(Math.Round(control.Bounds.Height).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            AddAttribute(attributes, "Width", Math.Round(control.Bounds.Width).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            AddAttribute(attributes, "Height", Math.Round(control.Bounds.Height).ToString(System.Globalization.CultureInfo.InvariantCulture));
 
             var traits = new List<string>();
             if (!string.IsNullOrWhiteSpace(text))
@@ -1202,38 +1183,46 @@ public static class DomDomain
             }
             if (traits.Count > 0)
             {
-                attributes.Add("Traits");
-                attributes.Add(string.Join(" ", traits));
+                AddAttribute(attributes, "Traits", string.Join(" ", traits));
             }
 
             var automationName = control.GetValue(AutomationProperties.NameProperty);
             if (!string.IsNullOrEmpty(automationName))
             {
-                attributes.Add("AccessibilityName");
-                attributes.Add(automationName);
+                AddAttribute(attributes, "AccessibilityName", automationName);
             }
             
             var automationHelp = control.GetValue(AutomationProperties.HelpTextProperty);
             if (!string.IsNullOrEmpty(automationHelp))
             {
-                attributes.Add("AccessibilityHelp");
-                attributes.Add(automationHelp);
+                AddAttribute(attributes, "AccessibilityHelp", automationHelp);
             }
 
             var accessibilityId = control.GetValue(AutomationProperties.AutomationIdProperty) as string;
             if (!string.IsNullOrEmpty(accessibilityId))
             {
-                attributes.Add("AccessibilityId");
-                attributes.Add(accessibilityId);
-                attributes.Add("AutomationId");
-                attributes.Add(accessibilityId);
-                attributes.Add("AutomationProperties.AutomationId");
-                attributes.Add(accessibilityId);
-                attributes.Add("automation-id");
-                attributes.Add(accessibilityId);
+                AddAttribute(attributes, "AccessibilityId", accessibilityId);
+                AddAttribute(attributes, "AutomationId", accessibilityId);
+                AddAttribute(attributes, "AutomationProperties.AutomationId", accessibilityId);
+                AddAttribute(attributes, "automation-id", accessibilityId);
             }
         }
         return attributes;
+    }
+
+    private static JsonArray CreateNumberArray(params double[] values)
+    {
+        var result = new JsonArray();
+        foreach (var value in values) result.Add(JsonValue.Create(value));
+        return result;
+    }
+
+    private static void AddAttribute(JsonArray attributes, string name, string value)
+    {
+        // Use the primitive overloads explicitly so Native AOT never falls back
+        // to JsonArray.Add<T>, which requires reflection-based type metadata.
+        attributes.Add(JsonValue.Create(name));
+        attributes.Add(JsonValue.Create(value));
     }
 
     public static bool IsSlimTarget(Visual visual)

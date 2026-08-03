@@ -19,14 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="YamlDotNet" />
-    <PackageReference Include="SkiaSharp" />
-    <PackageReference Include="Jint" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-    <PackageReference Include="Microsoft.Diagnostics.NETCore.Client" />
-    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" />
-    <PackageReference Include="JetBrains.Profiler.SelfApi" />
-    <PackageReference Include="JetBrains.Profiler.Api" />
   </ItemGroup>
 
   <ItemGroup>
@@ -34,11 +27,28 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Xaml.Compiler/Xaml.Compiler.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="Mutation/INodeMap.cs" />
+    <Compile Remove="Automation/ITelemetryProvider.cs" />
+    <Compile Remove="Automation/NetworkTelemetryProvider.cs" />
+    <Compile Remove="Automation/PerformanceTelemetryProvider.cs" />
+    <Compile Remove="Automation/TestStudioReportGenerator.cs" />
+    <Compile Remove="Automation/TestStudioStepConverter.cs" />
+    <Compile Remove="Automation/TestStudioYamlParser.cs" />
+    <Compile Remove="Client/CdpService.cs" />
+    <Compile Remove="Client/ICdpService.cs" />
+    <Compile Remove="Client/IOsAutomation.cs" />
+    <Compile Remove="Client/OSNode.cs" />
+    <Compile Remove="Client/OSWindow.cs" />
+    <Compile Remove="Client/OsAutomationCdpSession.cs" />
+    <Compile Remove="Client/OsAutomationProvider.cs" />
+    <Compile Remove="Client/ScreencastReconstructor.cs" />
+    <Compile Remove="Domains/DotMemoryProfilingEngine.cs" />
+    <Compile Remove="Domains/DotTraceProfilingEngine.cs" />
+    <Compile Remove="Domains/EventPipeProfilingEngine.cs" />
+    <Compile Remove="Domains/IProfilingEngine.cs" />
+    <Compile Remove="Domains/ProfilerDomain.cs" />
+    <Compile Remove="Domains/SimulatedProfilingEngine.cs" />
+    <Compile Remove="Jint/CdpJintEvaluator.cs" />
+    <Compile Remove="Server/TiledScreencastProducer.cs" />
   </ItemGroup>
 
 </Project>

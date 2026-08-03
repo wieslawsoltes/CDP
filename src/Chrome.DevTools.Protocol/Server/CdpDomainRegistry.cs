@@ -23,7 +23,6 @@ public static class CdpDomainRegistry
         s_domains["Tracing"] = (Domains.TracingDomain.HandleAsync, "1.3");
         s_domains["Browser"] = (Domains.BrowserDomain.HandleAsync, "1.3");
         s_domains["Emulation"] = (Domains.EmulationDomain.HandleAsync, "1.3");
-        s_domains["Profiler"] = (Domains.ProfilerDomain.HandleAsync, "1.3");
         s_domains["Application"] = (Domains.ApplicationDomain.HandleAsync, "1.3");
         s_domains["Audits"] = (Domains.AuditsDomain.HandleAsync, "1.3");
         s_domains["Debugger"] = (Domains.DebuggerDomain.HandleAsync, "1.3");

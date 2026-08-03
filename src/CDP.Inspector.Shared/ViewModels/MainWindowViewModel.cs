@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Diagnostics.Cdp;
 using CdpInspectorApp.Services;
 using CDP.Editor.Splits.Models;
+using Chrome.DevTools.Protocol.Inspector;
 
 namespace CdpInspectorApp.ViewModels;
 
@@ -88,7 +89,10 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
 
     public static MainWindowViewModel? Instance { get; private set; }
 
-    public MainWindowViewModel(ICdpService? cdpService = null, bool loadState = false)
+    public MainWindowViewModel(
+        ICdpService? cdpService = null,
+        bool loadState = false,
+        IEnumerable<IV8SourceRegenerator>? sourceRegenerators = null)
     {
         Instance = this;
         CdpService = cdpService ?? new CdpService();
@@ -96,7 +100,7 @@ public class MainWindowViewModel : ViewModelBase, IStateProvider
         Connection = new ConnectionViewModel(CdpService);
         Elements = new ElementsViewModel(CdpService);
         Console = new ConsoleViewModel(CdpService, () => Recorder?.TestStudio);
-        Sources = new SourcesViewModel(CdpService);
+        Sources = new SourcesViewModel(CdpService, sourceRegenerators);
         Network = new NetworkViewModel(CdpService);
         Performance = new PerformanceViewModel(CdpService);
         Profiler = new ProfilerViewModel(CdpService);

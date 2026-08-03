@@ -425,8 +425,35 @@ public class StateServiceTests
             {
                 SearchQuery = "sourcesQuery",
                 SearchCaseSensitive = true,
-                BreakpointCondition = "cond"
+                BreakpointCondition = "cond",
+                BreakpointLogMessage = "value = {value}",
+                BreakpointKind = V8BreakpointKinds.Logpoint,
+                PauseOnExceptionsState = "uncaught",
+                SkipAllPauses = true,
+                AreBreakpointsActive = false
             };
+            vm.V8Breakpoints.Add(new V8BreakpointModel
+            {
+                Key = "file:///app/source.js:4",
+                Url = "file:///app/source.js",
+                BindingUrl = "file:///app/bundle.js",
+                ScriptId = "42",
+                LineNumber = 12,
+                ColumnNumber = 3,
+                DisplayLineNumber = 4,
+                Kind = V8BreakpointKinds.Logpoint,
+                LogMessage = "value = {value}",
+                IsEnabled = false
+            });
+            vm.V8Breakpoints.Add(new V8BreakpointModel
+            {
+                Key = "instrumentation:beforeScriptWithSourceMapExecution",
+                Instrumentation = V8InstrumentationBreakpoints.BeforeScriptWithSourceMapExecution,
+                Kind = V8BreakpointKinds.Instrumentation,
+                IsEnabled = true
+            });
+            vm.BlackboxPatterns.Add("/node_modules/");
+            vm.SkipAnonymousScripts = true;
 
             service.RegisterProvider(vm);
             service.Save();
@@ -439,6 +466,26 @@ public class StateServiceTests
             Assert.Equal("sourcesQuery", vm2.SearchQuery);
             Assert.True(vm2.SearchCaseSensitive);
             Assert.Equal("cond", vm2.BreakpointCondition);
+            Assert.Equal("value = {value}", vm2.BreakpointLogMessage);
+            Assert.Equal(V8BreakpointKinds.Logpoint, vm2.BreakpointKind);
+            Assert.Equal("uncaught", vm2.PauseOnExceptionsState);
+            Assert.True(vm2.SkipAllPauses);
+            Assert.False(vm2.AreBreakpointsActive);
+            Assert.Equal(2, vm2.V8Breakpoints.Count);
+            var breakpoint = Assert.Single(vm2.V8Breakpoints,
+                item => item.Kind == V8BreakpointKinds.Logpoint);
+            Assert.Equal("file:///app/source.js", breakpoint.Url);
+            Assert.Equal("file:///app/bundle.js", breakpoint.BindingUrl);
+            Assert.Equal(12, breakpoint.LineNumber);
+            Assert.Equal(4, breakpoint.DisplayLineNumber);
+            Assert.False(breakpoint.IsEnabled);
+            var instrumentation = Assert.Single(vm2.V8Breakpoints,
+                item => item.Kind == V8BreakpointKinds.Instrumentation);
+            Assert.Equal(V8InstrumentationBreakpoints.BeforeScriptWithSourceMapExecution,
+                instrumentation.Instrumentation);
+            Assert.True(instrumentation.IsEnabled);
+            Assert.Equal("/node_modules/", Assert.Single(vm2.BlackboxPatterns));
+            Assert.True(vm2.SkipAnonymousScripts);
         }
         finally
         {

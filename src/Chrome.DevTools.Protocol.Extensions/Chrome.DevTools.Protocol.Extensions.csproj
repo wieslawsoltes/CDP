@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Protocol.Extensions</PackageId>
+    <Title>Chrome.DevTools.Protocol.Extensions</Title>
+    <Description>Optional automation, Jint, Skia, profiling, YAML, and XAML composition for Chrome.DevTools.Protocol.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>cdp;chrome-devtools-protocol;automation;profiling;extensions</PackageTags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Chrome.DevTools.Protocol.Automation/Chrome.DevTools.Protocol.Automation.csproj" />
+    <ProjectReference Include="../Chrome.DevTools.Protocol.Jint/Chrome.DevTools.Protocol.Jint.csproj" />
+    <ProjectReference Include="../Chrome.DevTools.Protocol.Profiling/Chrome.DevTools.Protocol.Profiling.csproj" />
+    <ProjectReference Include="../Chrome.DevTools.Protocol.Skia/Chrome.DevTools.Protocol.Skia.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Chrome.DevTools.Protocol" />
+  </ItemGroup>
+
+</Project>

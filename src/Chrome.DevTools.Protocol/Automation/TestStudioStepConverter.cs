@@ -32,6 +32,22 @@ public static class TestStudioStepConverter
         }
     }
 
+    private static bool TryParsePoint(object? value, out double x, out double y)
+    {
+        x = 0;
+        y = 0;
+
+        if (value is not string point)
+        {
+            return false;
+        }
+
+        var parts = point.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 2 &&
+               double.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out x) &&
+               double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out y);
+    }
+
     private static readonly System.Text.RegularExpressions.Regex PlaceholderRegex = 
         new(@"\$\{([^}]+)\}", System.Text.RegularExpressions.RegexOptions.Compiled);
 
@@ -136,6 +152,12 @@ public static class TestStudioStepConverter
             // OffsetX, OffsetY
             if (step.Parameters.TryGetValue("offsetX", out var oxObj)) recStep.OffsetX = SafeToDouble(oxObj);
             if (step.Parameters.TryGetValue("offsetY", out var oyObj)) recStep.OffsetY = SafeToDouble(oyObj);
+
+            if (step.Parameters.TryGetValue("point", out var pointObj) && TryParsePoint(pointObj, out var pointX, out var pointY))
+            {
+                recStep.PointX = pointX;
+                recStep.PointY = pointY;
+            }
 
             // Width, Height
             if (step.Parameters.TryGetValue("width", out var wObj)) recStep.Width = SafeToDouble(wObj);

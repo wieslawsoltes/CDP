@@ -9,6 +9,8 @@ public class RecordedStep
     public string Value { get; set; } = "";
     public double OffsetX { get; set; }
     public double OffsetY { get; set; }
+    public double? PointX { get; set; }
+    public double? PointY { get; set; }
     public double Width { get; set; }
     public double Height { get; set; }
     public string Url { get; set; } = "";

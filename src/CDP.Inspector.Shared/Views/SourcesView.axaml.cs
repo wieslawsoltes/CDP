@@ -25,6 +25,7 @@ using CDP.CSharp.LanguageServer;
 using CDP.Markdown.Editor;
 using CDP.Document.Editor;
 using Avalonia.Controls.Primitives;
+using XamlPlayground.Editor.Minimap.Inline;
 
 namespace CdpInspectorApp.Views;
 
@@ -48,15 +49,24 @@ public partial class SourcesView : UserControl
     private readonly XamlLanguageServer _xamlLsp = new();
     private readonly CSharpLanguageServer _csharpLsp = new();
     private readonly LspDiagnosticColorizer _diagnosticColorizer = new();
+    private DebuggerLineColorizer? _debuggerLineColorizer;
     private CompletionWindow? _completionWindow;
+    private System.Threading.CancellationTokenSource? _debuggerHoverCancellation;
+    private string _lastDebuggerHoverKey = "";
 
     private Control GetOrCreateViewInstance(string viewName, CDP.Editor.Splits.Controls.SuperSplitBox? targetBox = null)
     {
         string cacheKey = viewName;
         if (viewName == "SourcesFiles") cacheKey = "pnlSourcesFiles";
+        else if (viewName == "SourcesRuntimeScripts") cacheKey = "pnlSourcesRuntimeScripts";
         else if (viewName == "SourcesSearch") cacheKey = "pnlSourcesSearch";
         else if (viewName == "CodeViewer") cacheKey = "pnlCodeViewer";
         else if (viewName == "Debugger") cacheKey = "pnlDebugger";
+        else if (viewName == "DebuggerWatch") cacheKey = "pnlDebuggerWatch";
+        else if (viewName == "DebuggerCallStack") cacheKey = "pnlDebuggerCallStack";
+        else if (viewName == "DebuggerVariables") cacheKey = "pnlDebuggerVariables";
+        else if (viewName == "DebuggerBreakpoints") cacheKey = "pnlDebuggerBreakpoints";
+        else if (viewName == "DebuggerIgnoreList") cacheKey = "pnlDebuggerIgnoreList";
 
         if (_viewsCache.TryGetValue(cacheKey, out var cached))
         {
@@ -120,6 +130,7 @@ public partial class SourcesView : UserControl
         }
 
         SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
+        DebuggerSplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
         
         var editor = txtSourceContent;
         if (editor != null)
@@ -141,6 +152,9 @@ public partial class SourcesView : UserControl
             editor.TextArea.KeyDown += TextArea_KeyDown;
             editor.PointerMoved += TxtSourceContent_PointerMoved;
             editor.TextArea.TextView.LineTransformers.Add(_diagnosticColorizer);
+            _debuggerLineColorizer = new DebuggerLineColorizer(() =>
+                (DataContext as MainWindowViewModel)?.Sources.ActiveDebugLine);
+            editor.TextArea.TextView.LineTransformers.Add(_debuggerLineColorizer);
             editor.TextChanged += (s, e) => UpdateDiagnostics();
         }
 
@@ -154,6 +168,12 @@ public partial class SourcesView : UserControl
         if (btnToggleBp != null)
         {
             btnToggleBp.Click += (sender, args) => ToggleBreakpointAtCaret();
+        }
+
+        var btnRunToCursor = this.FindControl<Button>("btnDebuggerRunToCursor");
+        if (btnRunToCursor != null)
+        {
+            btnRunToCursor.Click += (sender, args) => RunToCursorAtCaret();
         }
 
         var toggleMd = BtnToggleMarkdownMode;
@@ -196,15 +216,29 @@ public partial class SourcesView : UserControl
                 {
                     vm.Sources.PropertyChanged -= Sources_PropertyChanged;
                     vm.Sources.PropertyChanged += Sources_PropertyChanged;
+                    if (!editor.TextArea.LeftMargins.Any(margin => margin is ReplayGutterMargin))
+                    {
+                        var gutter = new ReplayGutterMargin(new SourcesDebuggerGutterDataProvider(vm.Sources));
+                        var insertIndex = 0;
+                        for (var i = 0; i < editor.TextArea.LeftMargins.Count; i++)
+                        {
+                            if (editor.TextArea.LeftMargins[i].GetType().Name.Contains("LineNumberMargin"))
+                            {
+                                insertIndex = i + 1;
+                                break;
+                            }
+                        }
+                        editor.TextArea.LeftMargins.Insert(insertIndex, gutter);
+                    }
                     UpdateEditorText(vm.Sources.SelectedFileContent);
                     UpdateHighlighting(vm.Sources.SelectedFileName);
                     UpdateDiagnostics();
-                    var editor = txtSourceContent;
+                    var currentEditor = txtSourceContent;
                     var mdVisual = MdVisualEditor;
                     var docVisual = DocVisualEditor;
-                    if (editor != null && mdVisual != null)
+                    if (currentEditor != null && mdVisual != null)
                     {
-                        editor.IsVisible = !vm.Sources.IsMarkdownPreviewMode && !vm.Sources.IsDocumentPreviewMode;
+                        currentEditor.IsVisible = !vm.Sources.IsMarkdownPreviewMode && !vm.Sources.IsDocumentPreviewMode;
                         mdVisual.IsVisible = vm.Sources.IsMarkdownPreviewMode;
                     }
                     if (docVisual != null)
@@ -295,6 +329,7 @@ public partial class SourcesView : UserControl
                 }
                 else if (e.PropertyName == nameof(SourcesViewModel.ActiveDebugLine))
                 {
+                    txtSourceContent.TextArea.TextView.Redraw();
                     if (vm.Sources.ActiveDebugLine.HasValue && 
                         vm.Sources.SelectedFileContent != "Loading content..." && 
                         !string.IsNullOrEmpty(vm.Sources.SelectedFileContent))
@@ -322,6 +357,16 @@ public partial class SourcesView : UserControl
         }
     }
 
+    private void RunToCursorAtCaret()
+    {
+        if (DataContext is not MainWindowViewModel vm || txtSourceContent.Document is null) return;
+        var currentLine = txtSourceContent.TextArea.Caret.Line;
+        if (vm.Sources.RunToCursorCommand.CanExecute(currentLine))
+        {
+            vm.Sources.RunToCursorCommand.Execute(currentLine);
+        }
+    }
+
 
 
     private void OnSearchResultDoubleTapped(object? sender, RoutedEventArgs e)
@@ -345,6 +390,17 @@ public partial class SourcesView : UserControl
                     else
                     {
                         vm.Sources.SelectedFile = node;
+                    }
+                }
+                else
+                {
+                    var script = vm.Sources.RuntimeScripts.FirstOrDefault(item =>
+                        string.Equals(item.Url, match.Path, StringComparison.Ordinal) ||
+                        string.Equals(item.DisplayName, match.Path, StringComparison.Ordinal));
+                    if (script is not null)
+                    {
+                        _pendingScrollLine = match.LineNumber;
+                        vm.Sources.SelectedRuntimeScript = script;
                     }
                 }
             }
@@ -386,8 +442,7 @@ public partial class SourcesView : UserControl
 
             if (DataContext is MainWindowViewModel vm)
             {
-                var isFileLoaded = vm.Sources.SelectedFile != null && !vm.Sources.SelectedFile.IsDirectory;
-                editor.IsReadOnly = !isFileLoaded;
+                editor.IsReadOnly = !vm.Sources.CanEditCurrentSource;
 
                 // Swapping visibility and auto-loading text properties are handled dynamically by MVVM bindings.
                 // txtSourceContent is updated procedurally here for syntax highlighting / diagnostics context.
@@ -421,9 +476,9 @@ public partial class SourcesView : UserControl
                 editorText = txtSourceContent.Text;
             }
 
-            if (vm.Sources.SaveFileCommand.CanExecute(editorText))
+            if (vm.Sources.ApplySourceChangesCommand.CanExecute(editorText))
             {
-                vm.Sources.SaveFileCommand.Execute(editorText);
+                vm.Sources.ApplySourceChangesCommand.Execute(editorText);
             }
         }
     }
@@ -471,6 +526,78 @@ public partial class SourcesView : UserControl
 
     private void TextArea_KeyDown(object? sender, KeyEventArgs e)
     {
+        if (DataContext is MainWindowViewModel vm)
+        {
+            if (e.Key == Key.F9)
+            {
+                ToggleBreakpointAtCaret();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.F5 && vm.Sources.ResumeCommand.CanExecute(null))
+            {
+                vm.Sources.ResumeCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.F6 && vm.Sources.PauseCommand.CanExecute(null))
+            {
+                vm.Sources.PauseCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.F10)
+            {
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+                {
+                    RunToCursorAtCaret();
+                }
+                else if (vm.Sources.StepOverCommand.CanExecute(null))
+                {
+                    vm.Sources.StepOverCommand.Execute(null);
+                }
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.F11)
+            {
+                var command = e.KeyModifiers.HasFlag(KeyModifiers.Shift)
+                    ? vm.Sources.StepOutCommand
+                    : vm.Sources.StepIntoCommand;
+                if (command.CanExecute(null)) command.Execute(null);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control))
+            {
+                SaveCurrentFile();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.E && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                var expression = txtSourceContent.SelectedText;
+                if (string.IsNullOrWhiteSpace(expression) && txtSourceContent.Document is not null)
+                {
+                    var boundaries = GetWordBoundary(txtSourceContent.Text, txtSourceContent.CaretOffset);
+                    if (boundaries.end > boundaries.start)
+                    {
+                        expression = txtSourceContent.Text[boundaries.start..boundaries.end];
+                    }
+                }
+                if (!string.IsNullOrWhiteSpace(expression))
+                {
+                    vm.Sources.DebuggerEvaluationExpression = expression.Trim();
+                    if (vm.Sources.EvaluateOnCallFrameCommand.CanExecute(null))
+                    {
+                        vm.Sources.EvaluateOnCallFrameCommand.Execute(null);
+                    }
+                }
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key == Key.Space && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
             ShowCompletion(explicitInvocation: true);
@@ -585,7 +712,7 @@ public partial class SourcesView : UserControl
         return char.IsLetterOrDigit(c) || c == '_';
     }
 
-    private void TxtSourceContent_PointerMoved(object? sender, PointerEventArgs e)
+    private async void TxtSourceContent_PointerMoved(object? sender, PointerEventArgs e)
     {
         var editor = txtSourceContent;
         if (editor == null || editor.Document == null) return;
@@ -602,6 +729,40 @@ public partial class SourcesView : UserControl
             {
                 var fileName = vm.Sources.SelectedFileName;
                 string ext = Path.GetExtension(fileName).ToLowerInvariant();
+
+                if (vm.Sources.IsDebuggerPaused && vm.Sources.SelectedCallFrame?.CanInspect == true &&
+                    ext is ".js" or ".jsx" or ".mjs" or ".cjs" or ".ts" or ".tsx")
+                {
+                    var boundaries = GetWordBoundary(editor.Text, offset);
+                    var expression = boundaries.end > boundaries.start
+                        ? editor.Text[boundaries.start..boundaries.end]
+                        : "";
+                    if (!string.IsNullOrWhiteSpace(expression))
+                    {
+                        var hoverKey = $"{vm.Sources.SelectedCallFrame.CallFrameId}:{expression}";
+                        if (_lastDebuggerHoverKey == hoverKey && ToolTip.GetIsOpen(editor)) return;
+                        _debuggerHoverCancellation?.Cancel();
+                        _debuggerHoverCancellation?.Dispose();
+                        _debuggerHoverCancellation = new System.Threading.CancellationTokenSource();
+                        var cancellationToken = _debuggerHoverCancellation.Token;
+                        try
+                        {
+                            await System.Threading.Tasks.Task.Delay(250, cancellationToken);
+                            var value = await vm.Sources.EvaluateHoverAsync(expression);
+                            if (!cancellationToken.IsCancellationRequested && !string.IsNullOrWhiteSpace(value))
+                            {
+                                _lastDebuggerHoverKey = hoverKey;
+                                ToolTip.SetTip(editor, $"{expression} = {value}");
+                                ToolTip.SetIsOpen(editor, true);
+                                return;
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            return;
+                        }
+                    }
+                }
                 
                 string? contents = null;
                 if (ext == ".xaml" || ext == ".axaml")
@@ -625,6 +786,8 @@ public partial class SourcesView : UserControl
                 }
             }
         }
+        _lastDebuggerHoverKey = "";
+        _debuggerHoverCancellation?.Cancel();
         ToolTip.SetIsOpen(editor, false);
     }
 
@@ -705,5 +868,21 @@ public class LspDiagnosticColorizer : DocumentColorizingTransformer
                 }
             }
         }
+    }
+}
+
+public sealed class DebuggerLineColorizer : DocumentColorizingTransformer
+{
+    private readonly Func<int?> _activeLine;
+
+    public DebuggerLineColorizer(Func<int?> activeLine) => _activeLine = activeLine;
+
+    protected override void ColorizeLine(DocumentLine line)
+    {
+        if (_activeLine() != line.LineNumber || line.Length == 0) return;
+        ChangeLinePart(line.Offset, line.EndOffset, visualLine =>
+        {
+            visualLine.BackgroundBrush = new SolidColorBrush(Color.FromArgb(75, 255, 202, 40));
+        });
     }
 }

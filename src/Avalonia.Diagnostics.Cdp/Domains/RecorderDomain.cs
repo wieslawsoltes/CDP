@@ -332,8 +332,8 @@ internal class SessionRecorderState
             {
                 ["type"] = "dragAndDrop",
                 ["target"] = "main",
-                ["selectors"] = new JsonArray { new JsonArray { sourceSelector } },
-                ["targetSelectors"] = new JsonArray { new JsonArray { targetSelector } },
+                ["selectors"] = new JsonArray { new JsonArray { JsonValue.Create(sourceSelector) } },
+                ["targetSelectors"] = new JsonArray { new JsonArray { JsonValue.Create(targetSelector) } },
                 ["offsetX"] = _dragStartLocalPos.X,
                 ["offsetY"] = _dragStartLocalPos.Y,
                 ["targetOffsetX"] = endPos.X,
@@ -362,7 +362,7 @@ internal class SessionRecorderState
             {
                 ["type"] = "click",
                 ["target"] = "main",
-                ["selectors"] = new JsonArray { new JsonArray { selector } },
+                ["selectors"] = new JsonArray { new JsonArray { JsonValue.Create(selector) } },
                 ["offsetX"] = pos.X,
                 ["offsetY"] = pos.Y,
                 ["button"] = button,
@@ -399,7 +399,7 @@ internal class SessionRecorderState
             {
                 ["type"] = "scroll",
                 ["target"] = "main",
-                ["selectors"] = new JsonArray { new JsonArray { selector } },
+                ["selectors"] = new JsonArray { new JsonArray { JsonValue.Create(selector) } },
                 ["deltaX"] = delta.X * 100.0,
                 ["deltaY"] = delta.Y * 100.0
             };
@@ -454,7 +454,7 @@ internal class SessionRecorderState
                     {
                         ["type"] = "change",
                         ["target"] = "main",
-                        ["selectors"] = new JsonArray { new JsonArray { selector } },
+                        ["selectors"] = new JsonArray { new JsonArray { JsonValue.Create(selector) } },
                         ["value"] = currentText
                     };
 

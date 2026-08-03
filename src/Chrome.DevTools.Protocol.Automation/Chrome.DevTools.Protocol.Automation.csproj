@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.Protocol.Automation</PackageId>
+    <Title>Chrome.DevTools.Protocol.Automation</Title>
+    <Description>Optional client, OS automation, YAML, and reporting features for Chrome.DevTools.Protocol.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup><None Include="../../README.md" Pack="true" PackagePath="" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="Jint" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
+    <ProjectReference Include="../Chrome.DevTools.Protocol.Jint/Chrome.DevTools.Protocol.Jint.csproj" />
+    <ProjectReference Include="../Chrome.DevTools.Protocol.Skia/Chrome.DevTools.Protocol.Skia.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Chrome.DevTools.Protocol/Automation/ITelemetryProvider.cs" Link="Automation/ITelemetryProvider.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Automation/NetworkTelemetryProvider.cs" Link="Automation/NetworkTelemetryProvider.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Automation/PerformanceTelemetryProvider.cs" Link="Automation/PerformanceTelemetryProvider.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Automation/TestStudioReportGenerator.cs" Link="Automation/TestStudioReportGenerator.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Automation/TestStudioStepConverter.cs" Link="Automation/TestStudioStepConverter.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Automation/TestStudioYamlParser.cs" Link="Automation/TestStudioYamlParser.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Client/CdpService.cs" Link="Client/CdpService.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Client/ICdpService.cs" Link="Client/ICdpService.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Client/IOsAutomation.cs" Link="Client/IOsAutomation.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Client/OSNode.cs" Link="Client/OSNode.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Client/OSWindow.cs" Link="Client/OSWindow.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Client/OsAutomationCdpSession.cs" Link="Client/OsAutomationCdpSession.cs" />
+    <Compile Include="../Chrome.DevTools.Protocol/Client/OsAutomationProvider.cs" Link="Client/OsAutomationProvider.cs" />
+  </ItemGroup>
+</Project>

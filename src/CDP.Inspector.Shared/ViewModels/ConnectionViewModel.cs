@@ -511,6 +511,8 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
                 TestStudio.Log($"OS Automation: Connecting to process window '{SelectedTarget.Title}' (ID: {SelectedTarget.Id})...");
             }
 
+            // Runtime.runIfWaitingForDebugger releases Node's startup gate; when
+            // --inspect-brk is active V8 then reports the real break-on-start pause.
             await _cdpService.ConnectAsync(GeneratorHostAddress, SelectedTarget, autoResume: true);
 
             if (isOsAutomation && TestStudio != null && _cdpService.IsConnected)
@@ -802,7 +804,7 @@ public class ConnectionViewModel : ViewModelBase, IStateProvider
 
     public async Task RefreshWindowDetailsAsync()
     {
-        if (!IsConnected) return;
+        if (!IsConnected || !_cdpService.SupportsDomain("Browser")) return;
         try
         {
             // 1. Get window for target

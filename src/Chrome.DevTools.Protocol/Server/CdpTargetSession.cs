@@ -8,7 +8,8 @@ public class CdpTargetSession : IDisposable
 {
     protected readonly CdpSession _session;
 
-       public string SessionId { get; }
+    public string SessionId { get; }
+    public bool IsBrowserSession { get; }
     public string? ParentSessionId { get; set; }
     public string TargetId { get; }
     public ICdpTarget Target { get; }
@@ -43,10 +44,16 @@ public class CdpTargetSession : IDisposable
     public virtual bool IsDomEnabled { get; set; }
     public virtual bool InspectModeEnabled { get; set; }
 
-    public CdpTargetSession(CdpSession session, string sessionId, string targetId, ICdpTarget target)
+    public CdpTargetSession(
+        CdpSession session,
+        string sessionId,
+        string targetId,
+        ICdpTarget target,
+        bool isBrowserSession = false)
     {
         _session = session;
         SessionId = sessionId;
+        IsBrowserSession = isBrowserSession;
         TargetId = targetId;
         Target = target;
     }

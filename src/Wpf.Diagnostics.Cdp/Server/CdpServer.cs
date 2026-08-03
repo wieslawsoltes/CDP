@@ -106,6 +106,7 @@ public static class CdpServer
 
     static CdpServer()
     {
+        CdpExtensionComposition.RegisterDefaultDomains();
         // Set up delegates on the core server
         Chrome.DevTools.Protocol.CdpServer.UIThreadInvoker = async (action) =>
         {

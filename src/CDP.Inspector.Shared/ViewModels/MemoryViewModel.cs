@@ -55,6 +55,8 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
     private long _gen2Size;
     private long _lohSize;
     private readonly DispatcherTimer? _heapInfoTimer;
+    private readonly object _v8HeapSnapshotLock = new();
+    private readonly System.Text.StringBuilder _v8HeapSnapshotChunks = new();
 
     public ObservableCollection<DetachedControlModel> DetachedControls => _detachedControls;
 
@@ -310,6 +312,13 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
                 Dispatcher.UIThread.Post(() => UpdateMetrics(metrics));
             }
         }
+        else if (e.Method == "HeapProfiler.addHeapSnapshotChunk" && e.Params?["chunk"] is JsonNode chunk)
+        {
+            lock (_v8HeapSnapshotLock)
+            {
+                _v8HeapSnapshotChunks.Append(chunk.GetValue<string>());
+            }
+        }
     }
 
     private void UpdateMetrics(JsonArray metrics)
@@ -339,6 +348,18 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
 
         try
         {
+            if (!_cdpService.SupportsDomain("Memory") && _cdpService.SupportsDomain("HeapProfiler"))
+            {
+                var snapshotJson = await CaptureV8HeapSnapshotAsync();
+                var v8Snapshot = ParseV8HeapSnapshot(snapshotJson);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    Snapshots.Add(v8Snapshot);
+                    SelectedSnapshot = v8Snapshot;
+                });
+                return;
+            }
+
             var response = await _cdpService.SendCommandAsync("Memory.getLiveControls");
             var detachedResponse = await _cdpService.SendCommandAsync("Memory.getDetachedControls");
 
@@ -416,6 +437,12 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
 
         try
         {
+            if (!_cdpService.SupportsDomain("Memory") && _cdpService.SupportsDomain("HeapProfiler"))
+            {
+                var snapshotJson = await CaptureV8HeapSnapshotAsync();
+                if (SaveFileCallback is not null) await SaveFileCallback(snapshotJson);
+                return;
+            }
             var response = await _cdpService.SendCommandAsync("Memory.takeHeapSnapshot");
             if (response != null && SaveFileCallback != null)
             {
@@ -435,12 +462,60 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
 
         try
         {
-            await _cdpService.SendCommandAsync("Memory.collectGarbage");
+            await _cdpService.SendCommandAsync(
+                !_cdpService.SupportsDomain("Memory") && _cdpService.SupportsDomain("HeapProfiler")
+                    ? "HeapProfiler.collectGarbage"
+                    : "Memory.collectGarbage");
         }
         catch (Exception ex)
         {
             Logger.LogErrorMessage("MemoryVM", "GC failed", ex);
         }
+    }
+
+    private async Task<string> CaptureV8HeapSnapshotAsync()
+    {
+        lock (_v8HeapSnapshotLock) _v8HeapSnapshotChunks.Clear();
+        await _cdpService.SendCommandAsync("HeapProfiler.enable");
+        await _cdpService.SendCommandAsync("HeapProfiler.takeHeapSnapshot", new JsonObject
+        {
+            ["reportProgress"] = false,
+            ["captureNumericValue"] = true,
+            ["exposeInternals"] = false
+        });
+        lock (_v8HeapSnapshotLock) return _v8HeapSnapshotChunks.ToString();
+    }
+
+    private MemorySnapshotModel ParseV8HeapSnapshot(string json)
+    {
+        var root = JsonNode.Parse(json) as JsonObject ?? throw new FormatException("Invalid V8 heap snapshot.");
+        var snapshotMetadata = root["snapshot"]?["meta"] as JsonObject;
+        var nodeFields = snapshotMetadata?["node_fields"] as JsonArray ?? throw new FormatException("V8 snapshot has no node fields.");
+        var nodeTypes = snapshotMetadata?["node_types"] as JsonArray;
+        var typeNames = nodeTypes?[0] as JsonArray;
+        var nodes = root["nodes"] as JsonArray ?? throw new FormatException("V8 snapshot has no nodes.");
+        var typeOffset = nodeFields.Select((value, index) => (value, index))
+            .First(pair => pair.value?.GetValue<string>() == "type").index;
+        var stride = nodeFields.Count;
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var offset = 0; offset + stride <= nodes.Count; offset += stride)
+        {
+            var typeIndex = nodes[offset + typeOffset]?.GetValue<int>() ?? -1;
+            var typeName = typeIndex >= 0 && typeNames is not null && typeIndex < typeNames.Count
+                ? typeNames[typeIndex]?.GetValue<string>() ?? "unknown"
+                : "unknown";
+            counts[typeName] = counts.TryGetValue(typeName, out var count) ? count + 1 : 1;
+        }
+
+        return new MemorySnapshotModel
+        {
+            Name = $"V8 Snapshot {_snapshotCounter++}",
+            Timestamp = DateTime.Now,
+            Entries = counts.OrderByDescending(pair => pair.Value)
+                .Select(pair => new ControlCountModel { Type = pair.Key, Count = pair.Value })
+                .ToList(),
+            DetachedEntries = new List<DetachedControlModel>()
+        };
     }
 
     private void ClearSnapshots()
@@ -850,6 +925,20 @@ public class MemoryViewModel : ViewModelBase, IStateProvider
 
         try
         {
+            if (!_cdpService.SupportsDomain("Memory") && _cdpService.SupportsDomain("Runtime"))
+            {
+                var heapUsage = await _cdpService.SendCommandAsync("Runtime.getHeapUsage");
+                var used = (long)GetDouble(heapUsage["usedSize"]);
+                var total = (long)GetDouble(heapUsage["totalSize"]);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    Gen0Size = used;
+                    Gen1Size = 0;
+                    Gen2Size = Math.Max(0, total - used);
+                    LohSize = 0;
+                });
+                return;
+            }
             var response = await _cdpService.SendCommandAsync("Memory.getHeapInfo");
             if (response != null)
             {

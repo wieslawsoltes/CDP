@@ -28,7 +28,17 @@
   <ItemGroup>
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Headless.XUnit" />
+    <PackageReference Include="Avalonia.Skia" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../Chrome.DevTools.Protocol.Inspector.Tests/Fixtures/v8-debug-target.js"
+          Link="Fixtures/v8-debug-target.js"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../Chrome.DevTools.Protocol.Inspector.Tests/Fixtures/v8-source-map-target.js"
+          Link="Fixtures/v8-source-map-target.js"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,7 @@
+setInterval(() => {}, 1000);
+function mappedCompute(value) {
+  const doubled = value * 2;
+  globalThis.mappedResult = doubled;
+}
+mappedCompute(21);
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoidjgtc291cmNlLW1hcC10YXJnZXQuanMiLCJzb3VyY2VSb290IjoiLi4vc3JjIiwic291cmNlcyI6WyJtYXBwZWQtdGFyZ2V0LnRzIl0sInNvdXJjZXNDb250ZW50IjpbImV4cG9ydCBmdW5jdGlvbiBtYXBwZWRDb21wdXRlKHZhbHVlOiBudW1iZXIpIHtcbiAgY29uc3QgZG91YmxlZCA9IHZhbHVlICogMjtcbiAgZ2xvYmFsVGhpcy5tYXBwZWRSZXN1bHQgPSBkb3VibGVkO1xufVxubWFwcGVkQ29tcHV0ZSgyMSk7Il0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiI7QUFBQTtBQUNBO0FBQ0E7QUFDQTtBQUNBIn0=

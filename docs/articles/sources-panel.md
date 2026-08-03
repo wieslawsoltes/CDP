@@ -47,6 +47,54 @@ When modifications are made to a file, the editor tracks its dirty status:
 - **Keyboard Shortcut**: Pressing `Ctrl+S` triggers file saving.
 - **Server Sync**: The inspector calls the `Save` command over the WebSocket. The backend saves the updated text buffer directly to the local disk workspace, updating compiler files in real-time.
 
+### V8 source-mapped live editing
+
+For V8 targets, an editor tab can represent generated JavaScript or an original source recovered from `sourcesContent`. Direct generated-JavaScript edits use `Debugger.setScriptSource`. Original JS/TS edits are planned by `V8SourceMutationEngine`: mapping-preserving changes patch the generated range directly, while transformed or multiline edits are delegated to an `IV8SourceRegenerator`.
+
+The built-in esbuild adapter supports JS, JSX, TS, and TSX module variants. It can transform a single mapped source or rebuild a local first-source project entry with imports. Project rebuilds read the edited entry from stdin, resolve dependencies and the nearest `tsconfig.json` from the source directory, and do not modify the source file on disk. Regenerated source indexes are normalized when bundler ordering changes. Before accepting an edit, the Inspector asks V8 to dry-run the complete generated script; applying the script, replacing its map, and rebinding breakpoints then behaves transactionally with rollback on failure.
+
+The editor header shows a compact mutation preview such as `esbuild regeneration · source 4→4 lines · output 6→8 lines`. Internally, the plan records SHA-256 fingerprints for every input and output revision. After dry-run validation, the Inspector reads the V8 script again and cancels the edit if its fingerprint changed, preventing one debugger session from silently overwriting a newer live edit. If multiple compiler adapters support the source, failures are collected and the next compatible adapter is tried in registration order.
+
+Editing an arbitrary dependency within an existing framework bundle requires a host-provided adapter for the owning webpack, Vite, Rollup, Babel, SWC, or other build pipeline. A source map alone does not contain enough configuration to reproduce those transforms safely.
+
+The mutation engine is intentionally language-extensible rather than limited to TypeScript. An `IV8SourceRegenerator` advertises the source files it owns and returns a complete generated JavaScript revision plus its normalized source map. This lets a host add CoffeeScript, Svelte, Vue, Reason, or another source-map-producing compiler without changing the editor or V8 apply transaction. XAML remains on its existing `ICdpMutationEngine` path because it mutates the live UI model rather than regenerating a V8 script.
+
+The Inspector also has a process adapter for compilers that cannot be linked into the app. Set `CDP_V8_SOURCE_REGENERATORS` to one or more manifest paths (separated by the platform path separator). Each manifest is an array, or an object with a `regenerators` array:
+
+```json
+{
+  "regenerators": [{
+    "name": "CoffeeScript workspace compiler",
+    "executable": "node",
+    "arguments": ["tools/cdp-coffee-regenerator.mjs"],
+    "extensions": [".coffee"],
+    "workingDirectory": ".",
+    "timeoutSeconds": 30
+  }]
+}
+```
+
+The child process reads one JSON object from stdin. Protocol version 1 includes the source/generated URLs, source index, original/edited/generated text, SHA-256 revision fingerprints, and a normalized revision-3 `sourceMap`. It writes one JSON object to stdout:
+
+```json
+{
+  "protocolVersion": 1,
+  "success": true,
+  "message": "Workspace bundle regenerated",
+  "generatedSource": "/* complete JavaScript revision */",
+  "sourceIndex": 0,
+  "sourceMap": { "version": 3, "sources": ["source.coffee"], "sourcesContent": ["/* exact edited source */"], "names": [], "mappings": "AAAA" }
+}
+```
+
+The returned map must embed the exact edited text in `sourcesContent`. The Inspector normalizes a reordered source index, then performs the same V8 dry run, stale-revision check, transactional apply, breakpoint rebind, and rollback used by the built-in JS/TS adapter. Manifests are never discovered implicitly: only paths explicitly supplied through the environment variable are executed. Embedded hosts can instead pass `IV8SourceRegenerator` instances to `MainWindowViewModel` or `SourcesViewModel`.
+
+### WebAssembly debugging
+
+WebAssembly scripts are identified from `Debugger.scriptParsed.scriptLanguage`, with build ID, code-section offset, embedder name, and SourceMap/DWARF symbol metadata retained in the loaded-script model. The editor obtains bytecode metadata with `Debugger.getScriptSource`, then joins the streamed `Debugger.disassembleWasmModule` and `Debugger.nextWasmDisassemblyChunk` results into a read-only, offset-prefixed disassembly.
+
+Each displayed disassembly line retains its V8 bytecode offset. Gutter breakpoints bind with `Debugger.setBreakpoint` against the current `scriptId`; run-to-cursor snaps through `Debugger.getPossibleBreakpoints`; and paused frame locations navigate from their bytecode column back to the corresponding disassembly line. Wasm breakpoint definitions persist by build ID (or URL when no build ID is available) and rebind when a recreated module reports a new script ID. WebAssembly is deliberately excluded from live source mutation because V8 exposes bytecode/disassembly here, not an editable JavaScript source revision.
+
 ---
 
 ## 3. Interactive Debugger controls
@@ -56,9 +104,13 @@ The right sidebar is dedicated to execution control and pausing states during co
 ### Stepping Control Toolbar
 When execution hits a breakpoint on the target application, the target pauses and the inspector toolbar buttons are activated:
 - **Resume (Play)**: Sends `Debugger.resume` to continue running the application until the next breakpoint or exception.
+- **Run to Cursor (`Ctrl+F10`)**: Maps an original source position through its source map, asks V8 for the nearest executable location with `Debugger.getPossibleBreakpoints`, then resumes with `Debugger.continueToLocation`.
+- **Skip all pauses (`⊘`)**: Temporarily suppresses every V8 pause, including breakpoints, exceptions, and `debugger` statements, through `Debugger.setSkipAllPauses`. The setting is restored with the Sources workspace state.
+- **Ignore execution contexts**: The Ignore List split panel tracks V8 runtime contexts and can suppress stepping and pauses for a selected context through `Debugger.setBlackboxExecutionContexts`. Contexts use V8's process-unique IDs and are removed automatically when the runtime destroys or clears them.
 - **Step Over**: Steps past the current line of code, staying within the active function block.
 - **Step Into**: Steps inside the function call present on the active line.
 - **Step Out**: Executes the remainder of the current function and pauses immediately upon returning to the calling block.
+- **Set Return**: At a V8 return boundary, evaluates the debug expression in the top frame and changes the pending function result with `Debugger.setReturnValue`. The action stays disabled at ordinary pause positions.
 
 ---
 
@@ -90,6 +142,12 @@ Breakpoints can be set in two ways:
 Before toggling a breakpoint, developers can enter a C# conditional code snippet in `txtBreakpointCondition` (e.g., `index > 10` or `user == "admin"`):
 - The condition is saved along with the breakpoint file path and line number.
 - When the target application encounters the line, it evaluates the condition locally. It will pause execution only if the conditional script evaluates to `true`, preventing unnecessary stops in loops.
+
+### V8 Function-call Breakpoints
+For V8 targets, enter a JavaScript function expression such as `app.render` in the compact function field. The Inspector evaluates it in the selected paused frame (or the runtime context while running), verifies that the result is a function object, and binds `Debugger.setBreakpointOnFunctionCall`. The optional condition field is forwarded to V8, and the definition participates in the same enable, disable, remove, reconnect, and persisted-layout workflows as source breakpoints.
+
+### V8 Instrumentation Breakpoints
+The compact instrumentation selector can pause before every script or only before scripts that declare a source map. The Inspector binds these choices with `Debugger.setInstrumentationBreakpoint`; definitions share the normal breakpoint list, enable/disable/remove actions, reconnect rebinding, and persisted state. **Before source-mapped script** is useful when attaching early enough to inspect generated TypeScript or another source-map-producing language before its module body executes.
 
 ---
 
