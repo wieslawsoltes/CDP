@@ -7,9 +7,10 @@ using Chrome.DevTools.Protocol.Inspector;
 
 namespace Chrome.DevTools.Protocol.Inspector.Tests;
 
+[Collection(V8ProcessIntegrationCollection.Name)]
 public sealed class ChromeV8InspectorIntegrationTests
 {
-    [Fact(Timeout = 45_000)]
+    [Fact(Timeout = 90_000)]
     public async Task RealChromeSupportsV8DebuggingAndScreenshotSession()
     {
         var chromePath = FindChrome();
@@ -29,6 +30,7 @@ public sealed class ChromeV8InspectorIntegrationTests
                 "--no-first-run",
                 "--no-default-browser-check",
                 "--disable-background-networking",
+                "--disable-gpu",
                 "about:blank"
             },
             UseShellExecute = false,

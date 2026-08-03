@@ -4,6 +4,7 @@ using Chrome.DevTools.Protocol.Inspector;
 
 namespace Chrome.DevTools.Protocol.Inspector.Tests;
 
+[Collection(V8ProcessIntegrationCollection.Name)]
 public sealed class WebSceneV8InspectorAcceptanceTests
 {
     [Fact(Timeout = 60_000)]

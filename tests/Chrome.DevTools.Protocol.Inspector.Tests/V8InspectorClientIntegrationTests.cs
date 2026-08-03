@@ -8,6 +8,7 @@ using Chrome.DevTools.Protocol.Inspector;
 
 namespace Chrome.DevTools.Protocol.Inspector.Tests;
 
+[Collection(V8ProcessIntegrationCollection.Name)]
 public sealed class V8InspectorClientIntegrationTests
 {
     [Fact(Timeout = 60_000)]
@@ -954,7 +955,7 @@ public sealed class V8InspectorClientIntegrationTests
         }
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact(Timeout = 60_000)]
     public async Task NodeInspectorStreamsWasmDisassemblyAndStopsAtBytecodeBreakpoint()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -989,21 +990,21 @@ public sealed class V8InspectorClientIntegrationTests
             await inspector.SendCommandAsync("Runtime.runIfWaitingForDebugger", cancellationToken: cancellationToken);
 
             _ = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
-                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+                .WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
             await inspector.SendCommandAsync("Debugger.resume", cancellationToken: cancellationToken);
 
             JsonObject wasmScript;
             do
             {
                 wasmScript = await scripts.Reader.ReadAsync(cancellationToken).AsTask()
-                    .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+                    .WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
             }
             while (wasmScript["scriptLanguage"]?.GetValue<string>() != "WebAssembly");
             Assert.True((wasmScript["codeOffset"]?.GetValue<int>() ?? -1) >= 0);
             var scriptId = wasmScript["scriptId"]!.GetValue<string>();
 
             var fixturePause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
-                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+                .WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
             Assert.NotEmpty(Assert.IsType<JsonArray>(fixturePause["callFrames"]));
 
             var source = await inspector.SendCommandAsync("Debugger.getScriptSource", new JsonObject
@@ -1059,7 +1060,7 @@ public sealed class V8InspectorClientIntegrationTests
 
             await inspector.SendCommandAsync("Debugger.resume", cancellationToken: cancellationToken);
             var wasmPause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
-                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+                .WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
             var wasmFrame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(wasmPause["callFrames"])[0]);
             var wasmLocation = Assert.IsType<JsonObject>(wasmFrame["location"]);
             Assert.Equal(scriptId, wasmLocation["scriptId"]?.GetValue<string>());

@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# V8 live-edit/debugger fixtures must execute identically on every runner.
+tests/Chrome.DevTools.Protocol.Inspector.Tests/Fixtures/*.js text eol=lf
