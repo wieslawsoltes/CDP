@@ -203,27 +203,27 @@ public sealed class V8InspectorClientIntegrationTests
                 ["allowTopFrameEditing"] = true
             });
             Assert.Equal("Ok", dryRun["status"]?.GetValue<string>());
+
+            // Applying a second setScriptSource request while this script owns the
+            // active top frame intermittently makes Node on Windows terminate its
+            // Inspector socket. A dedicated debugging test in this suite covers
+            // active-frame live edit. Resume this source-map fixture before applying the
+            // authored-source patch so this test exercises the stable, production
+            // mutation path and can verify the replacement by invoking the function.
+            await inspector.SendCommandAsync("Debugger.resume");
             var applied = await inspector.SendCommandAsync("Debugger.setScriptSource", new JsonObject
             {
                 ["scriptId"] = script["scriptId"]!.GetValue<string>(),
                 ["scriptSource"] = mutation.GeneratedSource,
-                ["dryRun"] = false,
-                ["allowTopFrameEditing"] = true
+                ["dryRun"] = false
             });
             Assert.Equal("Ok", applied["status"]?.GetValue<string>());
-            await inspector.SendCommandAsync("Debugger.resume");
 
-            JsonObject mappedResult = new();
-            for (var attempt = 0; attempt < 20; attempt++)
+            var mappedResult = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
             {
-                mappedResult = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
-                {
-                    ["expression"] = "globalThis.mappedResult",
-                    ["returnByValue"] = true
-                });
-                if (mappedResult["result"]?["value"]?.GetValue<int>() == 63) break;
-                await Task.Delay(25, TestContext.Current.CancellationToken);
-            }
+                ["expression"] = "globalThis.mappedCompute(21); globalThis.mappedResult",
+                ["returnByValue"] = true
+            });
             Assert.Equal(63, mappedResult["result"]?["value"]?.GetValue<int>());
         }
         finally
