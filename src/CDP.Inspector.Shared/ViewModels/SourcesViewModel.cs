@@ -101,6 +101,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private string _debuggerEvaluationExpression = "";
     private string _debuggerEvaluationResult = "";
     private string _liveEditStatus = "";
+    private V8LiveEditStatusSeverity _liveEditStatusSeverity;
     private string _liveEditPreview = "";
     private string _newWatchExpression = "";
     private V8WatchExpressionModel? _selectedWatchExpression;
@@ -201,7 +202,74 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public string LiveEditStatus
     {
         get => _liveEditStatus;
-        set => RaiseAndSetIfChanged(ref _liveEditStatus, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _liveEditStatus, value))
+            {
+                LiveEditStatusSeverity = ClassifyLiveEditStatus(value);
+            }
+        }
+    }
+
+    public V8LiveEditStatusSeverity LiveEditStatusSeverity
+    {
+        get => _liveEditStatusSeverity;
+        private set
+        {
+            if (RaiseAndSetIfChanged(ref _liveEditStatusSeverity, value))
+            {
+                OnPropertyChanged(nameof(LiveEditStatusGlyph));
+                OnPropertyChanged(nameof(IsLiveEditInfo));
+                OnPropertyChanged(nameof(IsLiveEditSuccess));
+                OnPropertyChanged(nameof(IsLiveEditWarning));
+                OnPropertyChanged(nameof(IsLiveEditError));
+            }
+        }
+    }
+
+    public string LiveEditStatusGlyph => LiveEditStatusSeverity switch
+    {
+        V8LiveEditStatusSeverity.Info => "…",
+        V8LiveEditStatusSeverity.Success => "✓",
+        V8LiveEditStatusSeverity.Warning => "⚠",
+        V8LiveEditStatusSeverity.Error => "×",
+        _ => ""
+    };
+
+    public bool IsLiveEditInfo => LiveEditStatusSeverity == V8LiveEditStatusSeverity.Info;
+    public bool IsLiveEditSuccess => LiveEditStatusSeverity == V8LiveEditStatusSeverity.Success;
+    public bool IsLiveEditWarning => LiveEditStatusSeverity == V8LiveEditStatusSeverity.Warning;
+    public bool IsLiveEditError => LiveEditStatusSeverity == V8LiveEditStatusSeverity.Error;
+
+    private static V8LiveEditStatusSeverity ClassifyLiveEditStatus(string status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return V8LiveEditStatusSeverity.None;
+        }
+
+        if (status.Contains("failed", StringComparison.OrdinalIgnoreCase)
+            || status.Contains("unavailable", StringComparison.OrdinalIgnoreCase)
+            || status.Contains("cancelled", StringComparison.OrdinalIgnoreCase)
+            || status.Contains("rolled back", StringComparison.OrdinalIgnoreCase)
+            || status.Contains("changed after preview", StringComparison.OrdinalIgnoreCase))
+        {
+            return V8LiveEditStatusSeverity.Error;
+        }
+
+        if (status.Contains("read-only", StringComparison.OrdinalIgnoreCase))
+        {
+            return V8LiveEditStatusSeverity.Warning;
+        }
+
+        if (status.Contains("applied", StringComparison.OrdinalIgnoreCase)
+            || status.Contains("accepted", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("Saved", StringComparison.OrdinalIgnoreCase))
+        {
+            return V8LiveEditStatusSeverity.Success;
+        }
+
+        return V8LiveEditStatusSeverity.Info;
     }
 
     public string LiveEditPreview

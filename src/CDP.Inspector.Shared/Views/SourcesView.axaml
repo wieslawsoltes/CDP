@@ -145,7 +145,17 @@
                         <TextBlock Name="txtLiveEditPreview" Text="{Binding Sources.LiveEditPreview}" Classes="sources-meta"
                                    MaxWidth="190" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
                                    ToolTip.Tip="{Binding Sources.LiveEditPreview}"/>
-                        <TextBlock Name="txtLiveEditStatus" Text="{Binding Sources.LiveEditStatus}" Classes="sources-meta" Foreground="{DynamicResource Brush.Sources.Accent}"
+                        <TextBlock Text="{Binding Sources.LiveEditStatusGlyph}" Classes="sources-meta"
+                                   Classes.live-edit-info="{Binding Sources.IsLiveEditInfo}"
+                                   Classes.live-edit-success="{Binding Sources.IsLiveEditSuccess}"
+                                   Classes.live-edit-warning="{Binding Sources.IsLiveEditWarning}"
+                                   Classes.live-edit-error="{Binding Sources.IsLiveEditError}"
+                                   FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <TextBlock Name="txtLiveEditStatus" Text="{Binding Sources.LiveEditStatus}" Classes="sources-meta"
+                                   Classes.live-edit-info="{Binding Sources.IsLiveEditInfo}"
+                                   Classes.live-edit-success="{Binding Sources.IsLiveEditSuccess}"
+                                   Classes.live-edit-warning="{Binding Sources.IsLiveEditWarning}"
+                                   Classes.live-edit-error="{Binding Sources.IsLiveEditError}"
                                    MaxWidth="210" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,5,0"
                                    ToolTip.Tip="{Binding Sources.LiveEditStatus}"/>
                         <ToggleButton Name="btnToggleMarkdownMode"

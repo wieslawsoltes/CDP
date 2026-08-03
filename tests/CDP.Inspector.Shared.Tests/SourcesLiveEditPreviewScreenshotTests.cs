@@ -13,6 +13,28 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 public sealed class SourcesLiveEditPreviewScreenshotTests
 {
     [AvaloniaFact]
+    public void CapturesV8LiveEditCompileErrorInSourcesHeader()
+    {
+        var window = CreateJavaScriptLiveEditWindow(
+            "Live edit validation failed: Unexpected token ';' at main.jsx:14:27",
+            "direct V8 script edit · 18 lines · dry-run rejected",
+            "const increment = () => setCount(value + );");
+
+        Capture(window, "sources-v8-live-edit-compile-error.png");
+    }
+
+    [AvaloniaFact]
+    public void CapturesSourceMappedV8LiveEditSuccessInSourcesHeader()
+    {
+        var window = CreateJavaScriptLiveEditWindow(
+            "Source-mapped live edit applied",
+            "main.jsx → app.js · source 18→18 lines · output 116→116 lines",
+            "const increment = () => setCount(value + 2);");
+
+        Capture(window, "sources-v8-live-edit-applied.png");
+    }
+
+    [AvaloniaFact]
     public void CapturesExternalV8MutationPreviewInSourcesHeader()
     {
         var app = Application.Current ?? throw new InvalidOperationException("Avalonia application is unavailable.");
@@ -85,7 +107,6 @@ public sealed class SourcesLiveEditPreviewScreenshotTests
         {
             window.Show();
             Dispatcher.UIThread.RunJobs();
-
             var frame = window.CaptureRenderedFrame()
                 ?? throw new InvalidOperationException("The Avalonia headless renderer did not return a frame.");
             var outputRoot = Environment.GetEnvironmentVariable("AVALONIA_SCREENSHOT_DIR");
@@ -200,6 +221,115 @@ public sealed class SourcesLiveEditPreviewScreenshotTests
             }
             Directory.CreateDirectory(outputRoot);
             var path = Path.GetFullPath(Path.Combine(outputRoot, "sources-v8-wasm-debugging.png"));
+            frame.Save(path);
+
+            Assert.True(File.Exists(path));
+            Assert.Equal(1440, frame.PixelSize.Width);
+            Assert.Equal(900, frame.PixelSize.Height);
+            Assert.True(new FileInfo(path).Length > 0);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private static Window CreateJavaScriptLiveEditWindow(string status, string preview, string editedLine)
+    {
+        EnsureInspectorStyles();
+
+        var main = new MainWindowViewModel(new MemoryViewModelTests.MockCdpService(), loadState: false);
+        var sources = main.Sources;
+        sources.SelectedFileName = "main.jsx";
+        sources.SelectedFileContent = $$"""
+            import React, { useState } from 'react';
+
+            export function Counter() {
+              const [value, setCount] = useState(1);
+              {{editedLine}}
+
+              return <button onClick={increment}>Count: {value}</button>;
+            }
+            """;
+        sources.IsDebuggerEnabled = true;
+        sources.IsDebuggerPaused = true;
+        sources.DebuggerStatusText = "Paused on breakpoint · WebScene V8";
+        sources.PauseReason = "other";
+        sources.LiveEditPreview = preview;
+        sources.LiveEditStatus = status;
+        sources.ActiveDebugLine = 5;
+        sources.CallFrames.Add(new V8CallFrameModel
+        {
+            CallFrameId = "frame-main",
+            FunctionName = "increment",
+            Url = "file:///workspace/src/main.jsx",
+            ScriptId = "17",
+            LineNumber = 4,
+            ColumnNumber = 26
+        });
+        sources.WatchExpressions.Add(new V8WatchExpressionModel
+        {
+            Expression = "value",
+            Value = "1"
+        });
+        sources.ScopeVariables.Add(new V8ScopeVariableModel
+        {
+            Name = "value",
+            ScopeType = "closure",
+            Type = "number",
+            Value = "1",
+            Writable = true
+        });
+        sources.V8Breakpoints.Add(new V8BreakpointModel
+        {
+            Key = "file:///workspace/src/main.jsx:5:0",
+            Url = "file:///workspace/src/main.jsx",
+            BindingUrl = "http://127.0.0.1:5173/assets/app.js",
+            LineNumber = 4,
+            DisplayLineNumber = 5,
+            IsResolved = true
+        });
+
+        return new Window
+        {
+            Width = 1440,
+            Height = 900,
+            Content = new SourcesView { DataContext = main }
+        };
+    }
+
+    private static void EnsureInspectorStyles()
+    {
+        var app = Application.Current ?? throw new InvalidOperationException("Avalonia application is unavailable.");
+        if (!app.Styles.OfType<StyleInclude>().Any(style =>
+                style.Source?.ToString() == "avares://CDP.Inspector.Shared/Styles.axaml"))
+        {
+            app.Styles.Add(new StyleInclude(new Uri("avares://Avalonia.Diagnostics.Cdp.Tests/"))
+            {
+                Source = new Uri("avares://CDP.Inspector.Shared/Styles.axaml")
+            });
+        }
+    }
+
+    private static void Capture(Window window, string fileName)
+    {
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            Thread.Sleep(350);
+            Dispatcher.UIThread.RunJobs();
+
+            var frame = window.CaptureRenderedFrame()
+                ?? throw new InvalidOperationException("The Avalonia headless renderer did not return a frame.");
+            var outputRoot = Environment.GetEnvironmentVariable("AVALONIA_SCREENSHOT_DIR");
+            if (string.IsNullOrWhiteSpace(outputRoot))
+            {
+                outputRoot = Path.Combine(AppContext.BaseDirectory, "headless-screenshots");
+            }
+
+            Directory.CreateDirectory(outputRoot);
+            var path = Path.GetFullPath(Path.Combine(outputRoot, fileName));
             frame.Save(path);
 
             Assert.True(File.Exists(path));

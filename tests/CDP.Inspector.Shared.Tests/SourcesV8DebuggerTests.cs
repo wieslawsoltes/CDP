@@ -10,6 +10,32 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 public sealed class SourcesV8DebuggerTests
 {
     [AvaloniaFact]
+    public void ClassifiesLiveEditStatusForCompactSourcesFeedback()
+    {
+        var viewModel = new SourcesViewModel(new V8FakeCdpService());
+
+        viewModel.LiveEditStatus = "Applying live edit...";
+        Assert.Equal(V8LiveEditStatusSeverity.Info, viewModel.LiveEditStatusSeverity);
+        Assert.True(viewModel.IsLiveEditInfo);
+        Assert.Equal("…", viewModel.LiveEditStatusGlyph);
+
+        viewModel.LiveEditStatus = "Source-mapped live edit applied";
+        Assert.Equal(V8LiveEditStatusSeverity.Success, viewModel.LiveEditStatusSeverity);
+        Assert.True(viewModel.IsLiveEditSuccess);
+        Assert.Equal("✓", viewModel.LiveEditStatusGlyph);
+
+        viewModel.LiveEditStatus = "WebAssembly disassembly · read-only";
+        Assert.Equal(V8LiveEditStatusSeverity.Warning, viewModel.LiveEditStatusSeverity);
+        Assert.True(viewModel.IsLiveEditWarning);
+        Assert.Equal("⚠", viewModel.LiveEditStatusGlyph);
+
+        viewModel.LiveEditStatus = "Live edit validation failed: Unexpected token";
+        Assert.Equal(V8LiveEditStatusSeverity.Error, viewModel.LiveEditStatusSeverity);
+        Assert.True(viewModel.IsLiveEditError);
+        Assert.Equal("×", viewModel.LiveEditStatusGlyph);
+    }
+
+    [AvaloniaFact]
     public async Task V8EventsPopulateScriptsFramesScopesAndEvaluation()
     {
         var service = new V8FakeCdpService();
