@@ -317,9 +317,12 @@ public sealed class V8InspectorEventArgs(string method, JsonObject parameters) :
 public sealed class V8InspectorProtocolException(string method, int code, string protocolMessage, JsonNode? protocolData = null)
     : Exception($"V8 Inspector command '{method}' failed ({code}): {protocolMessage}")
 {
+    public const int MethodNotFoundCode = -32601;
+
     public string Method { get; } = method;
     public int Code { get; } = code;
     public JsonNode? ProtocolData { get; } = protocolData;
+    public bool IsMethodNotFound => Code == MethodNotFoundCode;
 }
 
 public sealed class V8InspectorClientOptions

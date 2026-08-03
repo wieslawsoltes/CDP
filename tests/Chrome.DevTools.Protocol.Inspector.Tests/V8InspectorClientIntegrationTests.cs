@@ -518,10 +518,26 @@ public sealed class V8InspectorClientIntegrationTests
             await pauses.Reader.ReadAsync(cancellationToken).AsTask()
                 .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
 
-            await inspector.SendCommandAsync("Debugger.setBlackboxExecutionContexts", new JsonObject
+            try
             {
-                ["uniqueIds"] = new JsonArray { uniqueId }
-            });
+                await inspector.SendCommandAsync("Debugger.setBlackboxExecutionContexts", new JsonObject
+                {
+                    ["uniqueIds"] = new JsonArray { uniqueId }
+                });
+            }
+            catch (V8InspectorProtocolException ex) when (ex.IsMethodNotFound)
+            {
+                // Node releases carry different V8 protocol revisions. An optional command must
+                // fail cleanly without making the Inspector session unusable.
+                var probe = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+                {
+                    ["expression"] = "6 * 7",
+                    ["returnByValue"] = true
+                });
+                Assert.Equal(42, probe["result"]?["value"]?.GetValue<int>());
+                await inspector.SendCommandAsync("Debugger.resume");
+                return;
+            }
             await inspector.SendCommandAsync("Debugger.resume");
             var skipped = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
             {

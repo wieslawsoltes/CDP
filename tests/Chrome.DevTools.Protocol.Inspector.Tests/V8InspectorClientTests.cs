@@ -44,6 +44,13 @@ public sealed class V8InspectorClientTests
 
         Assert.Equal("Debugger.setScriptSource", exception.Method);
         Assert.Equal(-32000, exception.Code);
+        Assert.False(exception.IsMethodNotFound);
         Assert.Equal("BlockedByActiveFunction", exception.ProtocolData?["details"]?["status"]?.GetValue<string>());
+
+        var unsupported = new V8InspectorProtocolException(
+            "Debugger.setBlackboxExecutionContexts",
+            V8InspectorProtocolException.MethodNotFoundCode,
+            "Method not found");
+        Assert.True(unsupported.IsMethodNotFound);
     }
 }
