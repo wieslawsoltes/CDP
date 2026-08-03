@@ -13,7 +13,7 @@ namespace Avalonia.Diagnostics.Cdp.Tests;
 public sealed class SourcesLiveEditPreviewScreenshotTests
 {
     [AvaloniaFact]
-    public void CapturesCompactV8MutationPreviewInSourcesHeader()
+    public void CapturesExternalV8MutationPreviewInSourcesHeader()
     {
         var app = Application.Current ?? throw new InvalidOperationException("Avalonia application is unavailable.");
         if (!app.Styles.OfType<StyleInclude>().Any(style =>
@@ -27,19 +27,19 @@ public sealed class SourcesLiveEditPreviewScreenshotTests
 
         var main = new MainWindowViewModel(new MemoryViewModelTests.MockCdpService(), loadState: false);
         var sources = main.Sources;
-        sources.SelectedFileName = "App.tsx";
-        sources.SelectedFileContent = "export function App() {\n  const count: number = 3;\n  return <Counter value={count} />;\n}\n";
+        sources.SelectedFileName = "Counter.vue";
+        sources.SelectedFileContent = "<script setup lang=\"ts\">\nconst count: number = 3;\n</script>\n<template><Counter :value=\"count\" /></template>\n";
         sources.IsDebuggerEnabled = true;
         sources.IsDebuggerPaused = true;
-        sources.DebuggerStatusText = "Paused on breakpoint · node";
+        sources.DebuggerStatusText = "Paused on breakpoint · WebScene V8";
         sources.PauseReason = "other";
-        sources.LiveEditPreview = "esbuild regeneration · source 4→4 lines · output 6→8 lines";
-        sources.LiveEditStatus = "V8 dry-run accepted";
+        sources.LiveEditPreview = "Vue workspace compiler regeneration · source 4→4 lines · output 18→20 lines";
+        sources.LiveEditStatus = "V8 dry-run accepted · source map and breakpoints ready";
         sources.CallFrames.Add(new V8CallFrameModel
         {
             CallFrameId = "frame-1",
             FunctionName = "renderCounter",
-            Url = "file:///workspace/src/App.tsx",
+            Url = "file:///workspace/src/Counter.vue",
             ScriptId = "42",
             LineNumber = 2,
             ColumnNumber = 9
@@ -59,8 +59,8 @@ public sealed class SourcesLiveEditPreviewScreenshotTests
         });
         sources.V8Breakpoints.Add(new V8BreakpointModel
         {
-            Key = "file:///workspace/src/App.tsx:2:0",
-            Url = "file:///workspace/src/App.tsx",
+            Key = "file:///workspace/src/Counter.vue:2:0",
+            Url = "file:///workspace/src/Counter.vue",
             BindingUrl = "file:///workspace/dist/app.js",
             LineNumber = 2,
             DisplayLineNumber = 2,

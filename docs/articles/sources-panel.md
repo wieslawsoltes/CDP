@@ -59,6 +59,36 @@ Editing an arbitrary dependency within an existing framework bundle requires a h
 
 The mutation engine is intentionally language-extensible rather than limited to TypeScript. An `IV8SourceRegenerator` advertises the source files it owns and returns a complete generated JavaScript revision plus its normalized source map. This lets a host add CoffeeScript, Svelte, Vue, Reason, or another source-map-producing compiler without changing the editor or V8 apply transaction. XAML remains on its existing `ICdpMutationEngine` path because it mutates the live UI model rather than regenerating a V8 script.
 
+The Inspector also has a process adapter for compilers that cannot be linked into the app. Set `CDP_V8_SOURCE_REGENERATORS` to one or more manifest paths (separated by the platform path separator). Each manifest is an array, or an object with a `regenerators` array:
+
+```json
+{
+  "regenerators": [{
+    "name": "CoffeeScript workspace compiler",
+    "executable": "node",
+    "arguments": ["tools/cdp-coffee-regenerator.mjs"],
+    "extensions": [".coffee"],
+    "workingDirectory": ".",
+    "timeoutSeconds": 30
+  }]
+}
+```
+
+The child process reads one JSON object from stdin. Protocol version 1 includes the source/generated URLs, source index, original/edited/generated text, SHA-256 revision fingerprints, and a normalized revision-3 `sourceMap`. It writes one JSON object to stdout:
+
+```json
+{
+  "protocolVersion": 1,
+  "success": true,
+  "message": "Workspace bundle regenerated",
+  "generatedSource": "/* complete JavaScript revision */",
+  "sourceIndex": 0,
+  "sourceMap": { "version": 3, "sources": ["source.coffee"], "sourcesContent": ["/* exact edited source */"], "names": [], "mappings": "AAAA" }
+}
+```
+
+The returned map must embed the exact edited text in `sourcesContent`. The Inspector normalizes a reordered source index, then performs the same V8 dry run, stale-revision check, transactional apply, breakpoint rebind, and rollback used by the built-in JS/TS adapter. Manifests are never discovered implicitly: only paths explicitly supplied through the environment variable are executed. Embedded hosts can instead pass `IV8SourceRegenerator` instances to `MainWindowViewModel` or `SourcesViewModel`.
+
 ### WebAssembly debugging
 
 WebAssembly scripts are identified from `Debugger.scriptParsed.scriptLanguage`, with build ID, code-section offset, embedder name, and SourceMap/DWARF symbol metadata retained in the loaded-script model. The editor obtains bytecode metadata with `Debugger.getScriptSource`, then joins the streamed `Debugger.disassembleWasmModule` and `Debugger.nextWasmDisassemblyChunk` results into a read-only, offset-prefixed disassembly.
