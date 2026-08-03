@@ -218,6 +218,61 @@ public sealed class V8InspectorClientIntegrationTests
             Assert.Contains(Assert.IsType<JsonArray>(properties["result"]).OfType<JsonObject>(),
                 property => property["name"]?.GetValue<string>() == "sum");
 
+            var stateProperty = Assert.Single(Assert.IsType<JsonArray>(properties["result"]).OfType<JsonObject>(),
+                property => property["name"]?.GetValue<string>() == "state");
+            var stateObjectId = stateProperty["value"]?["objectId"]?.GetValue<string>();
+            Assert.False(string.IsNullOrWhiteSpace(stateObjectId));
+            var stateProperties = await inspector.SendCommandAsync("Runtime.getProperties", new JsonObject
+            {
+                ["objectId"] = stateObjectId,
+                ["ownProperties"] = true,
+                ["accessorPropertiesOnly"] = false,
+                ["generatePreview"] = true
+            });
+            var stateDescriptors = Assert.IsType<JsonArray>(stateProperties["result"]).OfType<JsonObject>().ToArray();
+            var nestedDescriptor = Assert.Single(stateDescriptors, property => property["name"]?.GetValue<string>() == "nested");
+            var selfDescriptor = Assert.Single(stateDescriptors, property => property["name"]?.GetValue<string>() == "self");
+            var riskyDescriptor = Assert.Single(stateDescriptors, property => property["name"]?.GetValue<string>() == "risky");
+            var selfIdentity = await inspector.SendCommandAsync("Runtime.callFunctionOn", new JsonObject
+            {
+                ["objectId"] = selfDescriptor["value"]?["objectId"]?.GetValue<string>(),
+                ["functionDeclaration"] = "function (other) { return this === other; }",
+                ["arguments"] = new JsonArray { new JsonObject { ["objectId"] = stateObjectId } },
+                ["silent"] = true,
+                ["returnByValue"] = true,
+                ["throwOnSideEffect"] = true
+            });
+            Assert.True(selfIdentity["result"]?["value"]?.GetValue<bool>());
+            Assert.Null(riskyDescriptor["value"]);
+            Assert.NotNull(riskyDescriptor["get"]);
+
+            var nestedProperties = await inspector.SendCommandAsync("Runtime.getProperties", new JsonObject
+            {
+                ["objectId"] = nestedDescriptor["value"]?["objectId"]?.GetValue<string>(),
+                ["ownProperties"] = true
+            });
+            Assert.Contains(Assert.IsType<JsonArray>(nestedProperties["result"]).OfType<JsonObject>(),
+                property => property["name"]?.GetValue<string>() == "value" &&
+                    property["value"]?["value"]?.GetValue<int>() == 5);
+
+            var groupedObject = await inspector.SendCommandAsync("Debugger.evaluateOnCallFrame", new JsonObject
+            {
+                ["callFrameId"] = callFrame["callFrameId"]!.GetValue<string>(),
+                ["expression"] = "state",
+                ["objectGroup"] = "v8-inspector-integration",
+                ["returnByValue"] = false
+            });
+            var groupedObjectId = groupedObject["result"]?["objectId"]?.GetValue<string>();
+            Assert.False(string.IsNullOrWhiteSpace(groupedObjectId));
+            await inspector.SendCommandAsync("Runtime.releaseObjectGroup", new JsonObject
+            {
+                ["objectGroup"] = "v8-inspector-integration"
+            });
+            await Assert.ThrowsAsync<V8InspectorProtocolException>(() => inspector.SendCommandAsync("Runtime.getProperties", new JsonObject
+            {
+                ["objectId"] = groupedObjectId
+            }));
+
             var editedSource = source["scriptSource"]!.GetValue<string>().Replace("return sum * 2;", "return sum * 3;", StringComparison.Ordinal);
             var liveEdit = await inspector.SendCommandAsync("Debugger.setScriptSource", new JsonObject
             {
