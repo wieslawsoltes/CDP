@@ -159,6 +159,8 @@ Mutation planning returns an immutable preview containing the strategy, adapter 
 
 Bundled or framework-specific output cannot be reproduced reliably from a source map alone because maps contain positional mappings, not compiler/bundler configuration. The default esbuild adapter therefore does not claim arbitrary dependency-file edits inside an existing webpack, Vite, Rollup, Babel, or SWC bundle. Hosts can inject an `IV8SourceRegenerator` for the owning React/TypeScript pipeline or another source language. Such an adapter should rerun that pipeline with an in-memory overlay for the edited file and return the complete generated script/map. The mutation engine rejects compiler failures, incompatible maps, and maps whose `sourcesContent` does not match the requested edit.
 
+The adapter contract is also the extension point for other source-map-producing languages such as CoffeeScript, Svelte, Vue, or Reason. XAML continues to use `ICdpMutationEngine`, since that path mutates WebScene/Avalonia UI objects rather than replacing V8-generated JavaScript. WebAssembly modules are exposed separately as read-only streamed disassembly: the Inspector consumes `Debugger.getScriptSource`, `Debugger.disassembleWasmModule`, and `Debugger.nextWasmDisassemblyChunk`, retains SourceMap/DWARF metadata from `scriptParsed`, and maps editor breakpoints, run-to-cursor, and paused frames to V8 bytecode offsets. A future Wasm compiler mutation adapter would need to produce a complete validated module and coordinate runtime replacement; source maps alone are not sufficient for that operation.
+
 ## Security and failure behavior
 
 - The server is disabled by default and binds to `127.0.0.1` by default.

@@ -57,6 +57,14 @@ The editor header shows a compact mutation preview such as `esbuild regeneration
 
 Editing an arbitrary dependency within an existing framework bundle requires a host-provided adapter for the owning webpack, Vite, Rollup, Babel, SWC, or other build pipeline. A source map alone does not contain enough configuration to reproduce those transforms safely.
 
+The mutation engine is intentionally language-extensible rather than limited to TypeScript. An `IV8SourceRegenerator` advertises the source files it owns and returns a complete generated JavaScript revision plus its normalized source map. This lets a host add CoffeeScript, Svelte, Vue, Reason, or another source-map-producing compiler without changing the editor or V8 apply transaction. XAML remains on its existing `ICdpMutationEngine` path because it mutates the live UI model rather than regenerating a V8 script.
+
+### WebAssembly debugging
+
+WebAssembly scripts are identified from `Debugger.scriptParsed.scriptLanguage`, with build ID, code-section offset, embedder name, and SourceMap/DWARF symbol metadata retained in the loaded-script model. The editor obtains bytecode metadata with `Debugger.getScriptSource`, then joins the streamed `Debugger.disassembleWasmModule` and `Debugger.nextWasmDisassemblyChunk` results into a read-only, offset-prefixed disassembly.
+
+Each displayed disassembly line retains its V8 bytecode offset. Gutter breakpoints bind with `Debugger.setBreakpoint` against the current `scriptId`; run-to-cursor snaps through `Debugger.getPossibleBreakpoints`; and paused frame locations navigate from their bytecode column back to the corresponding disassembly line. Wasm breakpoint definitions persist by build ID (or URL when no build ID is available) and rebind when a recreated module reports a new script ID. WebAssembly is deliberately excluded from live source mutation because V8 exposes bytecode/disassembly here, not an editable JavaScript source revision.
+
 ---
 
 ## 3. Interactive Debugger controls
