@@ -539,6 +539,29 @@ public sealed class SourcesV8DebuggerTests
     }
 
     [AvaloniaFact]
+    public async Task InstrumentationBreakpointBindsAndUsesFriendlyDisplayName()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        Assert.Equal(V8InstrumentationBreakpoints.BeforeSourceMappedScriptDisplayName,
+            viewModel.InstrumentationBreakpoint);
+        Assert.True(viewModel.AddInstrumentationBreakpointCommand.CanExecute(null));
+        await viewModel.AddInstrumentationBreakpointAsync();
+
+        var bind = Assert.Single(service.Commands,
+            command => command.Method == "Debugger.setInstrumentationBreakpoint");
+        Assert.Equal(V8InstrumentationBreakpoints.BeforeScriptWithSourceMapExecution,
+            bind.Parameters?["instrumentation"]?.GetValue<string>());
+        var breakpoint = Assert.Single(viewModel.V8Breakpoints);
+        Assert.Equal(V8BreakpointKinds.Instrumentation, breakpoint.Kind);
+        Assert.True(breakpoint.IsResolved);
+        Assert.Contains("Before source-mapped script", breakpoint.DisplayName);
+    }
+
+    [AvaloniaFact]
     public async Task ScriptParsedResolvedBreakpointsUpdateEditorState()
     {
         var service = new V8FakeCdpService();
@@ -709,6 +732,7 @@ public sealed class SourcesV8DebuggerTests
                 "Debugger.evaluateOnCallFrame" => Evaluate(parameters),
                 "Runtime.evaluate" => Evaluate(parameters),
                 "Debugger.setBreakpointOnFunctionCall" => new JsonObject { ["breakpointId"] = $"function-breakpoint-{++_nextBreakpointId}" },
+                "Debugger.setInstrumentationBreakpoint" => new JsonObject { ["breakpointId"] = $"instrumentation-breakpoint-{++_nextBreakpointId}" },
                 "Debugger.setScriptSource" => new JsonObject { ["status"] = "Ok" },
                 "Debugger.getPossibleBreakpoints" => GetPossibleBreakpoints(parameters),
                 "Debugger.restartFrame" => new JsonObject(),

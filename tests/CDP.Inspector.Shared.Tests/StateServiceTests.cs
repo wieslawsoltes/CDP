@@ -443,6 +443,13 @@ public class StateServiceTests
                 LogMessage = "value = {value}",
                 IsEnabled = false
             });
+            vm.V8Breakpoints.Add(new V8BreakpointModel
+            {
+                Key = "instrumentation:beforeScriptWithSourceMapExecution",
+                Instrumentation = V8InstrumentationBreakpoints.BeforeScriptWithSourceMapExecution,
+                Kind = V8BreakpointKinds.Instrumentation,
+                IsEnabled = true
+            });
             vm.BlackboxPatterns.Add("/node_modules/");
             vm.SkipAnonymousScripts = true;
 
@@ -460,12 +467,19 @@ public class StateServiceTests
             Assert.Equal("value = {value}", vm2.BreakpointLogMessage);
             Assert.Equal(V8BreakpointKinds.Logpoint, vm2.BreakpointKind);
             Assert.False(vm2.AreBreakpointsActive);
-            var breakpoint = Assert.Single(vm2.V8Breakpoints);
+            Assert.Equal(2, vm2.V8Breakpoints.Count);
+            var breakpoint = Assert.Single(vm2.V8Breakpoints,
+                item => item.Kind == V8BreakpointKinds.Logpoint);
             Assert.Equal("file:///app/source.js", breakpoint.Url);
             Assert.Equal("file:///app/bundle.js", breakpoint.BindingUrl);
             Assert.Equal(12, breakpoint.LineNumber);
             Assert.Equal(4, breakpoint.DisplayLineNumber);
             Assert.False(breakpoint.IsEnabled);
+            var instrumentation = Assert.Single(vm2.V8Breakpoints,
+                item => item.Kind == V8BreakpointKinds.Instrumentation);
+            Assert.Equal(V8InstrumentationBreakpoints.BeforeScriptWithSourceMapExecution,
+                instrumentation.Instrumentation);
+            Assert.True(instrumentation.IsEnabled);
             Assert.Equal("/node_modules/", Assert.Single(vm2.BlackboxPatterns));
             Assert.True(vm2.SkipAnonymousScripts);
         }

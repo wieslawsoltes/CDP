@@ -71,6 +71,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private string _breakpointLogMessage = "";
     private string _breakpointKind = V8BreakpointKinds.Breakpoint;
     private string _functionBreakpointExpression = "";
+    private string _instrumentationBreakpoint = V8InstrumentationBreakpoints.BeforeSourceMappedScriptDisplayName;
     private bool _areBreakpointsActive = true;
     private V8BreakpointModel? _selectedBreakpoint;
     private string _newBlackboxPattern = "";
@@ -208,6 +209,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         V8BreakpointKinds.Conditional,
         V8BreakpointKinds.Logpoint
     };
+    public ObservableCollection<string> InstrumentationBreakpoints { get; } = new()
+    {
+        V8InstrumentationBreakpoints.BeforeSourceMappedScriptDisplayName,
+        V8InstrumentationBreakpoints.BeforeScriptDisplayName
+    };
     public ObservableCollection<string> BlackboxPatterns { get; } = new();
 
     public V8ScriptModel? SelectedRuntimeScript
@@ -288,7 +294,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             if (!RaiseAndSetIfChanged(ref _selectedBreakpoint, value)) return;
             if (value is not null)
             {
-                if (value.Kind != V8BreakpointKinds.FunctionCall) BreakpointKind = value.Kind;
+                if (V8BreakpointKinds.IsSourceLocation(value.Kind)) BreakpointKind = value.Kind;
                 BreakpointCondition = value.Condition;
                 BreakpointLogMessage = value.LogMessage;
             }
@@ -404,6 +410,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public System.Windows.Input.ICommand UpdateSelectedBreakpointCommand { get; }
     public System.Windows.Input.ICommand RemoveSelectedBreakpointCommand { get; }
     public System.Windows.Input.ICommand AddFunctionBreakpointCommand { get; }
+    public System.Windows.Input.ICommand AddInstrumentationBreakpointCommand { get; }
     public System.Windows.Input.ICommand SetVariableValueCommand { get; }
     public System.Windows.Input.ICommand AddBlackboxPatternCommand { get; }
     public System.Windows.Input.ICommand RemoveBlackboxPatternCommand { get; }
@@ -455,6 +462,18 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             if (RaiseAndSetIfChanged(ref _functionBreakpointExpression, value))
             {
                 ((RelayCommand)AddFunctionBreakpointCommand).RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string InstrumentationBreakpoint
+    {
+        get => _instrumentationBreakpoint;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _instrumentationBreakpoint, V8InstrumentationBreakpoints.GetDisplayName(value)))
+            {
+                ((RelayCommand)AddInstrumentationBreakpointCommand).RaiseCanExecuteChanged();
             }
         }
     }
@@ -768,6 +787,12 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 !string.IsNullOrWhiteSpace(FunctionBreakpointExpression)
         );
 
+        AddInstrumentationBreakpointCommand = new RelayCommand(
+            async () => await AddInstrumentationBreakpointAsync(),
+            () => _cdpService.IsConnected && IsDebuggerEnabled &&
+                !string.IsNullOrWhiteSpace(InstrumentationBreakpoint)
+        );
+
         SetVariableValueCommand = new RelayCommand(
             async () => await SetVariableValueAsync(),
             () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame?.CanInspect == true &&
@@ -874,6 +899,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (UpdateSelectedBreakpointCommand != null) ((RelayCommand)UpdateSelectedBreakpointCommand).RaiseCanExecuteChanged();
         if (RemoveSelectedBreakpointCommand != null) ((RelayCommand)RemoveSelectedBreakpointCommand).RaiseCanExecuteChanged();
         if (AddFunctionBreakpointCommand != null) ((RelayCommand)AddFunctionBreakpointCommand).RaiseCanExecuteChanged();
+        if (AddInstrumentationBreakpointCommand != null) ((RelayCommand)AddInstrumentationBreakpointCommand).RaiseCanExecuteChanged();
         if (SetVariableValueCommand != null) ((RelayCommand)SetVariableValueCommand).RaiseCanExecuteChanged();
         if (ApplyBlackboxPatternsCommand != null) ((RelayCommand)ApplyBlackboxPatternsCommand).RaiseCanExecuteChanged();
     }
@@ -2173,17 +2199,49 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         await BindBreakpointAsync(breakpoint);
     }
 
+    public async Task AddInstrumentationBreakpointAsync()
+    {
+        var instrumentation = V8InstrumentationBreakpoints.Normalize(InstrumentationBreakpoint);
+        if (!_cdpService.IsConnected || !IsDebuggerEnabled) return;
+        var key = $"instrumentation:{instrumentation}";
+        if (V8Breakpoints.Any(breakpoint => breakpoint.Key == key))
+        {
+            DebuggerEvaluationResult = $"Instrumentation breakpoint already exists: {V8InstrumentationBreakpoints.GetDisplayName(instrumentation)}";
+            return;
+        }
+
+        var breakpoint = new V8BreakpointModel
+        {
+            Key = key,
+            Instrumentation = instrumentation,
+            Kind = V8BreakpointKinds.Instrumentation,
+            IsEnabled = true
+        };
+        V8Breakpoints.Add(breakpoint);
+        SelectedBreakpoint = breakpoint;
+        RefreshLegacyBreakpoints();
+        await BindBreakpointAsync(breakpoint);
+    }
+
     private async Task BindBreakpointAsync(V8BreakpointModel breakpoint)
     {
         if (!_cdpService.IsConnected || !IsDebuggerEnabled || !breakpoint.IsEnabled) return;
-        if (breakpoint.Kind != V8BreakpointKinds.FunctionCall &&
+        if (V8BreakpointKinds.IsSourceLocation(breakpoint.Kind) &&
             string.IsNullOrWhiteSpace(breakpoint.BindingUrl) && string.IsNullOrWhiteSpace(breakpoint.ScriptId)) return;
 
         try
         {
             JsonObject parameters;
             string method;
-            if (breakpoint.Kind == V8BreakpointKinds.FunctionCall)
+            if (breakpoint.Kind == V8BreakpointKinds.Instrumentation)
+            {
+                method = "Debugger.setInstrumentationBreakpoint";
+                parameters = new JsonObject
+                {
+                    ["instrumentation"] = V8InstrumentationBreakpoints.Normalize(breakpoint.Instrumentation)
+                };
+            }
+            else if (breakpoint.Kind == V8BreakpointKinds.FunctionCall)
             {
                 var evaluationParameters = new JsonObject
                 {
@@ -2247,7 +2305,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             var resolvedLocation = response["actualLocation"] as JsonObject ??
                 (response["locations"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
             breakpoint.BreakpointId = response["breakpointId"]?.GetValue<string>() ?? breakpoint.Key;
-            breakpoint.IsResolved = breakpoint.Kind == V8BreakpointKinds.FunctionCall || resolvedLocation is not null;
+            breakpoint.IsResolved = !V8BreakpointKinds.IsSourceLocation(breakpoint.Kind) || resolvedLocation is not null;
             breakpoint.ResolvedLineNumber = resolvedLocation?["lineNumber"]?.GetValue<int>();
             breakpoint.ResolvedColumnNumber = resolvedLocation?["columnNumber"]?.GetValue<int>();
             RefreshLegacyBreakpoints();
@@ -2259,6 +2317,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             if (breakpoint.Kind == V8BreakpointKinds.FunctionCall)
             {
                 DebuggerEvaluationResult = $"Function breakpoint failed: {ex.Message}";
+            }
+            else if (breakpoint.Kind == V8BreakpointKinds.Instrumentation)
+            {
+                DebuggerEvaluationResult = $"Instrumentation breakpoint failed: {ex.Message}";
             }
             Logger.LogErrorMessage("SourcesVM", $"Unable to bind breakpoint {breakpoint.DisplayName}", ex);
         }
@@ -2300,7 +2362,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         var breakpoint = SelectedBreakpoint;
         if (breakpoint is null) return;
         await UnbindBreakpointAsync(breakpoint);
-        if (breakpoint.Kind != V8BreakpointKinds.FunctionCall) breakpoint.Kind = BreakpointKind;
+        if (V8BreakpointKinds.IsSourceLocation(breakpoint.Kind)) breakpoint.Kind = BreakpointKind;
         breakpoint.Condition = BreakpointCondition.Trim();
         breakpoint.LogMessage = BreakpointLogMessage.Trim();
         if (breakpoint.IsEnabled) await BindBreakpointAsync(breakpoint);
@@ -2907,6 +2969,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 ["url"] = breakpoint.Url,
                 ["bindingUrl"] = breakpoint.BindingUrl,
                 ["functionExpression"] = breakpoint.FunctionExpression,
+                ["instrumentation"] = breakpoint.Instrumentation,
                 ["scriptId"] = breakpoint.ScriptId,
                 ["lineNumber"] = breakpoint.LineNumber,
                 ["columnNumber"] = breakpoint.ColumnNumber,
@@ -2977,6 +3040,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     Url = url,
                     BindingUrl = breakpointNode["bindingUrl"]?.GetValue<string>() ?? url,
                     FunctionExpression = breakpointNode["functionExpression"]?.GetValue<string>() ?? "",
+                    Instrumentation = breakpointNode["instrumentation"]?.GetValue<string>() ?? "",
                     ScriptId = breakpointNode["scriptId"]?.GetValue<string>() ?? "",
                     LineNumber = lineNumber,
                     ColumnNumber = breakpointNode["columnNumber"]?.GetValue<int>() ?? 0,

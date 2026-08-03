@@ -96,6 +96,9 @@ Before toggling a breakpoint, developers can enter a C# conditional code snippet
 ### V8 Function-call Breakpoints
 For V8 targets, enter a JavaScript function expression such as `app.render` in the compact function field. The Inspector evaluates it in the selected paused frame (or the runtime context while running), verifies that the result is a function object, and binds `Debugger.setBreakpointOnFunctionCall`. The optional condition field is forwarded to V8, and the definition participates in the same enable, disable, remove, reconnect, and persisted-layout workflows as source breakpoints.
 
+### V8 Instrumentation Breakpoints
+The compact instrumentation selector can pause before every script or only before scripts that declare a source map. The Inspector binds these choices with `Debugger.setInstrumentationBreakpoint`; definitions share the normal breakpoint list, enable/disable/remove actions, reconnect rebinding, and persisted state. **Before source-mapped script** is useful when attaching early enough to inspect generated TypeScript or another source-map-producing language before its module body executes.
+
 ---
 
 ## 6. CDP Backend Architecture Mappings

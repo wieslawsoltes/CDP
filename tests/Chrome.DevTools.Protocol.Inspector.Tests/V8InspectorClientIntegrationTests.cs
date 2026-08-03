@@ -407,6 +407,78 @@ public sealed class V8InspectorClientIntegrationTests
     }
 
     [Fact(Timeout = 30_000)]
+    public async Task NodeInspectorBreaksBeforeSourceMappedScriptExecution()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var port = GetAvailablePort();
+        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "v8-instrumentation-target.js");
+        Assert.True(File.Exists(fixture), $"Missing instrumentation fixture: {fixture}");
+
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "node",
+            ArgumentList = { $"--inspect-brk=127.0.0.1:{port}", fixture },
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+        Assert.NotNull(process);
+
+        try
+        {
+            var target = Assert.Single(await WaitForTargetsAsync(new Uri($"http://127.0.0.1:{port}")));
+            await using var inspector = new V8InspectorClient();
+            var pauses = Channel.CreateUnbounded<JsonObject>();
+            inspector.EventReceived += (_, e) =>
+            {
+                if (e.Method == "Debugger.paused") pauses.Writer.TryWrite(e.Params);
+            };
+
+            await inspector.ConnectAsync(new Uri(target.WebSocketDebuggerUrl));
+            await inspector.SendCommandAsync("Runtime.enable");
+            await inspector.SendCommandAsync("Debugger.enable");
+            await inspector.SendCommandAsync("Runtime.runIfWaitingForDebugger");
+            await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            var breakpoint = await inspector.SendCommandAsync("Debugger.setInstrumentationBreakpoint", new JsonObject
+            {
+                ["instrumentation"] = "beforeScriptWithSourceMapExecution"
+            });
+            var breakpointId = breakpoint["breakpointId"]?.GetValue<string>();
+            Assert.False(string.IsNullOrWhiteSpace(breakpointId));
+
+            await inspector.SendCommandAsync("Debugger.resume");
+            var evaluationTask = inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
+            {
+                ["expression"] = "globalThis.instrumentationResult = 42;\n//# sourceURL=v8-instrumented-eval.js\n//# sourceMappingURL=v8-instrumented-eval.js.map",
+                ["returnByValue"] = true
+            });
+            var instrumentationPause = await pauses.Reader.ReadAsync(cancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+
+            Assert.Equal("instrumentation", instrumentationPause["reason"]?.GetValue<string>());
+            var data = Assert.IsType<JsonObject>(instrumentationPause["data"]);
+            Assert.Equal("v8-instrumented-eval.js", data["url"]?.GetValue<string>());
+            Assert.Equal("v8-instrumented-eval.js.map", data["sourceMapURL"]?.GetValue<string>());
+
+            await inspector.SendCommandAsync("Debugger.resume");
+            var evaluation = await evaluationTask.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            Assert.Equal(42, evaluation["result"]?["value"]?.GetValue<int>());
+
+            await inspector.SendCommandAsync("Debugger.removeBreakpoint", new JsonObject
+            {
+                ["breakpointId"] = breakpointId
+            });
+        }
+        finally
+        {
+            if (!process!.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(cancellationToken);
+        }
+    }
+
+    [Fact(Timeout = 30_000)]
     public async Task NodeInspectorBreaksOnFunctionCall()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

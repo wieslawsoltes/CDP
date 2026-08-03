@@ -226,6 +226,7 @@ public sealed class V8BreakpointModel : ViewModelBase
     public string Url { get; init; } = "";
     public string BindingUrl { get; init; } = "";
     public string FunctionExpression { get; init; } = "";
+    public string Instrumentation { get; init; } = "";
     public int LineNumber { get; set; }
     public int ColumnNumber { get; set; }
     public int? DisplayLineNumber { get; init; }
@@ -287,9 +288,12 @@ public sealed class V8BreakpointModel : ViewModelBase
     }
 
     public string Status => !IsEnabled ? "Disabled" : IsResolved ? "Resolved" : "Unbound";
-    public string DisplayName => Kind == V8BreakpointKinds.FunctionCall
-        ? $"Function: {FunctionExpression}{GetDetailSuffix()} [{Status}]"
-        : $"{GetFileName()}:{(DisplayLineNumber ?? LineNumber) + 1}:{ColumnNumber + 1}{GetDetailSuffix()} [{Status}]";
+    public string DisplayName => Kind switch
+    {
+        V8BreakpointKinds.FunctionCall => $"Function: {FunctionExpression}{GetDetailSuffix()} [{Status}]",
+        V8BreakpointKinds.Instrumentation => $"Instrumentation: {V8InstrumentationBreakpoints.GetDisplayName(Instrumentation)} [{Status}]",
+        _ => $"{GetFileName()}:{(DisplayLineNumber ?? LineNumber) + 1}:{ColumnNumber + 1}{GetDetailSuffix()} [{Status}]"
+    };
 
     private string GetDetailSuffix() => Kind switch
     {
@@ -322,13 +326,37 @@ public static class V8BreakpointKinds
     public const string Conditional = "Conditional";
     public const string Logpoint = "Logpoint";
     public const string FunctionCall = "Function call";
+    public const string Instrumentation = "Instrumentation";
 
     public static string Normalize(string? value) => value switch
     {
         Conditional => Conditional,
         Logpoint => Logpoint,
         FunctionCall => FunctionCall,
+        Instrumentation => Instrumentation,
         _ => Breakpoint
+    };
+
+    public static bool IsSourceLocation(string? value) => Normalize(value) != FunctionCall && Normalize(value) != Instrumentation;
+}
+
+public static class V8InstrumentationBreakpoints
+{
+    public const string BeforeScriptExecution = "beforeScriptExecution";
+    public const string BeforeScriptWithSourceMapExecution = "beforeScriptWithSourceMapExecution";
+    public const string BeforeScriptDisplayName = "Before script";
+    public const string BeforeSourceMappedScriptDisplayName = "Before source-mapped script";
+
+    public static string Normalize(string? value) => value switch
+    {
+        BeforeScriptWithSourceMapExecution or BeforeSourceMappedScriptDisplayName => BeforeScriptWithSourceMapExecution,
+        _ => BeforeScriptExecution
+    };
+
+    public static string GetDisplayName(string? value) => Normalize(value) switch
+    {
+        BeforeScriptWithSourceMapExecution => BeforeSourceMappedScriptDisplayName,
+        _ => BeforeScriptDisplayName
     };
 }
 
