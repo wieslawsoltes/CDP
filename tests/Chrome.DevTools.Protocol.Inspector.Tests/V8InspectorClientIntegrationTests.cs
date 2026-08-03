@@ -10,6 +10,96 @@ namespace Chrome.DevTools.Protocol.Inspector.Tests;
 public sealed class V8InspectorClientIntegrationTests
 {
     [Fact(Timeout = 30_000)]
+    public async Task NodeInspectorPublishesSourceMapAndPausesAtMappedOriginalBreakpoint()
+    {
+        var port = GetAvailablePort();
+        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "v8-source-map-target.js");
+        Assert.True(File.Exists(fixture), $"Missing source-map fixture: {fixture}");
+
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = "node",
+            ArgumentList = { $"--inspect-brk=127.0.0.1:{port}", fixture },
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        });
+        Assert.NotNull(process);
+
+        try
+        {
+            var target = Assert.Single(await WaitForTargetsAsync(new Uri($"http://127.0.0.1:{port}")));
+            await using var inspector = new V8InspectorClient();
+            var parsedScripts = Channel.CreateUnbounded<JsonObject>();
+            var pauses = Channel.CreateUnbounded<JsonObject>();
+            inspector.EventReceived += (_, e) =>
+            {
+                if (e.Method == "Debugger.scriptParsed") parsedScripts.Writer.TryWrite(e.Params);
+                if (e.Method == "Debugger.paused") pauses.Writer.TryWrite(e.Params);
+            };
+
+            await inspector.ConnectAsync(new Uri(target.WebSocketDebuggerUrl));
+            await inspector.SendCommandAsync("Runtime.enable");
+            await inspector.SendCommandAsync("Debugger.enable");
+            await inspector.SendCommandAsync("Runtime.runIfWaitingForDebugger");
+
+            JsonObject script;
+            do
+            {
+                script = await parsedScripts.Reader.ReadAsync(TestContext.Current.CancellationToken)
+                    .AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            }
+            while (!script["url"]!.GetValue<string>().EndsWith("v8-source-map-target.js", StringComparison.Ordinal));
+
+            var sourceMapUrl = script["sourceMapURL"]?.GetValue<string>() ?? "";
+            Assert.StartsWith("data:application/json;base64,", sourceMapUrl);
+            var sourceMapJson = System.Text.Encoding.UTF8.GetString(
+                Convert.FromBase64String(sourceMapUrl[(sourceMapUrl.IndexOf(',') + 1)..]));
+            var generatedUri = new Uri(script["url"]!.GetValue<string>());
+            var sourceMap = V8SourceMap.Parse(sourceMapJson, generatedUri);
+            Assert.EndsWith("/src/mapped-target.ts", sourceMap.ResolveSourceUrl(0));
+            Assert.Contains("value: number", Assert.Single(sourceMap.SourcesContent));
+
+            var mapped = Assert.IsType<V8SourceMapEntry>(sourceMap.FindGeneratedLocation(0, 1));
+            var initialPause = await pauses.Reader.ReadAsync(TestContext.Current.CancellationToken)
+                .AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            Assert.NotEmpty(Assert.IsType<JsonArray>(initialPause["callFrames"]));
+            var breakpoint = await inspector.SendCommandAsync("Debugger.setBreakpoint", new JsonObject
+            {
+                ["location"] = new JsonObject
+                {
+                    ["scriptId"] = script["scriptId"]!.GetValue<string>(),
+                    ["lineNumber"] = mapped.GeneratedLine,
+                    ["columnNumber"] = mapped.GeneratedColumn
+                }
+            });
+            Assert.False(string.IsNullOrWhiteSpace(breakpoint["breakpointId"]?.GetValue<string>()));
+
+            await inspector.SendCommandAsync("Debugger.resume");
+            var mappedPause = await pauses.Reader.ReadAsync(TestContext.Current.CancellationToken)
+                .AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+            var frame = Assert.IsType<JsonObject>(Assert.IsType<JsonArray>(mappedPause["callFrames"])[0]);
+            Assert.Equal("mappedCompute", frame["functionName"]?.GetValue<string>());
+            var location = Assert.IsType<JsonObject>(frame["location"]);
+            Assert.Equal(mapped.GeneratedLine, location["lineNumber"]?.GetValue<int>());
+            var value = await inspector.SendCommandAsync("Debugger.evaluateOnCallFrame", new JsonObject
+            {
+                ["callFrameId"] = frame["callFrameId"]!.GetValue<string>(),
+                ["expression"] = "value",
+                ["returnByValue"] = true
+            });
+            Assert.Equal(21, value["result"]?["value"]?.GetValue<int>());
+            await inspector.SendCommandAsync("Debugger.resume");
+        }
+        finally
+        {
+            if (!process!.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact(Timeout = 30_000)]
     public async Task NodeInspectorSupportsFullDebuggingSession()
     {
         var port = GetAvailablePort();
