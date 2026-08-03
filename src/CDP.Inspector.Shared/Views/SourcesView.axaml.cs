@@ -56,6 +56,7 @@ public partial class SourcesView : UserControl
     {
         string cacheKey = viewName;
         if (viewName == "SourcesFiles") cacheKey = "pnlSourcesFiles";
+        else if (viewName == "SourcesRuntimeScripts") cacheKey = "pnlSourcesRuntimeScripts";
         else if (viewName == "SourcesSearch") cacheKey = "pnlSourcesSearch";
         else if (viewName == "CodeViewer") cacheKey = "pnlCodeViewer";
         else if (viewName == "Debugger") cacheKey = "pnlDebugger";
