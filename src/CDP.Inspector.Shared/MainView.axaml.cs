@@ -20,11 +20,16 @@ public partial class MainView : UserControl
     private readonly HashSet<SplitNode> _subscribedNodes = new();
 
     public MainView()
+        : this(new MainWindowViewModel(loadState: true), refreshTargetsOnLoad: true)
     {
+    }
+
+    public MainView(MainWindowViewModel viewModel, bool refreshTargetsOnLoad = true)
+    {
+        ArgumentNullException.ThrowIfNull(viewModel);
         InitializeComponent();
 
-        var vm = new MainWindowViewModel(loadState: true);
-        DataContext = vm;
+        DataContext = viewModel;
 
         SplitControl.BoxMenuClicked += OnBoxMenuClicked;
         SplitControl.ViewResolver = (viewName, targetBox) => GetOrCreateViewInstance(viewName, targetBox);
@@ -36,7 +41,10 @@ public partial class MainView : UserControl
         };
 
         // Scan targets on load
-        Dispatcher.UIThread.Post(() => vm.Connection.RefreshTargetsCommand.Execute(null));
+        if (refreshTargetsOnLoad)
+        {
+            Dispatcher.UIThread.Post(() => viewModel.Connection.RefreshTargetsCommand.Execute(null));
+        }
     }
 
     protected override void OnDataContextChanged(EventArgs e)

@@ -3,15 +3,17 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using CdpInspectorApp.Models;
+using CdpInspectorApp.Views;
 using CdpInspectorApp.ViewModels;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
 public sealed class V8InspectorAppIntegrationTests
 {
-    [AvaloniaFact(Timeout = 30_000)]
+    [AvaloniaFact(Timeout = 45_000)]
     public async Task FullInspectorMaintainsPausedNodeSessionAndExpandsVariables()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -31,12 +33,15 @@ public sealed class V8InspectorAppIntegrationTests
         Assert.NotNull(process);
 
         var service = new CdpService();
-        _ = new MainWindowViewModel(service);
+        var mainViewModel = new MainWindowViewModel(service, loadState: false);
+        var mainView = new MainView(mainViewModel, refreshTargetsOnLoad: false);
+        var window = new Window { Content = mainView };
+        window.Show();
         try
         {
             var endpoint = $"http://127.0.0.1:{port}";
             var target = Assert.Single(await WaitForTargetsAsync(service, endpoint, cancellationToken));
-            var sources = MainWindowViewModel.Instance!.Sources;
+            var sources = mainViewModel.Sources;
             var pauses = Channel.CreateUnbounded<JsonObject>();
             service.EventReceived += (_, e) =>
             {
@@ -68,7 +73,8 @@ public sealed class V8InspectorAppIntegrationTests
             await WaitUntilAsync(() => sources.IsDebuggerPaused && sources.SelectedCallFrame?.FunctionName == "compute",
                 cancellationToken);
 
-            await Task.Delay(TimeSpan.FromSeconds(8), cancellationToken);
+            // Cross the configured 15-second PING boundary while V8 remains paused.
+            await Task.Delay(TimeSpan.FromSeconds(18), cancellationToken);
             Assert.True(service.IsConnected);
 
             var localScope = Assert.Single(sources.ScopeVariables, variable => variable.ScopeType == "local");
@@ -82,6 +88,7 @@ public sealed class V8InspectorAppIntegrationTests
         }
         finally
         {
+            window.Close();
             await service.DisconnectAsync();
             if (!process!.HasExited) process.Kill(entireProcessTree: true);
             await process.WaitForExitAsync(cancellationToken);
