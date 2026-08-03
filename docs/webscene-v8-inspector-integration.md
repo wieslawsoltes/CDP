@@ -190,6 +190,35 @@ The adapter contract is also the extension point for other source-map-producing 
 
 For compilers that run outside .NET, `ExternalV8SourceRegenerator` implements a versioned JSON stdin/stdout protocol. The Inspector loads only manifests explicitly named by `CDP_V8_SOURCE_REGENERATORS`; each adapter declares its executable, fixed arguments, supported extensions, working directory, and timeout. The request contains the edited source, current generated script, normalized source map, URLs, source index, and revision fingerprints. A successful response contains the complete replacement JavaScript and revision-3 map with the edited source embedded in `sourcesContent`. This supports workspace-specific CoffeeScript, Vue, Svelte, Babel, SWC, Vite, Rollup, or webpack pipelines while preserving the existing V8 validation and rollback transaction. See `docs/articles/sources-panel.md` for the manifest and wire format.
 
+## Real WebScene React acceptance lane
+
+`WebSceneV8InspectorAcceptanceTests` attaches to an already-running WebScene
+`inspect-brk` endpoint and exercises the cross-repository path rather than a
+mock transport. It verifies that no document bundle is parsed before
+`Runtime.runIfWaitingForDebugger`, loads the external source map and embedded
+`main.jsx`, maps and hits the React `increment` breakpoint, reads the `Counter`
+closure, evaluates `count`, steps, resumes, and observes the committed count.
+
+Start the WebScene Uno showcase with its arbitrary-document lane and the 7GUIs
+React development bundle, then run:
+
+```sh
+WEBSCENE_V8_ENDPOINT=http://127.0.0.1:62912 \
+WEBSCENE_V8_REPORT_PATH="$PWD/artifacts/v8-debugging/webscene-react-source-map-acceptance.json" \
+dotnet test \
+  tests/Chrome.DevTools.Protocol.Inspector.Tests/Chrome.DevTools.Protocol.Inspector.Tests.csproj \
+  -c Release -f net10.0 \
+  --filter FullyQualifiedName~WebSceneV8InspectorAcceptanceTests
+```
+
+The test skips when `WEBSCENE_V8_ENDPOINT` is not set, so the ordinary CDP test
+matrix remains independent of a separately built native WebScene runtime. The
+optional report is machine-readable and records the target, generated script,
+source map, original source, mapped lines, paused function, closure state, and
+final React result. The script name, original-source suffix, marker, trigger,
+and result expressions can also be overridden with the corresponding
+`WEBSCENE_V8_*` environment variables declared by the test.
+
 ## Security and failure behavior
 
 - The server is disabled by default and binds to `127.0.0.1` by default.
