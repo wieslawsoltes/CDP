@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json.Nodes;
 using Avalonia.Headless.XUnit;
+using CdpInspectorApp.Models;
 using CdpInspectorApp.ViewModels;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
@@ -136,6 +137,63 @@ public sealed class SourcesV8DebuggerTests
         Assert.Contains(service.Commands, command => command.Method == "Debugger.setPauseOnExceptions");
     }
 
+    [AvaloniaFact]
+    public async Task BreakpointsSupportConditionsLogpointsDisableAndReconnect()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        service.Raise("Debugger.scriptParsed", new JsonObject
+        {
+            ["scriptId"] = "42",
+            ["url"] = "file:///app/example.js",
+            ["endLine"] = 10
+        });
+        await WaitUntilAsync(() => viewModel.RuntimeScripts.Count == 1);
+        viewModel.SelectedRuntimeScript = viewModel.RuntimeScripts[0];
+        await WaitUntilAsync(() => viewModel.SelectedFileContent.Contains("compute", StringComparison.Ordinal));
+
+        viewModel.BreakpointKind = V8BreakpointKinds.Conditional;
+        viewModel.BreakpointCondition = "sum > 4";
+        await viewModel.ToggleBreakpointAsync(5);
+
+        var breakpoint = Assert.Single(viewModel.V8Breakpoints);
+        Assert.True(breakpoint.IsResolved);
+        Assert.Equal(V8BreakpointKinds.Conditional, breakpoint.Kind);
+        var conditional = Assert.Single(service.Commands, command => command.Method == "Debugger.setBreakpointByUrl");
+        Assert.Equal("sum > 4", conditional.Parameters?["condition"]?.GetValue<string>());
+
+        viewModel.SelectedBreakpoint = breakpoint;
+        viewModel.BreakpointKind = V8BreakpointKinds.Logpoint;
+        viewModel.BreakpointLogMessage = "sum = {sum}, literal {{brace}}";
+        viewModel.UpdateSelectedBreakpointCommand.Execute(null);
+        await WaitUntilAsync(() => service.Commands.Count(command => command.Method == "Debugger.setBreakpointByUrl") == 2);
+        var logpoint = service.Commands.Last(command => command.Method == "Debugger.setBreakpointByUrl");
+        var logCondition = logpoint.Parameters?["condition"]?.GetValue<string>() ?? "";
+        Assert.Contains("console.log", logCondition);
+        Assert.Contains("(sum)", logCondition);
+        Assert.Contains("literal {brace}", logCondition);
+        Assert.EndsWith(", false", logCondition);
+
+        viewModel.ToggleSelectedBreakpointEnabledCommand.Execute(null);
+        await WaitUntilAsync(() => !breakpoint.IsEnabled);
+        Assert.False(breakpoint.IsResolved);
+        Assert.Contains(service.Commands, command => command.Method == "Debugger.removeBreakpoint");
+
+        viewModel.ToggleSelectedBreakpointEnabledCommand.Execute(null);
+        await WaitUntilAsync(() => breakpoint.IsEnabled && breakpoint.IsResolved);
+        var bindingCount = service.Commands.Count(command => command.Method == "Debugger.setBreakpointByUrl");
+
+        service.IsConnected = false;
+        await WaitUntilAsync(() => !viewModel.IsDebuggerEnabled && string.IsNullOrEmpty(breakpoint.BreakpointId));
+        Assert.Single(viewModel.V8Breakpoints);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled && breakpoint.IsResolved &&
+            service.Commands.Count(command => command.Method == "Debugger.setBreakpointByUrl") > bindingCount);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         for (var attempt = 0; attempt < 100 && !condition(); attempt++) await Task.Delay(10);
@@ -166,6 +224,7 @@ public sealed class SourcesV8DebuggerTests
         public event EventHandler<CdpEventEventArgs>? EventReceived;
         public List<(string Method, JsonObject? Parameters)> Commands { get; } = new();
         public bool RejectOptionalDebuggerCommands { get; init; }
+        private int _nextBreakpointId;
 
         public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>());
         public Task ConnectAsync(string host, TargetItem target) => Task.CompletedTask;
@@ -175,9 +234,19 @@ public sealed class SourcesV8DebuggerTests
         {
             Commands.Add((method, parameters));
             if (RejectOptionalDebuggerCommands &&
-                method is "Debugger.setAsyncCallStackDepth" or "Debugger.setPauseOnExceptions")
+                method is "Debugger.setAsyncCallStackDepth" or "Debugger.setPauseOnExceptions" or "Debugger.setBreakpointsActive")
             {
                 return Task.FromException<JsonObject>(new InvalidOperationException($"Action {method} is not supported."));
+            }
+            if (method is "Debugger.setBreakpointByUrl" or "Debugger.setBreakpoint")
+            {
+                return Task.FromResult(new JsonObject
+                {
+                    ["breakpointId"] = $"breakpoint-{++_nextBreakpointId}",
+                    [method == "Debugger.setBreakpoint" ? "actualLocation" : "locations"] = method == "Debugger.setBreakpoint"
+                        ? new JsonObject { ["scriptId"] = "42", ["lineNumber"] = 4, ["columnNumber"] = 0 }
+                        : new JsonArray { new JsonObject { ["scriptId"] = "42", ["lineNumber"] = 4, ["columnNumber"] = 0 } }
+                });
             }
             return Task.FromResult(method switch
             {

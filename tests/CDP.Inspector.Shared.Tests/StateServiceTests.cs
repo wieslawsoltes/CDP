@@ -425,8 +425,24 @@ public class StateServiceTests
             {
                 SearchQuery = "sourcesQuery",
                 SearchCaseSensitive = true,
-                BreakpointCondition = "cond"
+                BreakpointCondition = "cond",
+                BreakpointLogMessage = "value = {value}",
+                BreakpointKind = V8BreakpointKinds.Logpoint,
+                AreBreakpointsActive = false
             };
+            vm.V8Breakpoints.Add(new V8BreakpointModel
+            {
+                Key = "file:///app/source.js:4",
+                Url = "file:///app/source.js",
+                BindingUrl = "file:///app/bundle.js",
+                ScriptId = "42",
+                LineNumber = 12,
+                ColumnNumber = 3,
+                DisplayLineNumber = 4,
+                Kind = V8BreakpointKinds.Logpoint,
+                LogMessage = "value = {value}",
+                IsEnabled = false
+            });
 
             service.RegisterProvider(vm);
             service.Save();
@@ -439,6 +455,15 @@ public class StateServiceTests
             Assert.Equal("sourcesQuery", vm2.SearchQuery);
             Assert.True(vm2.SearchCaseSensitive);
             Assert.Equal("cond", vm2.BreakpointCondition);
+            Assert.Equal("value = {value}", vm2.BreakpointLogMessage);
+            Assert.Equal(V8BreakpointKinds.Logpoint, vm2.BreakpointKind);
+            Assert.False(vm2.AreBreakpointsActive);
+            var breakpoint = Assert.Single(vm2.V8Breakpoints);
+            Assert.Equal("file:///app/source.js", breakpoint.Url);
+            Assert.Equal("file:///app/bundle.js", breakpoint.BindingUrl);
+            Assert.Equal(12, breakpoint.LineNumber);
+            Assert.Equal(4, breakpoint.DisplayLineNumber);
+            Assert.False(breakpoint.IsEnabled);
         }
         finally
         {

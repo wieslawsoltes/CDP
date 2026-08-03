@@ -19,14 +19,16 @@ public sealed class SourcesDebuggerGutterDataProvider : IGutterMarginDataProvide
         _viewModel = viewModel;
         _viewModel.PropertyChanged += ViewModelOnPropertyChanged;
         _viewModel.V8Breakpoints.CollectionChanged += BreakpointsOnCollectionChanged;
+        foreach (var breakpoint in _viewModel.V8Breakpoints) breakpoint.PropertyChanged += BreakpointOnPropertyChanged;
     }
 
     public event EventHandler? VisualInvalidated;
 
     public void RenderIndicator(DrawingContext drawingContext, int lineNumber, double yCenter, double width, double height, bool isHovered)
     {
-        var hasBreakpoint = _viewModel.V8Breakpoints.Any(bp => IsCurrentSource(bp) &&
+        var breakpoint = _viewModel.V8Breakpoints.FirstOrDefault(bp => IsCurrentSource(bp) &&
             (bp.DisplayLineNumber ?? bp.LineNumber) + 1 == lineNumber);
+        var hasBreakpoint = breakpoint is not null;
         var isActive = _viewModel.ActiveDebugLine == lineNumber;
         var center = new Point(width / 2, yCenter);
 
@@ -43,9 +45,18 @@ public sealed class SourcesDebuggerGutterDataProvider : IGutterMarginDataProvide
 
         if (hasBreakpoint)
         {
+            var fill = breakpoint!.IsEnabled
+                ? breakpoint.Kind switch
+                {
+                    V8BreakpointKinds.Logpoint => Color.FromRgb(171, 71, 188),
+                    V8BreakpointKinds.Conditional => Color.FromRgb(251, 140, 0),
+                    _ => Color.FromRgb(229, 57, 53)
+                }
+                : Color.FromRgb(95, 99, 104);
+            var stroke = breakpoint.IsResolved ? Color.FromRgb(255, 205, 210) : Color.FromRgb(189, 189, 189);
             drawingContext.DrawEllipse(
-                new SolidColorBrush(Color.FromRgb(229, 57, 53)),
-                new Pen(new SolidColorBrush(Color.FromRgb(255, 138, 128)), 1),
+                new SolidColorBrush(fill),
+                new Pen(new SolidColorBrush(stroke), breakpoint.IsResolved ? 1 : 2),
                 center, 5, 5);
         }
         else if (isHovered)
@@ -87,12 +98,26 @@ public sealed class SourcesDebuggerGutterDataProvider : IGutterMarginDataProvide
         }
     }
 
-    private void BreakpointsOnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
+    private void BreakpointsOnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (V8BreakpointModel breakpoint in e.OldItems) breakpoint.PropertyChanged -= BreakpointOnPropertyChanged;
+        }
+        if (e.NewItems is not null)
+        {
+            foreach (V8BreakpointModel breakpoint in e.NewItems) breakpoint.PropertyChanged += BreakpointOnPropertyChanged;
+        }
+        VisualInvalidated?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void BreakpointOnPropertyChanged(object? sender, PropertyChangedEventArgs e) =>
         VisualInvalidated?.Invoke(this, EventArgs.Empty);
 
     public void Dispose()
     {
         _viewModel.PropertyChanged -= ViewModelOnPropertyChanged;
         _viewModel.V8Breakpoints.CollectionChanged -= BreakpointsOnCollectionChanged;
+        foreach (var breakpoint in _viewModel.V8Breakpoints) breakpoint.PropertyChanged -= BreakpointOnPropertyChanged;
     }
 }

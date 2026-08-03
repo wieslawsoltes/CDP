@@ -79,17 +79,104 @@ public sealed class V8PropertyModel
     public bool IsExpandable => !string.IsNullOrWhiteSpace(ObjectId);
 }
 
-public sealed class V8BreakpointModel
+public sealed class V8BreakpointModel : ViewModelBase
 {
-    public string BreakpointId { get; init; } = "";
+    private string _breakpointId = "";
+    private string _condition = "";
+    private string _logMessage = "";
+    private string _kind = V8BreakpointKinds.Breakpoint;
+    private bool _isEnabled = true;
+    private bool _isResolved;
+    private int? _resolvedLineNumber;
+    private int? _resolvedColumnNumber;
+
+    public string Key { get; init; } = "";
+    public string BreakpointId
+    {
+        get => _breakpointId;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _breakpointId, value)) RaiseDisplayProperties();
+        }
+    }
     public string ScriptId { get; init; } = "";
     public string Url { get; init; } = "";
+    public string BindingUrl { get; init; } = "";
     public int LineNumber { get; init; }
     public int ColumnNumber { get; init; }
     public int? DisplayLineNumber { get; init; }
-    public string Condition { get; init; } = "";
-    public bool IsResolved { get; set; }
-    public string DisplayName => $"{GetFileName()}:{(DisplayLineNumber ?? LineNumber) + 1}:{ColumnNumber + 1}{(string.IsNullOrWhiteSpace(Condition) ? "" : $" if {Condition}")}";
+    public string Condition
+    {
+        get => _condition;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _condition, value)) RaiseDisplayProperties();
+        }
+    }
+    public string LogMessage
+    {
+        get => _logMessage;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _logMessage, value)) RaiseDisplayProperties();
+        }
+    }
+    public string Kind
+    {
+        get => _kind;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _kind, V8BreakpointKinds.Normalize(value))) RaiseDisplayProperties();
+        }
+    }
+    public bool IsEnabled
+    {
+        get => _isEnabled;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isEnabled, value)) RaiseDisplayProperties();
+        }
+    }
+    public bool IsResolved
+    {
+        get => _isResolved;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _isResolved, value)) RaiseDisplayProperties();
+        }
+    }
+    public int? ResolvedLineNumber
+    {
+        get => _resolvedLineNumber;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _resolvedLineNumber, value)) RaiseDisplayProperties();
+        }
+    }
+    public int? ResolvedColumnNumber
+    {
+        get => _resolvedColumnNumber;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _resolvedColumnNumber, value)) RaiseDisplayProperties();
+        }
+    }
+
+    public string Status => !IsEnabled ? "Disabled" : IsResolved ? "Resolved" : "Unbound";
+    public string DisplayName => $"{GetFileName()}:{(DisplayLineNumber ?? LineNumber) + 1}:{ColumnNumber + 1}{GetDetailSuffix()} [{Status}]";
+
+    private string GetDetailSuffix() => Kind switch
+    {
+        V8BreakpointKinds.Conditional when !string.IsNullOrWhiteSpace(Condition) => $" if {Condition}",
+        V8BreakpointKinds.Logpoint when !string.IsNullOrWhiteSpace(LogMessage) => $" log {LogMessage}",
+        _ => ""
+    };
+
+    private void RaiseDisplayProperties()
+    {
+        OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(DisplayName));
+    }
 
     private string GetFileName()
     {
@@ -100,6 +187,20 @@ public sealed class V8BreakpointModel
     }
 
     public override string ToString() => DisplayName;
+}
+
+public static class V8BreakpointKinds
+{
+    public const string Breakpoint = "Breakpoint";
+    public const string Conditional = "Conditional";
+    public const string Logpoint = "Logpoint";
+
+    public static string Normalize(string? value) => value switch
+    {
+        Conditional => Conditional,
+        Logpoint => Logpoint,
+        _ => Breakpoint
+    };
 }
 
 public sealed class V8WatchExpressionModel : ViewModelBase

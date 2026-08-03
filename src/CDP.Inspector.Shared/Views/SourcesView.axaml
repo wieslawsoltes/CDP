@@ -279,9 +279,42 @@
                                 </DataGrid.Columns>
                             </DataGrid>
 
-                            <TextBlock Text="Breakpoints" Classes="panel-header" FontSize="12" Margin="0,5,0,2"/>
-                            <ListBox Name="lstV8Breakpoints" ItemsSource="{Binding Sources.V8Breakpoints}" Height="90" FontSize="11" Margin="0,0,0,8"/>
-                            <TextBox Name="txtBreakpointCondition" Text="{Binding Sources.BreakpointCondition, Mode=TwoWay}" PlaceholderText="Breakpoint condition (e.g. x == 5)" FontSize="11" Margin="0,0,0,8"/>
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,5,0,2">
+                                <TextBlock Text="Breakpoints" Classes="panel-header" FontSize="12" VerticalAlignment="Center"/>
+                                <CheckBox Name="chkBreakpointsActive" Grid.Column="1" Content="Active"
+                                          IsChecked="{Binding Sources.AreBreakpointsActive, Mode=TwoWay}"
+                                          ToolTip.Tip="Globally activate or deactivate all breakpoints" FontSize="10"/>
+                            </Grid>
+                            <ListBox Name="lstV8Breakpoints" ItemsSource="{Binding Sources.V8Breakpoints}"
+                                     SelectedItem="{Binding Sources.SelectedBreakpoint, Mode=TwoWay}"
+                                     Height="110" FontSize="11" Margin="0,0,0,8">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:V8BreakpointModel">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="5">
+                                            <TextBlock Text="●" Foreground="#ef5350"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Kind}" Foreground="#9aa0a6" FontSize="9"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <ComboBox Name="cmbBreakpointKind" ItemsSource="{Binding Sources.BreakpointKinds}"
+                                      SelectedItem="{Binding Sources.BreakpointKind, Mode=TwoWay}"
+                                      FontSize="11" Margin="0,0,0,5"/>
+                            <TextBox Name="txtBreakpointCondition" Text="{Binding Sources.BreakpointCondition, Mode=TwoWay}"
+                                     PlaceholderText="Condition, e.g. count &gt; 5" FontSize="11" Margin="0,0,0,5"/>
+                            <TextBox Name="txtBreakpointLogMessage" Text="{Binding Sources.BreakpointLogMessage, Mode=TwoWay}"
+                                     PlaceholderText="Log message, e.g. count = {count}" FontSize="11" Margin="0,0,0,5"/>
+                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="4" Margin="0,0,0,8">
+                                <Button Name="btnUpdateBreakpoint" Command="{Binding Sources.UpdateSelectedBreakpointCommand}"
+                                        Content="Apply" FontSize="10" Padding="4"/>
+                                <Button Name="btnToggleBreakpointEnabled" Grid.Column="1" Command="{Binding Sources.ToggleSelectedBreakpointEnabledCommand}"
+                                        Content="Enable / Disable" FontSize="10" Padding="4"/>
+                                <Button Name="btnRemoveBreakpoint" Grid.Column="2" Command="{Binding Sources.RemoveSelectedBreakpointCommand}"
+                                        Content="Remove" FontSize="10" Padding="4"/>
+                            </Grid>
                             <Button Name="btnToggleBreakpoint" Content="Toggle Breakpoint at Caret" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" FontSize="12" Padding="0,6"/>
                         </StackPanel>
                     </ScrollViewer>

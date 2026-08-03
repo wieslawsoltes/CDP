@@ -1,6 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using Avalonia.Threading;
@@ -44,6 +46,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private string _searchQuery = "";
     private bool _searchCaseSensitive = false;
     private string _breakpointCondition = "";
+    private string _breakpointLogMessage = "";
+    private string _breakpointKind = V8BreakpointKinds.Breakpoint;
+    private bool _areBreakpointsActive = true;
+    private V8BreakpointModel? _selectedBreakpoint;
     private ObservableCollection<SearchResultModel> _searchResults = new();
     private bool _isMarkdownPreviewMode;
     private bool _isDocumentPreviewMode;
@@ -67,8 +73,6 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private V8WatchExpressionModel? _selectedWatchExpression;
     private V8ScriptModel? _selectedRuntimeScript;
     private V8CallFrameModel? _selectedCallFrame;
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _breakpointIds = new();
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _breakpointDisplayStrings = new();
 
     public int? PendingScrollLine
     {
@@ -165,6 +169,12 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public ObservableCollection<V8BreakpointModel> V8Breakpoints { get; } = new();
     public ObservableCollection<V8WatchExpressionModel> WatchExpressions { get; } = new();
     public ObservableCollection<string> PauseOnExceptionsStates { get; } = new() { "none", "uncaught", "caught", "all" };
+    public ObservableCollection<string> BreakpointKinds { get; } = new()
+    {
+        V8BreakpointKinds.Breakpoint,
+        V8BreakpointKinds.Conditional,
+        V8BreakpointKinds.Logpoint
+    };
 
     public V8ScriptModel? SelectedRuntimeScript
     {
@@ -234,6 +244,24 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    public V8BreakpointModel? SelectedBreakpoint
+    {
+        get => _selectedBreakpoint;
+        set
+        {
+            if (!RaiseAndSetIfChanged(ref _selectedBreakpoint, value)) return;
+            if (value is not null)
+            {
+                BreakpointKind = value.Kind;
+                BreakpointCondition = value.Condition;
+                BreakpointLogMessage = value.LogMessage;
+            }
+            ((RelayCommand)ToggleSelectedBreakpointEnabledCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)UpdateSelectedBreakpointCommand).RaiseCanExecuteChanged();
+            ((RelayCommand)RemoveSelectedBreakpointCommand).RaiseCanExecuteChanged();
+        }
+    }
+
     public System.Windows.Input.ICommand ResumeCommand { get; }
     public System.Windows.Input.ICommand PauseCommand { get; }
     public System.Windows.Input.ICommand StepOverCommand { get; }
@@ -246,6 +274,9 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public System.Windows.Input.ICommand AddWatchExpressionCommand { get; }
     public System.Windows.Input.ICommand RemoveWatchExpressionCommand { get; }
     public System.Windows.Input.ICommand RefreshWatchExpressionsCommand { get; }
+    public System.Windows.Input.ICommand ToggleSelectedBreakpointEnabledCommand { get; }
+    public System.Windows.Input.ICommand UpdateSelectedBreakpointCommand { get; }
+    public System.Windows.Input.ICommand RemoveSelectedBreakpointCommand { get; }
 
     public HierarchicalModel<WorkspaceFileNode> HierarchicalWorkspaceFiles { get; }
 
@@ -271,6 +302,30 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     {
         get => _breakpointCondition;
         set => RaiseAndSetIfChanged(ref _breakpointCondition, value);
+    }
+
+    public string BreakpointLogMessage
+    {
+        get => _breakpointLogMessage;
+        set => RaiseAndSetIfChanged(ref _breakpointLogMessage, value);
+    }
+
+    public string BreakpointKind
+    {
+        get => _breakpointKind;
+        set => RaiseAndSetIfChanged(ref _breakpointKind, V8BreakpointKinds.Normalize(value));
+    }
+
+    public bool AreBreakpointsActive
+    {
+        get => _areBreakpointsActive;
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _areBreakpointsActive, value) && _cdpService.IsConnected && IsDebuggerEnabled)
+            {
+                _ = SetBreakpointsActiveAsync(value);
+            }
+        }
     }
 
     public ObservableCollection<SearchResultModel> SearchResults => _searchResults;
@@ -523,6 +578,30 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             () => _cdpService.IsConnected && IsDebuggerPaused && SelectedCallFrame != null && WatchExpressions.Count > 0
         );
 
+        ToggleSelectedBreakpointEnabledCommand = new RelayCommand(
+            async () =>
+            {
+                if (SelectedBreakpoint is not null)
+                {
+                    await SetBreakpointEnabledAsync(SelectedBreakpoint, !SelectedBreakpoint.IsEnabled);
+                }
+            },
+            () => SelectedBreakpoint is not null && _cdpService.IsConnected && IsDebuggerEnabled
+        );
+
+        UpdateSelectedBreakpointCommand = new RelayCommand(
+            async () => await UpdateSelectedBreakpointAsync(),
+            () => SelectedBreakpoint is not null && _cdpService.IsConnected && IsDebuggerEnabled
+        );
+
+        RemoveSelectedBreakpointCommand = new RelayCommand(
+            async () =>
+            {
+                if (SelectedBreakpoint is not null) await RemoveBreakpointDefinitionAsync(SelectedBreakpoint);
+            },
+            () => SelectedBreakpoint is not null
+        );
+
         var options = new HierarchicalOptions<WorkspaceFileNode>
         {
             ChildrenSelector = node => node.Children,
@@ -564,6 +643,9 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (ApplySourceChangesCommand != null) ((RelayCommand<string>)ApplySourceChangesCommand).RaiseCanExecuteChanged();
         if (RestartFrameCommand != null) ((RelayCommand)RestartFrameCommand).RaiseCanExecuteChanged();
         if (RefreshWatchExpressionsCommand != null) ((RelayCommand)RefreshWatchExpressionsCommand).RaiseCanExecuteChanged();
+        if (ToggleSelectedBreakpointEnabledCommand != null) ((RelayCommand)ToggleSelectedBreakpointEnabledCommand).RaiseCanExecuteChanged();
+        if (UpdateSelectedBreakpointCommand != null) ((RelayCommand)UpdateSelectedBreakpointCommand).RaiseCanExecuteChanged();
+        if (RemoveSelectedBreakpointCommand != null) ((RelayCommand)RemoveSelectedBreakpointCommand).RaiseCanExecuteChanged();
     }
 
     private void CdpService_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -609,6 +691,10 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             await TrySendOptionalDebuggerCommandAsync(
                 "Debugger.setPauseOnExceptions",
                 new JsonObject { ["state"] = PauseOnExceptionsState });
+            await TrySendOptionalDebuggerCommandAsync(
+                "Debugger.setBreakpointsActive",
+                new JsonObject { ["active"] = AreBreakpointsActive });
+            await RestoreBreakpointBindingsAsync();
             if (!IsDebuggerPaused)
             {
                 DebuggerStatusText = $"Debugger ready ({(_cdpService.ConnectedTargetType.Length == 0 ? "CDP" : _cdpService.ConnectedTargetType)})";
@@ -673,10 +759,15 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             IsDebuggerEnabled = false;
             PauseReason = "";
             DebuggerStatusText = "Debugger disconnected";
-            _breakpointIds.Clear();
-            _breakpointDisplayStrings.Clear();
-            Breakpoints.Clear();
-            V8Breakpoints.Clear();
+            SelectedBreakpoint = null;
+            foreach (var breakpoint in V8Breakpoints)
+            {
+                breakpoint.BreakpointId = "";
+                breakpoint.IsResolved = false;
+                breakpoint.ResolvedLineNumber = null;
+                breakpoint.ResolvedColumnNumber = null;
+            }
+            RefreshLegacyBreakpoints();
         });
     }
 
@@ -877,10 +968,15 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private void HandleBreakpointResolved(JsonObject parameters)
     {
         var breakpointId = parameters["breakpointId"]?.GetValue<string>() ?? "";
+        var location = parameters["location"] as JsonObject;
         Dispatcher.UIThread.Post(() =>
         {
             var breakpoint = V8Breakpoints.FirstOrDefault(item => item.BreakpointId == breakpointId);
-            if (breakpoint is not null) breakpoint.IsResolved = true;
+            if (breakpoint is null) return;
+            breakpoint.IsResolved = true;
+            breakpoint.ResolvedLineNumber = location?["lineNumber"]?.GetValue<int>();
+            breakpoint.ResolvedColumnNumber = location?["columnNumber"]?.GetValue<int>();
+            RefreshLegacyBreakpoints();
         });
     }
 
@@ -1217,7 +1313,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
         var script = SelectedRuntimeScript;
         string displayUrl = script?.Url ?? SelectedFile?.Path ?? "";
-        string url = displayUrl;
+        string bindingUrl = script?.IsOriginalSource == true ? script.GeneratedUrl : displayUrl;
         string scriptId = script?.ScriptId ?? "";
         int cdpLine = Math.Max(0, line - 1);
         int cdpColumn = 0;
@@ -1228,103 +1324,230 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             scriptId = script.GeneratedScriptId;
             cdpLine = generated.GeneratedLine;
             cdpColumn = generated.GeneratedColumn;
-            url = "";
         }
-        string key = $"{displayUrl}:{Math.Max(0, line - 1)}";
+        string key = CreateBreakpointKey(displayUrl, Math.Max(0, line - 1));
 
-        if (_breakpointIds.TryGetValue(key, out var breakpointId))
+        var existing = V8Breakpoints.FirstOrDefault(item => item.Key == key);
+        if (existing is not null)
         {
-            try
-            {
-                var p = new JsonObject { ["breakpointId"] = breakpointId };
-                await _cdpService.SendCommandAsync("Debugger.removeBreakpoint", p);
-                _breakpointIds.TryRemove(key, out _);
-                if (_breakpointDisplayStrings.TryRemove(key, out var displayStr))
-                {
-                    Dispatcher.UIThread.Post(() => Breakpoints.Remove(displayStr));
-                }
-                Dispatcher.UIThread.Post(() =>
-                {
-                    var typed = V8Breakpoints.FirstOrDefault(item => item.BreakpointId == breakpointId);
-                    if (typed is not null) V8Breakpoints.Remove(typed);
-                });
-            }
-            catch (Exception ex)
-            {
-                Logger.LogErrorMessage("SourcesVM", "Remove breakpoint failed", ex);
-            }
+            await RemoveBreakpointDefinitionAsync(existing);
+            return;
         }
-        else
+
+        var breakpoint = new V8BreakpointModel
         {
-            try
+            Key = key,
+            ScriptId = scriptId,
+            Url = displayUrl,
+            BindingUrl = bindingUrl,
+            LineNumber = cdpLine,
+            ColumnNumber = cdpColumn,
+            DisplayLineNumber = script?.IsOriginalSource == true ? Math.Max(0, line - 1) : null,
+            Kind = BreakpointKind,
+            Condition = BreakpointCondition.Trim(),
+            LogMessage = BreakpointLogMessage.Trim(),
+            IsEnabled = true
+        };
+        V8Breakpoints.Add(breakpoint);
+        SelectedBreakpoint = breakpoint;
+        RefreshLegacyBreakpoints();
+        await BindBreakpointAsync(breakpoint);
+    }
+
+    private async Task RestoreBreakpointBindingsAsync()
+    {
+        foreach (var breakpoint in V8Breakpoints.ToArray())
+        {
+            breakpoint.BreakpointId = "";
+            breakpoint.IsResolved = false;
+            breakpoint.ResolvedLineNumber = null;
+            breakpoint.ResolvedColumnNumber = null;
+            if (breakpoint.IsEnabled) await BindBreakpointAsync(breakpoint);
+        }
+        RefreshLegacyBreakpoints();
+    }
+
+    private async Task BindBreakpointAsync(V8BreakpointModel breakpoint)
+    {
+        if (!_cdpService.IsConnected || !IsDebuggerEnabled || !breakpoint.IsEnabled) return;
+        if (string.IsNullOrWhiteSpace(breakpoint.BindingUrl) && string.IsNullOrWhiteSpace(breakpoint.ScriptId)) return;
+
+        try
+        {
+            JsonObject parameters;
+            string method;
+            if (!string.IsNullOrWhiteSpace(breakpoint.BindingUrl))
             {
-                JsonObject p;
-                if (!string.IsNullOrWhiteSpace(url))
+                method = "Debugger.setBreakpointByUrl";
+                parameters = new JsonObject
                 {
-                    p = new JsonObject
-                    {
-                        ["url"] = url,
-                        ["lineNumber"] = cdpLine,
-                        ["columnNumber"] = cdpColumn
-                    };
-                }
-                else
+                    ["url"] = breakpoint.BindingUrl,
+                    ["lineNumber"] = breakpoint.LineNumber,
+                    ["columnNumber"] = breakpoint.ColumnNumber
+                };
+            }
+            else
+            {
+                method = "Debugger.setBreakpoint";
+                parameters = new JsonObject
                 {
-                    p = new JsonObject
+                    ["location"] = new JsonObject
                     {
-                        ["location"] = new JsonObject
-                        {
-                            ["scriptId"] = scriptId,
-                            ["lineNumber"] = cdpLine,
-                            ["columnNumber"] = cdpColumn
-                        }
-                    };
-                }
-                string condition = BreakpointCondition;
-                if (!string.IsNullOrWhiteSpace(condition))
-                {
-                    p["condition"] = condition;
-                }
-                var response = await _cdpService.SendCommandAsync(
-                    string.IsNullOrWhiteSpace(url) ? "Debugger.setBreakpoint" : "Debugger.setBreakpointByUrl", p);
-                if (response != null)
-                {
-                    string returnedId = response["breakpointId"]?.GetValue<string>() ?? key;
-                    _breakpointIds[key] = returnedId;
-                    var resolvedLocation = response["actualLocation"] as JsonObject ??
-                        (response["locations"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
-                    var breakpoint = new V8BreakpointModel
-                    {
-                        BreakpointId = returnedId,
-                        ScriptId = resolvedLocation?["scriptId"]?.GetValue<string>() ?? scriptId,
-                        Url = displayUrl,
-                        LineNumber = resolvedLocation?["lineNumber"]?.GetValue<int>() ?? cdpLine,
-                        ColumnNumber = resolvedLocation?["columnNumber"]?.GetValue<int>() ?? 0,
-                        DisplayLineNumber = script?.IsOriginalSource == true ? Math.Max(0, line - 1) : null,
-                        Condition = condition,
-                        IsResolved = resolvedLocation is not null
-                    };
-                    string displayStr = breakpoint.DisplayName;
-                    if (!string.IsNullOrWhiteSpace(condition))
-                    {
-                        displayStr = breakpoint.DisplayName;
+                        ["scriptId"] = breakpoint.ScriptId,
+                        ["lineNumber"] = breakpoint.LineNumber,
+                        ["columnNumber"] = breakpoint.ColumnNumber
                     }
-                    _breakpointDisplayStrings[key] = displayStr;
-                    Dispatcher.UIThread.Post(() =>
+                };
+            }
+
+            var condition = GetProtocolBreakpointCondition(breakpoint);
+            if (!string.IsNullOrWhiteSpace(condition)) parameters["condition"] = condition;
+
+            var response = await _cdpService.SendCommandAsync(method, parameters);
+            var resolvedLocation = response["actualLocation"] as JsonObject ??
+                (response["locations"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
+            breakpoint.BreakpointId = response["breakpointId"]?.GetValue<string>() ?? breakpoint.Key;
+            breakpoint.IsResolved = resolvedLocation is not null;
+            breakpoint.ResolvedLineNumber = resolvedLocation?["lineNumber"]?.GetValue<int>();
+            breakpoint.ResolvedColumnNumber = resolvedLocation?["columnNumber"]?.GetValue<int>();
+            RefreshLegacyBreakpoints();
+        }
+        catch (Exception ex)
+        {
+            breakpoint.BreakpointId = "";
+            breakpoint.IsResolved = false;
+            Logger.LogErrorMessage("SourcesVM", $"Unable to bind breakpoint {breakpoint.DisplayName}", ex);
+        }
+    }
+
+    private async Task UnbindBreakpointAsync(V8BreakpointModel breakpoint)
+    {
+        var breakpointId = breakpoint.BreakpointId;
+        breakpoint.BreakpointId = "";
+        breakpoint.IsResolved = false;
+        breakpoint.ResolvedLineNumber = null;
+        breakpoint.ResolvedColumnNumber = null;
+        if (!_cdpService.IsConnected || string.IsNullOrWhiteSpace(breakpointId)) return;
+
+        try
+        {
+            await _cdpService.SendCommandAsync("Debugger.removeBreakpoint", new JsonObject
+            {
+                ["breakpointId"] = breakpointId
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Unable to remove target breakpoint {BreakpointId}", breakpointId);
+        }
+    }
+
+    private async Task SetBreakpointEnabledAsync(V8BreakpointModel breakpoint, bool isEnabled)
+    {
+        if (breakpoint.IsEnabled == isEnabled) return;
+        breakpoint.IsEnabled = isEnabled;
+        if (isEnabled) await BindBreakpointAsync(breakpoint);
+        else await UnbindBreakpointAsync(breakpoint);
+        RefreshLegacyBreakpoints();
+    }
+
+    private async Task UpdateSelectedBreakpointAsync()
+    {
+        var breakpoint = SelectedBreakpoint;
+        if (breakpoint is null) return;
+        await UnbindBreakpointAsync(breakpoint);
+        breakpoint.Kind = BreakpointKind;
+        breakpoint.Condition = BreakpointCondition.Trim();
+        breakpoint.LogMessage = BreakpointLogMessage.Trim();
+        if (breakpoint.IsEnabled) await BindBreakpointAsync(breakpoint);
+        RefreshLegacyBreakpoints();
+    }
+
+    private async Task RemoveBreakpointDefinitionAsync(V8BreakpointModel breakpoint)
+    {
+        await UnbindBreakpointAsync(breakpoint);
+        V8Breakpoints.Remove(breakpoint);
+        if (ReferenceEquals(SelectedBreakpoint, breakpoint)) SelectedBreakpoint = null;
+        RefreshLegacyBreakpoints();
+    }
+
+    private async Task SetBreakpointsActiveAsync(bool active)
+    {
+        await TrySendOptionalDebuggerCommandAsync("Debugger.setBreakpointsActive", new JsonObject
+        {
+            ["active"] = active
+        });
+    }
+
+    private static string GetProtocolBreakpointCondition(V8BreakpointModel breakpoint) => breakpoint.Kind switch
+    {
+        V8BreakpointKinds.Conditional => breakpoint.Condition,
+        V8BreakpointKinds.Logpoint => BuildLogpointCondition(breakpoint.LogMessage),
+        _ => ""
+    };
+
+    internal static string BuildLogpointCondition(string message)
+    {
+        var arguments = new System.Collections.Generic.List<string>();
+        var literal = new StringBuilder();
+
+        void FlushLiteral()
+        {
+            if (literal.Length == 0) return;
+            arguments.Add(ToJavaScriptStringLiteral(literal.ToString()));
+            literal.Clear();
+        }
+
+        for (var index = 0; index < message.Length; index++)
+        {
+            var character = message[index];
+            if (character == '{' && index + 1 < message.Length && message[index + 1] == '{')
+            {
+                literal.Append('{');
+                index++;
+                continue;
+            }
+            if (character == '}' && index + 1 < message.Length && message[index + 1] == '}')
+            {
+                literal.Append('}');
+                index++;
+                continue;
+            }
+            if (character == '{')
+            {
+                var close = message.IndexOf('}', index + 1);
+                if (close > index + 1)
+                {
+                    var expression = message[(index + 1)..close].Trim();
+                    if (expression.Length > 0)
                     {
-                        V8Breakpoints.Add(breakpoint);
-                        if (!Breakpoints.Contains(displayStr))
-                        {
-                            Breakpoints.Add(displayStr);
-                        }
-                    });
+                        FlushLiteral();
+                        arguments.Add($"({expression})");
+                        index = close;
+                        continue;
+                    }
                 }
             }
-            catch (Exception ex)
-            {
-                Logger.LogErrorMessage("SourcesVM", "Set breakpoint failed", ex);
-            }
+            literal.Append(character);
         }
+        FlushLiteral();
+        return $"console.log({string.Join(", ", arguments)}), false";
+    }
+
+    private static string ToJavaScriptStringLiteral(string value) =>
+        $"\"{JsonEncodedText.Encode(value)}\"";
+
+    private static string CreateBreakpointKey(string url, int zeroBasedLine) => $"{url}:{zeroBasedLine}";
+
+    private void RefreshLegacyBreakpoints()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(RefreshLegacyBreakpoints);
+            return;
+        }
+        Breakpoints.Clear();
+        foreach (var breakpoint in V8Breakpoints) Breakpoints.Add(breakpoint.DisplayName);
     }
 
     public WorkspaceFileNode? FindFileBySuffix(string suffixPath)
@@ -1696,7 +1919,29 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         root["searchQuery"] = SearchQuery;
         root["searchCaseSensitive"] = SearchCaseSensitive;
         root["breakpointCondition"] = BreakpointCondition;
+        root["breakpointLogMessage"] = BreakpointLogMessage;
+        root["breakpointKind"] = BreakpointKind;
+        root["breakpointsActive"] = AreBreakpointsActive;
         root["selectedFilePath"] = SelectedFile?.Path;
+        var breakpoints = new JsonArray();
+        foreach (var breakpoint in V8Breakpoints)
+        {
+            breakpoints.Add(new JsonObject
+            {
+                ["key"] = breakpoint.Key,
+                ["url"] = breakpoint.Url,
+                ["bindingUrl"] = breakpoint.BindingUrl,
+                ["scriptId"] = breakpoint.ScriptId,
+                ["lineNumber"] = breakpoint.LineNumber,
+                ["columnNumber"] = breakpoint.ColumnNumber,
+                ["displayLineNumber"] = breakpoint.DisplayLineNumber,
+                ["condition"] = breakpoint.Condition,
+                ["logMessage"] = breakpoint.LogMessage,
+                ["kind"] = breakpoint.Kind,
+                ["enabled"] = breakpoint.IsEnabled
+            });
+        }
+        root["breakpoints"] = breakpoints;
         return root;
     }
 
@@ -1715,6 +1960,44 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (json.TryGetPropertyValue("breakpointCondition", out var bpNode) && bpNode != null)
         {
             BreakpointCondition = (string?)bpNode ?? "";
+        }
+        if (json.TryGetPropertyValue("breakpointLogMessage", out var logNode) && logNode != null)
+        {
+            BreakpointLogMessage = (string?)logNode ?? "";
+        }
+        if (json.TryGetPropertyValue("breakpointKind", out var kindNode) && kindNode != null)
+        {
+            BreakpointKind = (string?)kindNode ?? V8BreakpointKinds.Breakpoint;
+        }
+        if (json.TryGetPropertyValue("breakpointsActive", out var activeNode) && activeNode != null)
+        {
+            AreBreakpointsActive = (bool?)activeNode ?? true;
+        }
+        if (json["breakpoints"] is JsonArray breakpoints)
+        {
+            V8Breakpoints.Clear();
+            foreach (var breakpointNode in breakpoints.OfType<JsonObject>())
+            {
+                var url = breakpointNode["url"]?.GetValue<string>() ?? "";
+                var lineNumber = breakpointNode["lineNumber"]?.GetValue<int>() ?? 0;
+                var displayLineNumber = breakpointNode["displayLineNumber"]?.GetValue<int?>();
+                V8Breakpoints.Add(new V8BreakpointModel
+                {
+                    Key = breakpointNode["key"]?.GetValue<string>() ?? CreateBreakpointKey(url, displayLineNumber ?? lineNumber),
+                    Url = url,
+                    BindingUrl = breakpointNode["bindingUrl"]?.GetValue<string>() ?? url,
+                    ScriptId = breakpointNode["scriptId"]?.GetValue<string>() ?? "",
+                    LineNumber = lineNumber,
+                    ColumnNumber = breakpointNode["columnNumber"]?.GetValue<int>() ?? 0,
+                    DisplayLineNumber = displayLineNumber,
+                    Condition = breakpointNode["condition"]?.GetValue<string>() ?? "",
+                    LogMessage = breakpointNode["logMessage"]?.GetValue<string>() ?? "",
+                    Kind = breakpointNode["kind"]?.GetValue<string>() ?? V8BreakpointKinds.Breakpoint,
+                    IsEnabled = breakpointNode["enabled"]?.GetValue<bool>() ?? true
+                });
+            }
+            RefreshLegacyBreakpoints();
+            if (_cdpService.IsConnected && IsDebuggerEnabled) _ = RestoreBreakpointBindingsAsync();
         }
         if (json.TryGetPropertyValue("selectedFilePath", out var pathNode) && pathNode != null)
         {
