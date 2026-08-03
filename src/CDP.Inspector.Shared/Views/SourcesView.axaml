@@ -179,7 +179,7 @@
                     <map:MinimapTextEditor Name="txtSourceContent"
                                            IsVisible="{Binding Sources.IsSourceEditorVisible}"
                                            FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="12" Foreground="{DynamicResource Brush.Sources.Text}" Background="{DynamicResource Brush.Sources.Editor}" BorderThickness="0" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-                                           ToolTip.Tip="F9 breakpoint · F5 continue · F6 pause · F10 step over · F11 step into · Shift+F11 step out · Ctrl+Shift+E evaluate selection · Ctrl+S save/live edit"/>
+                                           ToolTip.Tip="F9 breakpoint · F5 continue · F6 pause · F10 step over · Ctrl+F10 run to cursor · F11 step into · Shift+F11 step out · Ctrl+Shift+E evaluate selection · Ctrl+S save/live edit"/>
                     <ScrollViewer IsVisible="{Binding Sources.IsMarkdownPreviewMode}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <md:MarkdownEditor Name="mdVisualEditor"
                                            Text="{Binding Sources.SelectedFileContent, Mode=TwoWay}"
@@ -216,6 +216,9 @@
                     <StackPanel Orientation="Horizontal" Spacing="2">
                         <Button Name="btnDebuggerResume" Classes="debug-action" Command="{Binding Sources.ResumeCommand}" ToolTip.Tip="Continue (F5)" AutomationProperties.Name="Continue debugging">
                             <PathIcon Data="{StaticResource PlayIcon}" Width="13" Height="13" Foreground="{DynamicResource Brush.Sources.Success}"/>
+                        </Button>
+                        <Button Name="btnDebuggerRunToCursor" Classes="debug-action" ToolTip.Tip="Run to cursor (Ctrl+F10)" AutomationProperties.Name="Run to cursor">
+                            <PathIcon Data="{StaticResource ArrowRightIcon}" Width="13" Height="13" Foreground="{DynamicResource Brush.Sources.Accent}"/>
                         </Button>
                         <Button Name="btnDebuggerPause" Classes="debug-action" Command="{Binding Sources.PauseCommand}" ToolTip.Tip="Pause (F6)" AutomationProperties.Name="Pause debugging">
                             <PathIcon Data="{StaticResource PauseIcon}" Width="13" Height="13" Foreground="{DynamicResource Brush.Sources.Paused}"/>

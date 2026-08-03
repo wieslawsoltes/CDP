@@ -447,6 +447,64 @@ public sealed class SourcesV8DebuggerTests
     }
 
     [AvaloniaFact]
+    public async Task RunToCursorMapsOriginalSourceAndSnapsToPossibleBreakpoint()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+        const string sourceMapJson = """
+            {
+              "version": 3,
+              "sources": ["source.ts"],
+              "sourcesContent": ["function compute(value: number) {\n  return value * 2;\n}\n"],
+              "names": [],
+              "mappings": "AAAA;AACA;AACA"
+            }
+            """;
+        service.Raise("Debugger.scriptParsed", new JsonObject
+        {
+            ["scriptId"] = "42",
+            ["url"] = "file:///app/source.js",
+            ["sourceMapURL"] = $"data:application/json,{Uri.EscapeDataString(sourceMapJson)}",
+            ["endLine"] = 3
+        });
+        await WaitUntilAsync(() => viewModel.RuntimeScripts.Count == 2);
+        var original = Assert.Single(viewModel.RuntimeScripts, script => script.IsOriginalSource);
+        viewModel.SelectedRuntimeScript = original;
+        service.Raise("Debugger.paused", new JsonObject
+        {
+            ["reason"] = "breakpoint",
+            ["callFrames"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["callFrameId"] = "frame-run-to-cursor",
+                    ["functionName"] = "compute",
+                    ["url"] = "file:///app/source.js",
+                    ["location"] = new JsonObject { ["scriptId"] = "42", ["lineNumber"] = 0, ["columnNumber"] = 0 },
+                    ["scopeChain"] = new JsonArray()
+                }
+            }
+        });
+        await WaitUntilAsync(() => viewModel.IsDebuggerPaused);
+        viewModel.SelectedRuntimeScript = original;
+
+        Assert.True(viewModel.RunToCursorCommand.CanExecute(2));
+        await viewModel.RunToCursorAsync(2);
+
+        var possible = Assert.Single(service.Commands, command => command.Method == "Debugger.getPossibleBreakpoints");
+        Assert.Equal("42", possible.Parameters?["start"]?["scriptId"]?.GetValue<string>());
+        Assert.Equal(1, possible.Parameters?["start"]?["lineNumber"]?.GetValue<int>());
+        var run = Assert.Single(service.Commands, command => command.Method == "Debugger.continueToLocation");
+        Assert.Equal("42", run.Parameters?["location"]?["scriptId"]?.GetValue<string>());
+        Assert.Equal(1, run.Parameters?["location"]?["lineNumber"]?.GetValue<int>());
+        Assert.Equal(7, run.Parameters?["location"]?["columnNumber"]?.GetValue<int>());
+        Assert.Equal("any", run.Parameters?["targetCallFrames"]?.GetValue<string>());
+        Assert.Equal("Running to source.ts:2", viewModel.LiveEditStatus);
+    }
+
+    [AvaloniaFact]
     public async Task ScriptParsedResolvedBreakpointsUpdateEditorState()
     {
         var service = new V8FakeCdpService();
@@ -619,6 +677,7 @@ public sealed class SourcesV8DebuggerTests
                     ["result"] = new JsonObject { ["type"] = "number", ["value"] = 10 }
                 },
                 "Debugger.setScriptSource" => new JsonObject { ["status"] = "Ok" },
+                "Debugger.getPossibleBreakpoints" => GetPossibleBreakpoints(parameters),
                 "Debugger.restartFrame" => new JsonObject(),
                 "Debugger.getStackTrace" => new JsonObject
                 {
@@ -647,6 +706,23 @@ public sealed class SourcesV8DebuggerTests
                 },
                 _ => new JsonObject()
             });
+        }
+
+        private static JsonObject GetPossibleBreakpoints(JsonObject? parameters)
+        {
+            var start = parameters?["start"] as JsonObject;
+            return new JsonObject
+            {
+                ["locations"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["scriptId"] = start?["scriptId"]?.GetValue<string>() ?? "",
+                        ["lineNumber"] = start?["lineNumber"]?.GetValue<int>() ?? 0,
+                        ["columnNumber"] = 7
+                    }
+                }
+            };
         }
 
         private JsonObject GetProperties(JsonObject? parameters)

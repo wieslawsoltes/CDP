@@ -57,6 +57,10 @@ public class ViewsLayoutTests
             var memoryView = new MemoryView();
             Assert.NotNull(memoryView);
 
+            var sourcesView = new SourcesView();
+            Assert.NotNull(sourcesView);
+            Assert.NotNull(sourcesView.FindControl<Button>("btnDebuggerRunToCursor"));
+
             var applicationView = new ApplicationView();
             Assert.NotNull(applicationView);
 

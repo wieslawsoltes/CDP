@@ -387,6 +387,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public System.Windows.Input.ICommand StepOverCommand { get; }
     public System.Windows.Input.ICommand StepIntoCommand { get; }
     public System.Windows.Input.ICommand StepOutCommand { get; }
+    public System.Windows.Input.ICommand RunToCursorCommand { get; }
     public System.Windows.Input.ICommand ToggleBreakpointCommand { get; }
     public System.Windows.Input.ICommand EvaluateOnCallFrameCommand { get; }
     public System.Windows.Input.ICommand ApplySourceChangesCommand { get; }
@@ -670,6 +671,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             () => _cdpService.IsConnected && IsDebuggerPaused
         );
 
+        RunToCursorCommand = new RelayCommand<int>(
+            async (line) => await RunToCursorAsync(line),
+            (line) => _cdpService.IsConnected && IsDebuggerPaused && SelectedRuntimeScript is not null && line > 0
+        );
+
         ToggleBreakpointCommand = new RelayCommand<int>(
             async (line) => await ToggleBreakpointAsync(line),
             (line) => _cdpService.IsConnected && IsDebuggerEnabled &&
@@ -826,6 +832,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (StepOverCommand != null) ((RelayCommand)StepOverCommand).RaiseCanExecuteChanged();
         if (StepIntoCommand != null) ((RelayCommand)StepIntoCommand).RaiseCanExecuteChanged();
         if (StepOutCommand != null) ((RelayCommand)StepOutCommand).RaiseCanExecuteChanged();
+        if (RunToCursorCommand != null) ((RelayCommand<int>)RunToCursorCommand).RaiseCanExecuteChanged();
         if (ToggleBreakpointCommand != null) ((RelayCommand<int>)ToggleBreakpointCommand).RaiseCanExecuteChanged();
         if (EvaluateOnCallFrameCommand != null) ((RelayCommand)EvaluateOnCallFrameCommand).RaiseCanExecuteChanged();
         if (ApplySourceChangesCommand != null) ((RelayCommand<string>)ApplySourceChangesCommand).RaiseCanExecuteChanged();
@@ -1918,6 +1925,74 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         catch (Exception ex)
         {
             Logger.LogErrorMessage("SourcesVM", "StepOut failed", ex);
+        }
+    }
+
+    public async Task RunToCursorAsync(int line)
+    {
+        if (!_cdpService.IsConnected || !IsDebuggerPaused || line <= 0) return;
+        var script = SelectedRuntimeScript;
+        if (script is null) return;
+
+        var scriptId = script.IsOriginalSource ? script.GeneratedScriptId : script.ScriptId;
+        if (string.IsNullOrWhiteSpace(scriptId)) return;
+        var targetLine = line - 1;
+        var targetColumn = 0;
+        if (script.IsOriginalSource)
+        {
+            var generated = script.SourceMap?.FindGeneratedLocation(script.SourceIndex, targetLine);
+            if (generated is null)
+            {
+                LiveEditStatus = "Run to cursor unavailable: source position is not mapped";
+                return;
+            }
+            targetLine = generated.GeneratedLine;
+            targetColumn = generated.GeneratedColumn;
+        }
+
+        var location = new JsonObject
+        {
+            ["scriptId"] = scriptId,
+            ["lineNumber"] = targetLine,
+            ["columnNumber"] = targetColumn
+        };
+        try
+        {
+            try
+            {
+                var possible = await _cdpService.SendCommandAsync("Debugger.getPossibleBreakpoints", new JsonObject
+                {
+                    ["start"] = location.DeepClone(),
+                    ["end"] = new JsonObject
+                    {
+                        ["scriptId"] = scriptId,
+                        ["lineNumber"] = targetLine + 1,
+                        ["columnNumber"] = 0
+                    },
+                    ["restrictToFunction"] = false
+                });
+                if (possible["locations"] is JsonArray locations &&
+                    locations.OfType<JsonObject>().FirstOrDefault() is { } resolved)
+                {
+                    location = (JsonObject)resolved.DeepClone();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogDebug(ex, "Debugger.getPossibleBreakpoints unavailable; using the mapped cursor location.");
+            }
+
+            LiveEditStatus = $"Running to {script.DisplayName}:{line}";
+            await _cdpService.SendCommandAsync("Debugger.continueToLocation", new JsonObject
+            {
+                ["location"] = location,
+                ["targetCallFrames"] = "any"
+            });
+        }
+        catch (Exception ex)
+        {
+            LiveEditStatus = $"Run to cursor failed: {ex.Message}";
+            Logger.LogErrorMessage("SourcesVM", "Run to cursor failed", ex);
         }
     }
 

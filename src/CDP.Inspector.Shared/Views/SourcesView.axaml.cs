@@ -170,6 +170,12 @@ public partial class SourcesView : UserControl
             btnToggleBp.Click += (sender, args) => ToggleBreakpointAtCaret();
         }
 
+        var btnRunToCursor = this.FindControl<Button>("btnDebuggerRunToCursor");
+        if (btnRunToCursor != null)
+        {
+            btnRunToCursor.Click += (sender, args) => RunToCursorAtCaret();
+        }
+
         var toggleMd = BtnToggleMarkdownMode;
         if (toggleMd != null)
         {
@@ -348,6 +354,16 @@ public partial class SourcesView : UserControl
                     vm.Sources.ToggleBreakpointCommand.Execute(currentLine);
                 }
             }
+        }
+    }
+
+    private void RunToCursorAtCaret()
+    {
+        if (DataContext is not MainWindowViewModel vm || txtSourceContent.Document is null) return;
+        var currentLine = txtSourceContent.TextArea.Caret.Line;
+        if (vm.Sources.RunToCursorCommand.CanExecute(currentLine))
+        {
+            vm.Sources.RunToCursorCommand.Execute(currentLine);
         }
     }
 
@@ -530,9 +546,16 @@ public partial class SourcesView : UserControl
                 e.Handled = true;
                 return;
             }
-            if (e.Key == Key.F10 && vm.Sources.StepOverCommand.CanExecute(null))
+            if (e.Key == Key.F10)
             {
-                vm.Sources.StepOverCommand.Execute(null);
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+                {
+                    RunToCursorAtCaret();
+                }
+                else if (vm.Sources.StepOverCommand.CanExecute(null))
+                {
+                    vm.Sources.StepOverCommand.Execute(null);
+                }
                 e.Handled = true;
                 return;
             }
