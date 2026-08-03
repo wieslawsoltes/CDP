@@ -37,26 +37,37 @@ jobs:
       shell: bash
       run: |
         FILTER="Category!=Appium&Category!=Selenium&Category!=OSAutomation"
+        run_test_project() {
+          local project="$1"
+          local filter="$2"
+          local test_args=(
+            "$project" -c Release --no-build --no-restore
+            --verbosity normal
+            --filter "$filter"
+            --blame-hang
+            --blame-hang-timeout 60s
+            --blame-hang-dump-type none
+            --results-directory TestResults
+            --logger "console;verbosity=detailed")
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            xvfb-run --auto-servernum dotnet test "${test_args[@]}"
+          else
+            dotnet test "${test_args[@]}"
+          fi
+        }
         for proj in tests/*/*.csproj; do
           echo "=== Executing tests for $proj ==="
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            xvfb-run --auto-servernum dotnet test "$proj" -c Release --no-build --no-restore \
-              --verbosity normal \
-              --filter "$FILTER" \
-              --blame-hang \
-              --blame-hang-timeout 60s \
-              --blame-hang-dump-type none \
-              --results-directory TestResults \
-              --logger "console;verbosity=detailed" || exit 1
+          if [[ "$proj" == "tests/CDP.Inspector.Shared.Tests/CDP.Inspector.Shared.Tests.csproj" ]]; then
+            # The real Node/Inspector session owns a long-lived WebSocket and an
+            # Avalonia window. Give it a fresh testhost so its native teardown
+            # cannot stall an unrelated headless layout test on macOS.
+            run_test_project "$proj" \
+              "$FILTER&FullyQualifiedName!~V8InspectorAppIntegrationTests" || exit 1
+            echo "=== Executing isolated V8 Inspector app integration for $proj ==="
+            run_test_project "$proj" \
+              "$FILTER&FullyQualifiedName~V8InspectorAppIntegrationTests" || exit 1
           else
-            dotnet test "$proj" -c Release --no-build --no-restore \
-              --verbosity normal \
-              --filter "$FILTER" \
-              --blame-hang \
-              --blame-hang-timeout 60s \
-              --blame-hang-dump-type none \
-              --results-directory TestResults \
-              --logger "console;verbosity=detailed" || exit 1
+            run_test_project "$proj" "$FILTER" || exit 1
           fi
         done
 
