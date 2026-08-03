@@ -710,7 +710,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
         _sourceMutationEngine = new V8SourceMutationEngine(
-            sourceRegenerators ?? [new EsbuildV8SourceRegenerator()]);
+            sourceRegenerators ?? V8SourceRegeneratorCatalog.CreateDefault());
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
 
