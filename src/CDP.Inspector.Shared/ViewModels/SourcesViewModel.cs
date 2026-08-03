@@ -25,7 +25,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private const string HoverObjectGroup = "cdp-inspector-hover";
     private const string VariableEditObjectGroup = "cdp-inspector-variable-edit";
     private const string WatchObjectGroup = "cdp-inspector-watch";
-    private static readonly V8SourceMutationEngine SourceMutationEngine = new();
+    private readonly V8SourceMutationEngine _sourceMutationEngine;
     private const int MaximumVariableDepth = 32;
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
@@ -622,9 +622,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
     }
 
-    public SourcesViewModel(ICdpService cdpService)
+    public SourcesViewModel(ICdpService cdpService, IEnumerable<IV8SourceRegenerator>? sourceRegenerators = null)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
+        _sourceMutationEngine = new V8SourceMutationEngine(
+            sourceRegenerators ?? [new EsbuildV8SourceRegenerator()]);
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
 
@@ -2337,6 +2339,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             var nextGeneratedSource = content;
             V8SourceMap? previousSourceMap = null;
             V8SourceMap? updatedSourceMap = null;
+            var mutationKind = V8SourceMutationKind.None;
             var previousOriginalSource = script.SourceContent;
             if (script.IsOriginalSource)
             {
@@ -2347,12 +2350,14 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     return;
                 }
                 var originalSource = previousOriginalSource ?? await ReadOriginalSourceAsync(script.Url);
-                var mutation = SourceMutationEngine.CreatePatch(
+                var mutation = await _sourceMutationEngine.CreatePatchAsync(
                     previousSourceMap,
                     script.SourceIndex,
                     originalSource,
                     content,
-                    previousGeneratedSource);
+                    previousGeneratedSource,
+                    script.Url,
+                    script.GeneratedUrl);
                 if (!mutation.CanApply)
                 {
                     LiveEditStatus = $"Live edit unavailable: {mutation.Message}";
@@ -2365,6 +2370,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 }
                 nextGeneratedSource = mutation.GeneratedSource;
                 updatedSourceMap = mutation.UpdatedSourceMap;
+                mutationKind = mutation.Kind;
             }
 
             var validation = await SetScriptSourceAsync(generatedScriptId, nextGeneratedSource, dryRun: true);
@@ -2417,7 +2423,9 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             }
 
             LiveEditStatus = script.IsOriginalSource
-                ? "Source-mapped live edit applied"
+                ? mutationKind == V8SourceMutationKind.Regenerated
+                    ? "Regenerated source live edit applied"
+                    : "Source-mapped live edit applied"
                 : "Live edit applied";
             SelectedFileContent = content;
 

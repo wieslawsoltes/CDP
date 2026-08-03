@@ -3,6 +3,7 @@ using System.Text.Json.Nodes;
 using Avalonia.Headless.XUnit;
 using CdpInspectorApp.Models;
 using CdpInspectorApp.ViewModels;
+using Chrome.DevTools.Protocol.Inspector;
 
 namespace Avalonia.Diagnostics.Cdp.Tests;
 
@@ -403,6 +404,49 @@ public sealed class SourcesV8DebuggerTests
     }
 
     [AvaloniaFact]
+    public async Task CompilerAdapterRegeneratesTransformedOriginalThroughV8ValidationAndApply()
+    {
+        const string original = "const value: number = 2;\nconsole.log(value);\n";
+        const string edited = "const value: number = 3;\nconsole.log(value);\nconsole.log('again');\n";
+        const string generated = "const value = 2;\nconsole.log(value);\n";
+        const string regenerated = "const value = 3;\nconsole.log(value);\nconsole.log('again');\n";
+        var service = new V8FakeCdpService { GeneratedScriptSource = generated };
+        var regenerator = new FakeSourceRegenerator(regenerated);
+        var viewModel = new SourcesViewModel(service, [regenerator]);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+        var sourceMapJson = $$"""
+            {
+              "version": 3,
+              "sources": ["source.ts"],
+              "sourcesContent": [{{System.Text.Json.JsonSerializer.Serialize(original)}}],
+              "names": [],
+              "mappings": "AAAA;AACA"
+            }
+            """;
+        service.Raise("Debugger.scriptParsed", new JsonObject
+        {
+            ["scriptId"] = "42",
+            ["url"] = "file:///app/source.js",
+            ["sourceMapURL"] = $"data:application/json,{Uri.EscapeDataString(sourceMapJson)}",
+            ["endLine"] = 2
+        });
+
+        await WaitUntilAsync(() => viewModel.RuntimeScripts.Count == 2);
+        viewModel.SelectedRuntimeScript = Assert.Single(viewModel.RuntimeScripts, script => script.IsOriginalSource);
+        await WaitUntilAsync(() => viewModel.SelectedFileContent == original);
+        await viewModel.ApplySourceChangesAsync(edited);
+
+        Assert.Equal("Regenerated source live edit applied", viewModel.LiveEditStatus);
+        Assert.Equal(edited, viewModel.SelectedFileContent);
+        Assert.Equal(edited, regenerator.Request!.EditedSource);
+        var liveEdits = service.Commands.Where(command => command.Method == "Debugger.setScriptSource").ToArray();
+        Assert.Equal(2, liveEdits.Length);
+        Assert.All(liveEdits, liveEdit =>
+            Assert.Equal(regenerated, liveEdit.Parameters?["scriptSource"]?.GetValue<string>()));
+    }
+
+    [AvaloniaFact]
     public async Task ScriptParsedResolvedBreakpointsUpdateEditorState()
     {
         var service = new V8FakeCdpService();
@@ -478,6 +522,40 @@ public sealed class SourcesV8DebuggerTests
     {
         for (var attempt = 0; attempt < 100 && !condition(); attempt++) await Task.Delay(10);
         Assert.True(condition());
+    }
+
+    private sealed class FakeSourceRegenerator : IV8SourceRegenerator
+    {
+        private readonly string _generatedSource;
+
+        public FakeSourceRegenerator(string generatedSource)
+        {
+            _generatedSource = generatedSource;
+        }
+
+        public string Name => "Fake TypeScript";
+        public V8SourceRegenerationRequest? Request { get; private set; }
+        public bool CanRegenerate(V8SourceRegenerationRequest request) => request.SourceUrl.EndsWith(".ts", StringComparison.Ordinal);
+
+        public ValueTask<V8SourceRegenerationResult> RegenerateAsync(
+            V8SourceRegenerationRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Request = request;
+            var map = V8SourceMap.Parse($$"""
+                {
+                  "version": 3,
+                  "sources": ["source.ts"],
+                  "sourcesContent": [{{System.Text.Json.JsonSerializer.Serialize(request.EditedSource)}}],
+                  "names": [],
+                  "mappings": "AAAA;AACA;AACA"
+                }
+                """);
+            return ValueTask.FromResult(V8SourceRegenerationResult.Regenerated(
+                _generatedSource,
+                map,
+                "Fake TypeScript compilation completed."));
+        }
     }
 
     private sealed class V8FakeCdpService : ICdpService

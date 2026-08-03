@@ -147,6 +147,14 @@ V8 Inspector supplies generated JavaScript locations. Debugging the original Rea
 
 With those pieces, Chrome DevTools can set source-mapped breakpoints, inspect scopes, step through original React/TypeScript, evaluate expressions, view console output, and use V8 CPU/heap profiling. An IDE can attach only if its debugger supports the same CDP/V8 endpoint and source-map path mapping; the transport itself is IDE-neutral.
 
+### Editing original JS/TS and other mapped languages
+
+The Inspector Sources editor can send direct JavaScript changes to `Debugger.setScriptSource`. For an original source represented by a source map, `V8SourceMutationEngine` first uses a dependency-free mapping-preserving patch when the generated window is textually identical. Transformed or multiline edits use registered `IV8SourceRegenerator` compiler adapters, which receive the original edit, current generated script, source URLs, and current map and must return regenerated JavaScript plus a map containing the edited `sourcesContent`.
+
+The Inspector registers `EsbuildV8SourceRegenerator` by default for single-source `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, and `.cts` maps. It finds esbuild in the source project's `node_modules/.bin`, `CDP_ESBUILD_PATH`, or `PATH`, and uses the nearest `tsconfig.json` when present. Every result still goes through V8 dry-run validation before apply; source maps and breakpoints are updated together, and a breakpoint-rebind failure rolls the script and map back.
+
+Bundled or framework-specific output cannot be reproduced reliably from a source map alone because maps contain positional mappings, not compiler/bundler configuration. Hosts can inject an `IV8SourceRegenerator` for TypeScript, Babel, SWC, a React bundler, or another source language. Such an adapter should rerun the owning pipeline with an in-memory overlay for the edited file and return the complete generated script/map. The mutation engine rejects compiler failures, incompatible maps, and maps whose `sourcesContent` does not match the requested edit.
+
 ## Security and failure behavior
 
 - The server is disabled by default and binds to `127.0.0.1` by default.
