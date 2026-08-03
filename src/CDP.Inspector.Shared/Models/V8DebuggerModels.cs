@@ -18,21 +18,58 @@ public sealed class V8ScriptModel
     public int EndColumn { get; init; }
     public int Length { get; init; }
     public bool IsModule { get; init; }
+    public string ScriptLanguage { get; init; } = "";
+    public string BuildId { get; init; } = "";
+    public int CodeOffset { get; init; }
+    public string EmbedderName { get; init; } = "";
+    public bool IsLiveEdit { get; init; }
+    public IReadOnlyList<V8DebugSymbolModel> DebugSymbols { get; init; } = Array.Empty<V8DebugSymbolModel>();
     public bool IsOriginalSource { get; init; }
     public string GeneratedScriptId { get; init; } = "";
     public string GeneratedUrl { get; init; } = "";
     public int SourceIndex { get; init; } = -1;
     public string? SourceContent { get; set; }
     public V8SourceMap? SourceMap { get; set; }
+    public V8WasmDisassembly? WasmDisassembly { get; set; }
+    public int WasmBytecodeSize { get; set; }
     public bool IsIgnoredSource { get; init; }
     public bool HasSourceMap => !string.IsNullOrWhiteSpace(SourceMapUrl);
+    public bool IsWebAssembly => ScriptLanguage.Equals("WebAssembly", StringComparison.OrdinalIgnoreCase);
+    public string LanguageBadge => GetLanguageBadge();
     public string DisplayName => string.IsNullOrWhiteSpace(Url)
         ? $"(anonymous script {ScriptId})"
         : Uri.TryCreate(Url, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.LocalPath)
             ? Path.GetFileName(uri.LocalPath)
             : Path.GetFileName(Url.Replace('\\', '/'));
     public string LocationDisplay => $"{DisplayName}:{StartLine + 1}{(IsIgnoredSource ? " · ignored" : "")}";
+    public string DetailDisplay => string.Join(" · ", new[]
+    {
+        IsWebAssembly ? "WebAssembly" : IsOriginalSource ? "source mapped" : "JavaScript",
+        DebugSymbols.Count == 0 ? null : string.Join(", ", DebugSymbols.Select(symbol => symbol.Type)),
+        string.IsNullOrWhiteSpace(BuildId) ? null : $"build {BuildId}",
+        Url
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private string GetLanguageBadge()
+    {
+        if (IsWebAssembly) return "WASM";
+        var extension = Path.GetExtension(Url).TrimStart('.').ToUpperInvariant();
+        return extension switch
+        {
+            "MTS" or "CTS" => "TS",
+            "MJS" or "CJS" => "JS",
+            { Length: > 0 and <= 6 } => extension,
+            _ => "JS"
+        };
+    }
+
     public override string ToString() => DisplayName;
+}
+
+public sealed class V8DebugSymbolModel
+{
+    public string Type { get; init; } = "";
+    public string ExternalUrl { get; init; } = "";
 }
 
 public sealed class V8ExecutionContextModel : ViewModelBase
@@ -82,8 +119,12 @@ public sealed class V8CallFrameModel
     public IReadOnlyList<V8ScopeModel> ScopeChain { get; init; } = Array.Empty<V8ScopeModel>();
     public bool CanInspect => !string.IsNullOrWhiteSpace(CallFrameId) && !IsAsyncBoundary;
     public bool CanSetReturnValue => CanInspect && HasReturnValue;
+    public bool IsWebAssembly => Url.StartsWith("wasm:", StringComparison.OrdinalIgnoreCase) ||
+        Url.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase);
     public string DisplayName => IsAsyncBoundary
         ? $"— async: {(string.IsNullOrWhiteSpace(AsyncDescription) ? "continuation" : AsyncDescription)} —"
+        : IsWebAssembly
+            ? $"{(IsAsyncFrame ? "async · " : "")}{(string.IsNullOrWhiteSpace(FunctionName) ? "(anonymous)" : FunctionName)} ({GetFileName()}:+0x{ColumnNumber:x})"
         : $"{(IsAsyncFrame ? "async · " : "")}{(string.IsNullOrWhiteSpace(FunctionName) ? "(anonymous)" : FunctionName)} ({GetFileName()}:{LineNumber + 1}:{ColumnNumber + 1})";
 
     private string GetFileName()
@@ -254,9 +295,11 @@ public sealed class V8BreakpointModel : ViewModelBase
             if (RaiseAndSetIfChanged(ref _breakpointId, value)) RaiseDisplayProperties();
         }
     }
-    public string ScriptId { get; init; } = "";
+    public string ScriptId { get; set; } = "";
     public string Url { get; init; } = "";
     public string BindingUrl { get; init; } = "";
+    public bool IsWebAssembly { get; init; }
+    public string BuildId { get; init; } = "";
     public string FunctionExpression { get; init; } = "";
     public string Instrumentation { get; init; } = "";
     public int LineNumber { get; set; }
@@ -324,6 +367,7 @@ public sealed class V8BreakpointModel : ViewModelBase
     {
         V8BreakpointKinds.FunctionCall => $"Function: {FunctionExpression}{GetDetailSuffix()} [{Status}]",
         V8BreakpointKinds.Instrumentation => $"Instrumentation: {V8InstrumentationBreakpoints.GetDisplayName(Instrumentation)} [{Status}]",
+        _ when IsWebAssembly => $"{GetFileName()}:+0x{ColumnNumber:x}{GetDetailSuffix()} [{Status}]",
         _ => $"{GetFileName()}:{(DisplayLineNumber ?? LineNumber) + 1}:{ColumnNumber + 1}{GetDetailSuffix()} [{Status}]"
     };
 

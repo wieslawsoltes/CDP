@@ -247,6 +247,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             if (!RaiseAndSetIfChanged(ref _selectedRuntimeScript, value)) return;
 
+            LiveEditStatus = "";
+            LiveEditPreview = "";
             if (value is not null)
             {
                 if (_selectedFile is not null)
@@ -258,8 +260,6 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 }
                 _ = LoadRuntimeScriptSourceAsync(value);
             }
-            LiveEditStatus = "";
-            LiveEditPreview = "";
             OnPropertyChanged(nameof(CanEditCurrentSource));
             if (ApplySourceChangesCommand != null) ((RelayCommand<string>)ApplySourceChangesCommand).RaiseCanExecuteChanged();
             RaiseDebuggerCommandCanExecuteChanged();
@@ -558,7 +558,7 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
 
     public bool CanEditCurrentSource =>
         (SelectedFile != null && !SelectedFile.IsDirectory && !IsDocumentFile) ||
-        (SelectedRuntimeScript != null && IsDebuggerEnabled &&
+        (SelectedRuntimeScript != null && IsDebuggerEnabled && !SelectedRuntimeScript.IsWebAssembly &&
             (!SelectedRuntimeScript.IsOriginalSource ||
              SelectedRuntimeScript.SourceMap is not null &&
              !string.IsNullOrWhiteSpace(SelectedRuntimeScript.GeneratedScriptId)));
@@ -1214,7 +1214,13 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             EndLine = parameters["endLine"]?.GetValue<int>() ?? 0,
             EndColumn = parameters["endColumn"]?.GetValue<int>() ?? 0,
             Length = parameters["length"]?.GetValue<int>() ?? 0,
-            IsModule = parameters["isModule"]?.GetValue<bool>() ?? false
+            IsModule = parameters["isModule"]?.GetValue<bool>() ?? false,
+            ScriptLanguage = parameters["scriptLanguage"]?.GetValue<string>() ?? "",
+            BuildId = parameters["buildId"]?.GetValue<string>() ?? "",
+            CodeOffset = parameters["codeOffset"]?.GetValue<int>() ?? 0,
+            EmbedderName = parameters["embedderName"]?.GetValue<string>() ?? "",
+            IsLiveEdit = parameters["isLiveEdit"]?.GetValue<bool>() ?? false,
+            DebugSymbols = ReadDebugSymbols(parameters["debugSymbols"] as JsonArray)
         };
 
         Dispatcher.UIThread.Post(() =>
@@ -1222,6 +1228,20 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             var existing = RuntimeScripts.FirstOrDefault(item => item.ScriptId == script.ScriptId);
             if (existing is not null) RuntimeScripts.Remove(existing);
             RuntimeScripts.Add(script);
+            if (script.IsWebAssembly)
+            {
+                foreach (var breakpoint in V8Breakpoints.Where(item =>
+                    item.IsWebAssembly &&
+                    (item.BuildId.Length > 0 && item.BuildId == script.BuildId ||
+                     item.BuildId.Length == 0 && item.Url == script.Url)))
+                {
+                    breakpoint.ScriptId = script.ScriptId;
+                    if (breakpoint.IsEnabled && string.IsNullOrWhiteSpace(breakpoint.BreakpointId))
+                    {
+                        _ = BindBreakpointAsync(breakpoint);
+                    }
+                }
+            }
         });
         if (parameters["resolvedBreakpoints"] is JsonArray resolvedBreakpoints)
         {
@@ -1231,6 +1251,16 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             }
         }
         if (script.HasSourceMap) _ = LoadSourceMapAsync(script);
+    }
+
+    private static IReadOnlyList<V8DebugSymbolModel> ReadDebugSymbols(JsonArray? symbols)
+    {
+        if (symbols is null) return Array.Empty<V8DebugSymbolModel>();
+        return symbols.OfType<JsonObject>().Select(symbol => new V8DebugSymbolModel
+        {
+            Type = symbol["type"]?.GetValue<string>() ?? "",
+            ExternalUrl = symbol["externalURL"]?.GetValue<string>() ?? ""
+        }).ToArray();
     }
 
     private async Task LoadSourceMapAsync(V8ScriptModel generatedScript)
@@ -1500,6 +1530,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 SelectedFileContent = script.SourceContent ?? await ReadOriginalSourceAsync(script.Url);
                 return;
             }
+            if (script.IsWebAssembly)
+            {
+                await LoadWasmDisassemblyAsync(script);
+                return;
+            }
             var response = await _cdpService.SendCommandAsync("Debugger.getScriptSource", new JsonObject
             {
                 ["scriptId"] = script.ScriptId
@@ -1517,6 +1552,62 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         finally
         {
             IsLoadingContent = false;
+        }
+    }
+
+    private async Task LoadWasmDisassemblyAsync(V8ScriptModel script)
+    {
+        if (script.WasmDisassembly is not null)
+        {
+            if (SelectedRuntimeScript?.ScriptId == script.ScriptId)
+            {
+                SelectedFileContent = script.WasmDisassembly.FormatText();
+                LiveEditStatus = $"WebAssembly disassembly · {script.WasmDisassembly.TotalNumberOfLines:n0} lines · read-only";
+            }
+            return;
+        }
+
+        var source = await _cdpService.SendCommandAsync("Debugger.getScriptSource", new JsonObject
+        {
+            ["scriptId"] = script.ScriptId
+        });
+        var encodedBytecode = source["bytecode"]?.GetValue<string>() ?? "";
+        if (encodedBytecode.Length > 0)
+        {
+            try
+            {
+                script.WasmBytecodeSize = Convert.FromBase64String(encodedBytecode).Length;
+            }
+            catch (FormatException)
+            {
+                Logger.LogWarning("V8 returned invalid base64 WebAssembly bytecode for script {ScriptId}", script.ScriptId);
+            }
+        }
+
+        var initial = await _cdpService.SendCommandAsync("Debugger.disassembleWasmModule", new JsonObject
+        {
+            ["scriptId"] = script.ScriptId
+        });
+        var builder = V8WasmDisassemblyBuilder.FromInitialResponse(initial);
+        while (builder.NeedsMoreChunks)
+        {
+            var receivedBefore = builder.ReceivedLineCount;
+            var next = await _cdpService.SendCommandAsync("Debugger.nextWasmDisassemblyChunk", new JsonObject
+            {
+                ["streamId"] = builder.StreamId
+            });
+            builder.AppendNextResponse(next);
+            if (builder.ReceivedLineCount == receivedBefore)
+            {
+                throw new FormatException("V8 ended the WebAssembly disassembly stream before all lines were received.");
+            }
+        }
+
+        script.WasmDisassembly = builder.Build();
+        if (SelectedRuntimeScript?.ScriptId == script.ScriptId)
+        {
+            SelectedFileContent = script.WasmDisassembly.FormatText();
+            LiveEditStatus = $"WebAssembly disassembly · {script.WasmDisassembly.TotalNumberOfLines:n0} lines · read-only";
         }
     }
 
@@ -1558,8 +1649,11 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (script is not null)
         {
             SelectedRuntimeScript = script;
-            ActiveDebugLine = frame.LineNumber + 1;
-            PendingScrollLine = frame.LineNumber + 1;
+            var line = script.IsWebAssembly && script.WasmDisassembly is not null
+                ? script.WasmDisassembly.FindLineIndex(frame.ColumnNumber) + 1
+                : frame.LineNumber + 1;
+            ActiveDebugLine = line;
+            PendingScrollLine = line;
             return;
         }
 
@@ -2221,7 +2315,17 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         if (string.IsNullOrWhiteSpace(scriptId)) return;
         var targetLine = line - 1;
         var targetColumn = 0;
-        if (script.IsOriginalSource)
+        if (script.IsWebAssembly)
+        {
+            if (script.WasmDisassembly is null || targetLine >= script.WasmDisassembly.TotalNumberOfLines)
+            {
+                LiveEditStatus = "Run to cursor unavailable: WebAssembly line is not mapped";
+                return;
+            }
+            targetColumn = script.WasmDisassembly.GetBytecodeOffset(targetLine);
+            targetLine = 0;
+        }
+        else if (script.IsOriginalSource)
         {
             var generated = script.SourceMap?.FindGeneratedLocation(script.SourceIndex, targetLine);
             if (generated is null)
@@ -2243,15 +2347,23 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         {
             try
             {
-                var possible = await _cdpService.SendCommandAsync("Debugger.getPossibleBreakpoints", new JsonObject
-                {
-                    ["start"] = location.DeepClone(),
-                    ["end"] = new JsonObject
+                var end = script.IsWebAssembly
+                    ? new JsonObject
+                    {
+                        ["scriptId"] = scriptId,
+                        ["lineNumber"] = 0,
+                        ["columnNumber"] = GetWasmRangeEnd(script.WasmDisassembly!, line - 1)
+                    }
+                    : new JsonObject
                     {
                         ["scriptId"] = scriptId,
                         ["lineNumber"] = targetLine + 1,
                         ["columnNumber"] = 0
-                    },
+                    };
+                var possible = await _cdpService.SendCommandAsync("Debugger.getPossibleBreakpoints", new JsonObject
+                {
+                    ["start"] = location.DeepClone(),
+                    ["end"] = end,
                     ["restrictToFunction"] = false
                 });
                 if (possible["locations"] is JsonArray locations &&
@@ -2279,6 +2391,15 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         }
     }
 
+    private static int GetWasmRangeEnd(V8WasmDisassembly disassembly, int lineIndex)
+    {
+        if (lineIndex + 1 < disassembly.BytecodeOffsets.Count)
+        {
+            return Math.Max(disassembly.GetBytecodeOffset(lineIndex) + 1, disassembly.GetBytecodeOffset(lineIndex + 1));
+        }
+        return disassembly.GetBytecodeOffset(lineIndex) + 1;
+    }
+
     public async Task ToggleBreakpointAsync(int line)
     {
         if (!_cdpService.IsConnected || !IsDebuggerEnabled ||
@@ -2293,7 +2414,14 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
         string scriptId = script?.ScriptId ?? "";
         int cdpLine = Math.Max(0, line - 1);
         int cdpColumn = 0;
-        if (script?.IsOriginalSource == true)
+        if (script?.IsWebAssembly == true)
+        {
+            if (script.WasmDisassembly is null || cdpLine >= script.WasmDisassembly.TotalNumberOfLines) return;
+            bindingUrl = "";
+            cdpColumn = script.WasmDisassembly.GetBytecodeOffset(cdpLine);
+            cdpLine = 0;
+        }
+        else if (script?.IsOriginalSource == true)
         {
             var generated = script.SourceMap?.FindGeneratedLocation(script.SourceIndex, cdpLine);
             if (generated is null) return;
@@ -2301,7 +2429,9 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             cdpLine = generated.GeneratedLine;
             cdpColumn = generated.GeneratedColumn;
         }
-        string key = CreateBreakpointKey(displayUrl, Math.Max(0, line - 1));
+        string key = script?.IsWebAssembly == true
+            ? $"wasm:{(script.BuildId.Length > 0 ? script.BuildId : displayUrl)}:{cdpColumn}"
+            : CreateBreakpointKey(displayUrl, Math.Max(0, line - 1));
 
         var existing = V8Breakpoints.FirstOrDefault(item => item.Key == key);
         if (existing is not null)
@@ -2316,9 +2446,13 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             ScriptId = scriptId,
             Url = displayUrl,
             BindingUrl = bindingUrl,
+            IsWebAssembly = script?.IsWebAssembly == true,
+            BuildId = script?.BuildId ?? "",
             LineNumber = cdpLine,
             ColumnNumber = cdpColumn,
-            DisplayLineNumber = script?.IsOriginalSource == true ? Math.Max(0, line - 1) : null,
+            DisplayLineNumber = script?.IsOriginalSource == true || script?.IsWebAssembly == true
+                ? Math.Max(0, line - 1)
+                : null,
             Kind = BreakpointKind,
             Condition = BreakpointCondition.Trim(),
             LogMessage = BreakpointLogMessage.Trim(),
@@ -2396,6 +2530,14 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private async Task BindBreakpointAsync(V8BreakpointModel breakpoint)
     {
         if (!_cdpService.IsConnected || !IsDebuggerEnabled || !breakpoint.IsEnabled) return;
+        if (breakpoint.IsWebAssembly)
+        {
+            var runtimeScript = RuntimeScripts.FirstOrDefault(script => script.IsWebAssembly &&
+                (breakpoint.BuildId.Length > 0 && breakpoint.BuildId == script.BuildId ||
+                 breakpoint.BuildId.Length == 0 && breakpoint.Url == script.Url));
+            if (runtimeScript is null) return;
+            breakpoint.ScriptId = runtimeScript.ScriptId;
+        }
         if (V8BreakpointKinds.IsSourceLocation(breakpoint.Kind) &&
             string.IsNullOrWhiteSpace(breakpoint.BindingUrl) && string.IsNullOrWhiteSpace(breakpoint.ScriptId)) return;
 
@@ -3173,6 +3315,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                 ["key"] = breakpoint.Key,
                 ["url"] = breakpoint.Url,
                 ["bindingUrl"] = breakpoint.BindingUrl,
+                ["isWebAssembly"] = breakpoint.IsWebAssembly,
+                ["buildId"] = breakpoint.BuildId,
                 ["functionExpression"] = breakpoint.FunctionExpression,
                 ["instrumentation"] = breakpoint.Instrumentation,
                 ["scriptId"] = breakpoint.ScriptId,
@@ -3252,6 +3396,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
                     Key = breakpointNode["key"]?.GetValue<string>() ?? CreateBreakpointKey(url, displayLineNumber ?? lineNumber),
                     Url = url,
                     BindingUrl = breakpointNode["bindingUrl"]?.GetValue<string>() ?? url,
+                    IsWebAssembly = breakpointNode["isWebAssembly"]?.GetValue<bool>() ?? false,
+                    BuildId = breakpointNode["buildId"]?.GetValue<string>() ?? "",
                     FunctionExpression = breakpointNode["functionExpression"]?.GetValue<string>() ?? "",
                     Instrumentation = breakpointNode["instrumentation"]?.GetValue<string>() ?? "",
                     ScriptId = breakpointNode["scriptId"]?.GetValue<string>() ?? "",

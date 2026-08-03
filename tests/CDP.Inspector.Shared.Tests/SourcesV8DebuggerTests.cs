@@ -514,6 +514,100 @@ public sealed class SourcesV8DebuggerTests
     }
 
     [AvaloniaFact]
+    public async Task WebAssemblyScriptsDisassembleAndMapEditorActionsToBytecodeOffsets()
+    {
+        var service = new V8FakeCdpService();
+        var viewModel = new SourcesViewModel(service);
+        service.IsConnected = true;
+        await WaitUntilAsync(() => viewModel.IsDebuggerEnabled);
+
+        service.Raise("Debugger.scriptParsed", new JsonObject
+        {
+            ["scriptId"] = "wasm-1",
+            ["url"] = "file:///app/math.wasm",
+            ["scriptLanguage"] = "WebAssembly",
+            ["buildId"] = "wasm-build-1",
+            ["codeOffset"] = 8,
+            ["length"] = 46,
+            ["debugSymbols"] = new JsonArray
+            {
+                new JsonObject { ["type"] = "EmbeddedDWARF" }
+            }
+        });
+
+        await WaitUntilAsync(() => viewModel.RuntimeScripts.Count == 1);
+        var script = Assert.Single(viewModel.RuntimeScripts);
+        Assert.True(script.IsWebAssembly);
+        Assert.Equal("WASM", script.LanguageBadge);
+        Assert.Equal("wasm-build-1", script.BuildId);
+        Assert.Equal("EmbeddedDWARF", Assert.Single(script.DebugSymbols).Type);
+        viewModel.SelectedRuntimeScript = script;
+
+        await WaitUntilAsync(() => script.WasmDisassembly is not null &&
+            viewModel.LiveEditStatus.Contains("read-only", StringComparison.Ordinal));
+        Assert.False(viewModel.CanEditCurrentSource);
+        Assert.Equal(4, script.WasmDisassembly!.TotalNumberOfLines);
+        Assert.Equal(4, script.WasmBytecodeSize);
+        Assert.Contains("0x00000026  i32.add", viewModel.SelectedFileContent, StringComparison.Ordinal);
+        Assert.Contains("read-only", viewModel.LiveEditStatus, StringComparison.Ordinal);
+        Assert.Contains(service.Commands, command => command.Method == "Debugger.nextWasmDisassemblyChunk");
+
+        await viewModel.ToggleBreakpointAsync(3);
+        var breakpoint = Assert.Single(viewModel.V8Breakpoints);
+        Assert.True(breakpoint.IsWebAssembly);
+        Assert.Equal("wasm-build-1", breakpoint.BuildId);
+        Assert.Equal(0, breakpoint.LineNumber);
+        Assert.Equal(36, breakpoint.ColumnNumber);
+        Assert.Contains("+0x24", breakpoint.DisplayName, StringComparison.Ordinal);
+        var bind = Assert.Single(service.Commands, command => command.Method == "Debugger.setBreakpoint");
+        Assert.Equal("wasm-1", bind.Parameters?["location"]?["scriptId"]?.GetValue<string>());
+        Assert.Equal(0, bind.Parameters?["location"]?["lineNumber"]?.GetValue<int>());
+        Assert.Equal(36, bind.Parameters?["location"]?["columnNumber"]?.GetValue<int>());
+
+        service.Raise("Debugger.paused", new JsonObject
+        {
+            ["reason"] = "other",
+            ["callFrames"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["callFrameId"] = "wasm-frame-1",
+                    ["functionName"] = "$add",
+                    ["url"] = "file:///app/math.wasm",
+                    ["location"] = new JsonObject
+                    {
+                        ["scriptId"] = "wasm-1",
+                        ["lineNumber"] = 0,
+                        ["columnNumber"] = 38
+                    },
+                    ["scopeChain"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["type"] = "wasm-expression-stack",
+                            ["object"] = new JsonObject { ["objectId"] = "wasm-scope-1" }
+                        }
+                    }
+                }
+            }
+        });
+        await WaitUntilAsync(() => viewModel.IsDebuggerPaused && viewModel.ActiveDebugLine == 4);
+
+        await viewModel.RunToCursorAsync(2);
+        var possible = service.Commands.Last(command => command.Method == "Debugger.getPossibleBreakpoints");
+        Assert.Equal(0, possible.Parameters?["start"]?["lineNumber"]?.GetValue<int>());
+        Assert.Equal(34, possible.Parameters?["start"]?["columnNumber"]?.GetValue<int>());
+        Assert.Equal(36, possible.Parameters?["end"]?["columnNumber"]?.GetValue<int>());
+        var run = Assert.Single(service.Commands, command => command.Method == "Debugger.continueToLocation");
+        Assert.Equal("wasm-1", run.Parameters?["location"]?["scriptId"]?.GetValue<string>());
+
+        var saved = Assert.IsType<JsonObject>(viewModel.SaveState());
+        var savedBreakpoint = Assert.IsType<JsonObject>(Assert.Single(Assert.IsType<JsonArray>(saved["breakpoints"])));
+        Assert.True(savedBreakpoint["isWebAssembly"]?.GetValue<bool>());
+        Assert.Equal("wasm-build-1", savedBreakpoint["buildId"]?.GetValue<string>());
+    }
+
+    [AvaloniaFact]
     public async Task CompilerAdapterRegeneratesTransformedOriginalThroughV8ValidationAndApply()
     {
         const string original = "const value: number = 2;\nconsole.log(value);\n";
@@ -819,12 +913,21 @@ public sealed class SourcesV8DebuggerTests
             }
             if (method is "Debugger.setBreakpointByUrl" or "Debugger.setBreakpoint")
             {
+                var requestedLocation = parameters?["location"] as JsonObject;
                 return Task.FromResult(new JsonObject
                 {
                     ["breakpointId"] = $"breakpoint-{++_nextBreakpointId}",
                     [method == "Debugger.setBreakpoint" ? "actualLocation" : "locations"] = method == "Debugger.setBreakpoint"
-                        ? new JsonObject { ["scriptId"] = "42", ["lineNumber"] = 4, ["columnNumber"] = 0 }
+                        ? requestedLocation?.DeepClone() ?? new JsonObject { ["scriptId"] = "42", ["lineNumber"] = 4, ["columnNumber"] = 0 }
                         : new JsonArray { new JsonObject { ["scriptId"] = "42", ["lineNumber"] = 4, ["columnNumber"] = 0 } }
+                });
+            }
+            if (method == "Debugger.getScriptSource" && parameters?["scriptId"]?.GetValue<string>() == "wasm-1")
+            {
+                return Task.FromResult(new JsonObject
+                {
+                    ["scriptSource"] = "",
+                    ["bytecode"] = Convert.ToBase64String(new byte[] { 0, 97, 115, 109 })
                 });
             }
             return Task.FromResult(method switch
@@ -841,6 +944,25 @@ public sealed class SourcesV8DebuggerTests
                 "Debugger.setBreakpointOnFunctionCall" => new JsonObject { ["breakpointId"] = $"function-breakpoint-{++_nextBreakpointId}" },
                 "Debugger.setInstrumentationBreakpoint" => new JsonObject { ["breakpointId"] = $"instrumentation-breakpoint-{++_nextBreakpointId}" },
                 "Debugger.setScriptSource" => new JsonObject { ["status"] = "Ok" },
+                "Debugger.disassembleWasmModule" => new JsonObject
+                {
+                    ["streamId"] = "wasm-stream-1",
+                    ["totalNumberOfLines"] = 4,
+                    ["functionBodyOffsets"] = new JsonArray(32, 41),
+                    ["chunk"] = new JsonObject
+                    {
+                        ["lines"] = new JsonArray("func $add", "local.get 0"),
+                        ["bytecodeOffsets"] = new JsonArray(32, 34)
+                    }
+                },
+                "Debugger.nextWasmDisassemblyChunk" => new JsonObject
+                {
+                    ["chunk"] = new JsonObject
+                    {
+                        ["lines"] = new JsonArray("local.get 1", "i32.add"),
+                        ["bytecodeOffsets"] = new JsonArray(36, 38)
+                    }
+                },
                 "Debugger.getPossibleBreakpoints" => GetPossibleBreakpoints(parameters),
                 "Debugger.restartFrame" => new JsonObject(),
                 "Debugger.getStackTrace" => new JsonObject

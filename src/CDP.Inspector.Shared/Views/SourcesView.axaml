@@ -64,10 +64,10 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="models:V8ScriptModel">
                             <Grid Margin="1,2" ColumnDefinitions="Auto,*" ColumnSpacing="6">
-                                <TextBlock Text="JS" FontSize="8" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Sources.Accent}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding LanguageBadge}" FontSize="8" FontWeight="SemiBold" Foreground="{DynamicResource Brush.Sources.Accent}" VerticalAlignment="Center"/>
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Text="{Binding DisplayName}" FontSize="11" Foreground="{DynamicResource Brush.Sources.Text}" TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="{Binding Url}" Classes="sources-meta"/>
+                                    <TextBlock Text="{Binding DetailDisplay}" Classes="sources-meta" TextTrimming="CharacterEllipsis"/>
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
