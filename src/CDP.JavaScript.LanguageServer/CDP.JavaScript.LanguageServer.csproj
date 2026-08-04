@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>Chrome.DevTools.JavaScript.LanguageServer</PackageId>
+    <Title>Chrome.DevTools.JavaScript.LanguageServer</Title>
+    <Description>Embedded Microsoft TypeScript language service for JavaScript and TypeScript editor tooling.</Description>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageTags>javascript;typescript;language-service;editor;cdp</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Jint" />
+    <PackageReference Include="Microsoft.TypeScript.MSBuild"
+                      GeneratePathProperty="true"
+                      PrivateAssets="all"
+                      ExcludeAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(PkgMicrosoft_TypeScript_MSBuild)/tools/tsc/typescript.js"
+                      LogicalName="CDP.JavaScript.LanguageServer.TypeScript.typescriptServices.js" />
+    <EmbeddedResource Include="$(PkgMicrosoft_TypeScript_MSBuild)/tools/tsc/lib*.d.ts">
+      <LogicalName>CDP.JavaScript.LanguageServer.TypeScript.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="TypeScriptLanguageServiceHost.js"
+                      LogicalName="CDP.JavaScript.LanguageServer.TypeScript.host.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+    <None Include="$(PkgMicrosoft_TypeScript_MSBuild)/License.txt"
+          Pack="true"
+          PackagePath="third-party/TypeScript-LICENSE.txt" />
+  </ItemGroup>
+</Project>

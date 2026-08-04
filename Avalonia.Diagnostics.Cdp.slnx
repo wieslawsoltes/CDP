@@ -53,6 +53,7 @@
     <Project Path="src/CDP.Inspector.CLI/CDP.Inspector.CLI.csproj" />
     <Project Path="src/CDP.Xaml.LanguageServer/CDP.Xaml.LanguageServer.csproj" />
     <Project Path="src/CDP.CSharp.LanguageServer/CDP.CSharp.LanguageServer.csproj" />
+    <Project Path="src/CDP.JavaScript.LanguageServer/CDP.JavaScript.LanguageServer.csproj" />
     <Project Path="src/Xaml.Compiler/Xaml.Compiler.csproj" />
     <Project Path="src/CDP.Markdown.Parser/CDP.Markdown.Parser.csproj" />
     <Project Path="src/CDP.Html.Parser/CDP.Html.Parser.csproj" />
@@ -67,6 +68,7 @@
     <Project Path="src/CDP.Pdf.Editor/CDP.Pdf.Editor.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/CDP.JavaScript.LanguageServer.Tests/CDP.JavaScript.LanguageServer.Tests.csproj" />
     <Project Path="tests/CDP.Integration.Tests/CDP.Integration.Tests.csproj" />
     <Project Path="tests/Avalonia.Diagnostics.Cdp.Tests/Avalonia.Diagnostics.Cdp.Tests.csproj" />
     <Project Path="tests/Avalonia.Diagnostics.Cdp.v11.Tests/Avalonia.Diagnostics.Cdp.v11.Tests.csproj" />
