@@ -57,6 +57,10 @@ public partial class SourcesView : UserControl
     private System.Threading.CancellationTokenSource? _languageHoverCancellation;
     private System.Threading.CancellationTokenSource? _languageCompletionCancellation;
     private System.Threading.CancellationTokenSource? _languageDiagnosticsCancellation;
+    private System.Threading.CancellationTokenSource? _languageNavigationCancellation;
+    private System.Threading.CancellationTokenSource? _languageSignatureCancellation;
+    private readonly Dictionary<string, JavaScriptProjectEntry> _javaScriptProject = new(StringComparer.Ordinal);
+    private JavaScriptRenameResult? _pendingJavaScriptRename;
     private string _lastDebuggerHoverKey = "";
 
     private Control GetOrCreateViewInstance(string viewName, CDP.Editor.Splits.Controls.SuperSplitBox? targetBox = null)
@@ -181,6 +185,32 @@ public partial class SourcesView : UserControl
             btnRunToCursor.Click += (sender, args) => RunToCursorAtCaret();
         }
 
+        btnSourceSymbols.Click += (_, _) => _ = ShowJavaScriptSymbolsAsync();
+        btnSourceReferences.Click += (_, _) => _ = ShowJavaScriptReferencesAsync();
+        btnFormatSource.Click += (_, _) => _ = FormatJavaScriptDocumentAsync();
+        btnApplySourceRename.Click += (_, _) => _ = ApplyPreparedJavaScriptRenameAsync();
+        btnCancelSourceRename.Click += (_, _) => CloseJavaScriptRename();
+        txtRenameSource.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter)
+            {
+                _ = ApplyPreparedJavaScriptRenameAsync();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                CloseJavaScriptRename();
+                e.Handled = true;
+            }
+        };
+        treeOutline.SelectionChanged += (_, _) =>
+        {
+            if (treeOutline.SelectedItem is JavaScriptOutlineItem item)
+            {
+                NavigateToJavaScriptItem(item);
+            }
+        };
+
         var toggleMd = BtnToggleMarkdownMode;
         if (toggleMd != null)
         {
@@ -259,6 +289,8 @@ public partial class SourcesView : UserControl
             _languageHoverCancellation?.Cancel();
             _languageCompletionCancellation?.Cancel();
             _languageDiagnosticsCancellation?.Cancel();
+            _languageNavigationCancellation?.Cancel();
+            _languageSignatureCancellation?.Cancel();
             CloseCompletionWindow();
         };
     }
@@ -541,6 +573,34 @@ public partial class SourcesView : UserControl
     {
         if (DataContext is MainWindowViewModel vm)
         {
+            if (e.Key == Key.F12)
+            {
+                _ = e.KeyModifiers.HasFlag(KeyModifiers.Shift)
+                    ? ShowJavaScriptReferencesAsync()
+                    : GoToJavaScriptDefinitionAsync();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.F2)
+            {
+                _ = PrepareJavaScriptRenameAsync();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.O && e.KeyModifiers.HasFlag(KeyModifiers.Control) &&
+                e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                _ = ShowJavaScriptSymbolsAsync();
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Key.F && e.KeyModifiers.HasFlag(KeyModifiers.Shift) &&
+                e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+            {
+                _ = FormatJavaScriptDocumentAsync();
+                e.Handled = true;
+                return;
+            }
             if (e.Key == Key.F9)
             {
                 ToggleBreakpointAtCaret();
@@ -628,6 +688,11 @@ public partial class SourcesView : UserControl
         if (trigger == '<' || trigger == '.' || trigger == ' ')
         {
             _ = ShowCompletionAsync(explicitInvocation: false);
+        }
+
+        if (trigger is '(' or ',')
+        {
+            _ = ShowJavaScriptSignatureHelpAsync();
         }
     }
 
@@ -738,6 +803,356 @@ public partial class SourcesView : UserControl
         completionWindow.Closed += (s, e) => _completionWindow = null;
         _completionWindow = completionWindow;
         completionWindow.Show();
+    }
+
+    private async System.Threading.Tasks.Task<JavaScriptEditorContext?> PrepareJavaScriptEditorContextAsync()
+    {
+        if (DataContext is not MainWindowViewModel vm || txtSourceContent.Document is null) return null;
+        var fileName = GetLanguageFileName(vm.Sources);
+        if (string.IsNullOrWhiteSpace(fileName) || !IsJavaScriptExtension(GetLanguageExtension(fileName)))
+        {
+            SetLanguageStatus("JavaScript/TypeScript source required");
+            return null;
+        }
+
+        _languageNavigationCancellation?.Cancel();
+        _languageNavigationCancellation?.Dispose();
+        _languageNavigationCancellation = new System.Threading.CancellationTokenSource();
+        var cancellationToken = _languageNavigationCancellation.Token;
+
+        try
+        {
+            var documents = await vm.Sources.LoadJavaScriptProjectDocumentsAsync(cancellationToken);
+            _javaScriptProject.Clear();
+            foreach (var document in documents)
+            {
+                var normalized = _javaScriptLanguageService.GetNormalizedFileName(document.FileName);
+                _javaScriptProject[normalized] = new JavaScriptProjectEntry(
+                    document.FileName,
+                    document.Text,
+                    vm.Sources.FindFileByPath(document.FileName) is not null);
+            }
+
+            var currentText = txtSourceContent.Text ?? "";
+            var currentNormalized = _javaScriptLanguageService.GetNormalizedFileName(fileName);
+            _javaScriptProject[currentNormalized] = new JavaScriptProjectEntry(
+                fileName,
+                currentText,
+                vm.Sources.FindFileByPath(fileName) is not null);
+            await _javaScriptLanguageService.OpenProjectAsync(
+                _javaScriptProject.Values.Select(entry =>
+                    new JavaScriptProjectDocument(entry.FileName, entry.Text)),
+                GetProjectRoot(vm.Sources, fileName),
+                cancellationToken);
+
+            var location = txtSourceContent.Document.GetLocation(txtSourceContent.CaretOffset);
+            return new JavaScriptEditorContext(vm.Sources, fileName, currentNormalized,
+                location.Line, location.Column, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (Exception ex)
+        {
+            SetLanguageStatus($"Language service unavailable: {ex.Message}");
+            return null;
+        }
+    }
+
+    private async System.Threading.Tasks.Task GoToJavaScriptDefinitionAsync()
+    {
+        var context = await PrepareJavaScriptEditorContextAsync();
+        if (context is null) return;
+        try
+        {
+            var definitions = await _javaScriptLanguageService.GetDefinitionsAsync(
+                context.FileName, context.Line, context.Column, context.CancellationToken);
+            var items = definitions.Select(span => CreateOutlineItem("Definition", span)).ToArray();
+            treeOutline.ItemsSource = items;
+            SetLanguageStatus(items.Length == 0 ? "No definition found" : $"{items.Length} definition(s)");
+            if (items.FirstOrDefault() is { } first) NavigateToJavaScriptItem(first);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { SetLanguageStatus($"Definition failed: {ex.Message}"); }
+    }
+
+    private async System.Threading.Tasks.Task ShowJavaScriptReferencesAsync()
+    {
+        var context = await PrepareJavaScriptEditorContextAsync();
+        if (context is null) return;
+        try
+        {
+            var references = await _javaScriptLanguageService.GetReferencesAsync(
+                context.FileName, context.Line, context.Column, context.CancellationToken);
+            var items = references.Select(span => CreateOutlineItem(
+                span.IsDefinition ? "Definition" : span.IsWriteAccess ? "Write" : "Reference", span)).ToArray();
+            treeOutline.ItemsSource = items;
+            SetLanguageStatus(items.Length == 0 ? "No references found" : $"{items.Length} reference(s)");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { SetLanguageStatus($"References failed: {ex.Message}"); }
+    }
+
+    private async System.Threading.Tasks.Task ShowJavaScriptSymbolsAsync()
+    {
+        var context = await PrepareJavaScriptEditorContextAsync();
+        if (context is null) return;
+        try
+        {
+            var root = await _javaScriptLanguageService.GetDocumentSymbolsAsync(
+                context.FileName, context.CancellationToken);
+            var items = root?.Children.Select(symbol => CreateSymbolItem(context.FileName, symbol)).ToArray()
+                ?? Array.Empty<JavaScriptOutlineItem>();
+            treeOutline.ItemsSource = items;
+            SetLanguageStatus(items.Length == 0 ? "No document symbols" : $"{items.Length} top-level symbol(s)");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { SetLanguageStatus($"Symbols failed: {ex.Message}"); }
+    }
+
+    private async System.Threading.Tasks.Task ShowJavaScriptSignatureHelpAsync()
+    {
+        if (DataContext is not MainWindowViewModel vm || txtSourceContent.Document is null) return;
+        var fileName = GetLanguageFileName(vm.Sources);
+        if (string.IsNullOrWhiteSpace(fileName) || !IsJavaScriptExtension(GetLanguageExtension(fileName))) return;
+        _languageSignatureCancellation?.Cancel();
+        _languageSignatureCancellation?.Dispose();
+        _languageSignatureCancellation = new System.Threading.CancellationTokenSource();
+        var cancellationToken = _languageSignatureCancellation.Token;
+        try
+        {
+            var location = txtSourceContent.Document.GetLocation(txtSourceContent.CaretOffset);
+            await _javaScriptLanguageService.OpenDocumentAsync(
+                fileName, txtSourceContent.Text ?? "", GetProjectRoot(vm.Sources, fileName), cancellationToken);
+            var signature = await _javaScriptLanguageService.GetSignatureHelpAsync(
+                fileName, location.Line, location.Column, cancellationToken);
+            if (signature is null || signature.Items.Count == 0) return;
+            var itemIndex = Math.Clamp(signature.SelectedItemIndex, 0, signature.Items.Count - 1);
+            var item = signature.Items[itemIndex];
+            SetLanguageStatus(item.Prefix + string.Join(item.Separator, item.Parameters.Select((parameter, index) =>
+                index == signature.ArgumentIndex ? $"[{parameter.Display}]" : parameter.Display)) + item.Suffix);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { SetLanguageStatus($"Signature help failed: {ex.Message}"); }
+    }
+
+    private async System.Threading.Tasks.Task FormatJavaScriptDocumentAsync()
+    {
+        var context = await PrepareJavaScriptEditorContextAsync();
+        if (context is null) return;
+        try
+        {
+            var changes = await _javaScriptLanguageService.GetFormattingEditsAsync(
+                context.FileName, cancellationToken: context.CancellationToken);
+            if (changes.Count == 0)
+            {
+                SetLanguageStatus("Document is already formatted");
+                return;
+            }
+            var caret = txtSourceContent.CaretOffset;
+            txtSourceContent.Text = JavaScriptLanguageService.ApplyTextChanges(txtSourceContent.Text ?? "", changes);
+            txtSourceContent.CaretOffset = Math.Min(caret, txtSourceContent.Text.Length);
+            SetLanguageStatus($"Applied {changes.Count} formatting edit(s)");
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { SetLanguageStatus($"Format failed: {ex.Message}"); }
+    }
+
+    private async System.Threading.Tasks.Task PrepareJavaScriptRenameAsync()
+    {
+        var context = await PrepareJavaScriptEditorContextAsync();
+        if (context is null) return;
+        try
+        {
+            var result = await _javaScriptLanguageService.GetRenameLocationsAsync(
+                context.FileName, context.Line, context.Column, context.CancellationToken);
+            if (!result.CanRename || result.Locations.Count == 0)
+            {
+                SetLanguageStatus(result.Error ?? "The selected symbol cannot be renamed");
+                return;
+            }
+            _pendingJavaScriptRename = result;
+            txtRenameLabel.Text = $"Rename {result.DisplayName ?? "symbol"} · {result.Locations.Count} occurrence(s)";
+            txtRenameSource.Text = result.DisplayName ?? "";
+            pnlSourceRename.IsVisible = true;
+            txtRenameSource.Focus();
+            txtRenameSource.SelectAll();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { SetLanguageStatus($"Rename failed: {ex.Message}"); }
+    }
+
+    private async System.Threading.Tasks.Task ApplyPreparedJavaScriptRenameAsync()
+    {
+        if (_pendingJavaScriptRename is not { CanRename: true } rename ||
+            string.IsNullOrWhiteSpace(txtRenameSource.Text)) return;
+        var newName = txtRenameSource.Text.Trim();
+        if (!IsJavaScriptIdentifier(newName))
+        {
+            SetLanguageStatus($"Rename cancelled: '{newName}' is not a valid identifier");
+            return;
+        }
+        var grouped = rename.Locations.GroupBy(location =>
+            _javaScriptLanguageService.GetNormalizedFileName(location.FileName));
+        var updated = new Dictionary<string, (JavaScriptProjectEntry Entry, string Text)>(StringComparer.Ordinal);
+        try
+        {
+            foreach (var group in grouped)
+            {
+                if (!_javaScriptProject.TryGetValue(group.Key, out var entry))
+                {
+                    SetLanguageStatus($"Rename cancelled: {group.Key} is outside the loaded project");
+                    return;
+                }
+                var changes = group.Select(location =>
+                    new JavaScriptTextChange(location.TextSpan.Start, location.TextSpan.Length, newName));
+                updated[group.Key] = (entry, JavaScriptLanguageService.ApplyTextChanges(entry.Text, changes));
+            }
+
+            var currentFile = DataContext is MainWindowViewModel currentVm
+                ? GetLanguageFileName(currentVm.Sources)
+                : null;
+            var currentNormalized = string.IsNullOrWhiteSpace(currentFile)
+                ? ""
+                : _javaScriptLanguageService.GetNormalizedFileName(currentFile);
+            var unsupportedRuntime = updated.FirstOrDefault(change =>
+                !change.Value.Entry.IsWorkspace && change.Key != currentNormalized);
+            if (!string.IsNullOrEmpty(unsupportedRuntime.Key))
+            {
+                SetLanguageStatus($"Rename cancelled: {unsupportedRuntime.Value.Entry.FileName} is a separate runtime script");
+                return;
+            }
+
+            var saved = new List<(JavaScriptProjectEntry Entry, string PreviousText)>();
+            if (DataContext is MainWindowViewModel vm)
+            {
+                foreach (var change in updated.Values.Where(value => value.Entry.IsWorkspace))
+                {
+                    try
+                    {
+                        if (!await vm.Sources.SaveJavaScriptProjectDocumentAsync(change.Entry.FileName, change.Text))
+                        {
+                            throw new InvalidOperationException($"Unable to save {change.Entry.FileName}");
+                        }
+                        saved.Add((change.Entry, change.Entry.Text));
+                    }
+                    catch (Exception ex)
+                    {
+                        foreach (var rollback in saved.AsEnumerable().Reverse())
+                        {
+                            try
+                            {
+                                await vm.Sources.SaveJavaScriptProjectDocumentAsync(
+                                    rollback.Entry.FileName, rollback.PreviousText);
+                            }
+                            catch { }
+                        }
+                        SetLanguageStatus($"Rename rolled back: {ex.Message}");
+                        return;
+                    }
+                }
+            }
+
+            if (updated.TryGetValue(currentNormalized, out var currentChange))
+            {
+                txtSourceContent.Text = currentChange.Text;
+                if (DataContext is MainWindowViewModel selectedVm)
+                {
+                    selectedVm.Sources.SelectedFileContent = currentChange.Text;
+                }
+            }
+            foreach (var (normalized, change) in updated)
+            {
+                _javaScriptProject[normalized] = change.Entry with { Text = change.Text };
+                await _javaScriptLanguageService.OpenDocumentAsync(change.Entry.FileName, change.Text);
+            }
+
+            var runtimeEdit = updated.TryGetValue(currentNormalized, out var selectedChange) &&
+                              !selectedChange.Entry.IsWorkspace;
+            SetLanguageStatus(runtimeEdit
+                ? $"Renamed {rename.Locations.Count} occurrence(s) · Ctrl+S applies the V8 live edit"
+                : $"Renamed {rename.Locations.Count} occurrence(s) in {updated.Count} file(s)");
+            CloseJavaScriptRename(clearStatus: false);
+        }
+        catch (Exception ex)
+        {
+            SetLanguageStatus($"Rename failed: {ex.Message}");
+        }
+    }
+
+    private static bool IsJavaScriptIdentifier(string value)
+    {
+        if (string.IsNullOrEmpty(value) || !(char.IsLetter(value[0]) || value[0] is '_' or '$')) return false;
+        return value.Skip(1).All(character => char.IsLetterOrDigit(character) || character is '_' or '$' ||
+            char.GetUnicodeCategory(character) is System.Globalization.UnicodeCategory.NonSpacingMark or
+                System.Globalization.UnicodeCategory.SpacingCombiningMark or
+                System.Globalization.UnicodeCategory.ConnectorPunctuation);
+    }
+
+    private JavaScriptOutlineItem CreateOutlineItem(string role, JavaScriptDocumentSpan span)
+    {
+        var normalized = _javaScriptLanguageService.GetNormalizedFileName(span.FileName);
+        var fileName = _javaScriptProject.TryGetValue(normalized, out var entry)
+            ? entry.FileName
+            : span.FileName;
+        var (line, column) = _javaScriptLanguageService.GetLineColumn(span.FileName, span.TextSpan.Start);
+        return new JavaScriptOutlineItem($"{role} · {Path.GetFileName(fileName)}:{line}:{column}",
+            span.FileName, span.TextSpan.Start, []);
+    }
+
+    private JavaScriptOutlineItem CreateSymbolItem(string fileName, JavaScriptNavigationSymbol symbol)
+    {
+        var span = symbol.NameSpan ?? symbol.Spans.FirstOrDefault() ?? new JavaScriptTextSpan(0, 0);
+        return new JavaScriptOutlineItem($"{symbol.Text} · {symbol.Kind}", fileName, span.Start,
+            symbol.Children.Select(child => CreateSymbolItem(fileName, child)).ToArray());
+    }
+
+    private void NavigateToJavaScriptItem(JavaScriptOutlineItem item)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        var normalized = _javaScriptLanguageService.GetNormalizedFileName(item.FileName);
+        var current = GetLanguageFileName(vm.Sources);
+        var currentNormalized = string.IsNullOrWhiteSpace(current)
+            ? ""
+            : _javaScriptLanguageService.GetNormalizedFileName(current);
+        var (line, _) = _javaScriptLanguageService.GetLineColumn(item.FileName, item.Offset);
+        if (normalized == currentNormalized)
+        {
+            txtSourceContent.CaretOffset = Math.Clamp(item.Offset, 0, txtSourceContent.Text.Length);
+            txtSourceContent.TextArea.Caret.BringCaretToView();
+            txtSourceContent.Focus();
+            return;
+        }
+
+        if (_javaScriptProject.TryGetValue(normalized, out var entry))
+        {
+            vm.Sources.PendingScrollLine = line;
+            if (vm.Sources.FindFileByPath(entry.FileName) is { } workspaceFile)
+            {
+                vm.Sources.SelectedFile = workspaceFile;
+                return;
+            }
+            var runtimeScript = vm.Sources.RuntimeScripts.FirstOrDefault(script =>
+                string.Equals(script.Url, entry.FileName, StringComparison.Ordinal));
+            if (runtimeScript is not null) vm.Sources.SelectedRuntimeScript = runtimeScript;
+        }
+    }
+
+    private void CloseJavaScriptRename(bool clearStatus = true)
+    {
+        _pendingJavaScriptRename = null;
+        pnlSourceRename.IsVisible = false;
+        if (clearStatus) SetLanguageStatus("");
+        txtSourceContent.Focus();
+    }
+
+    private void SetLanguageStatus(string status)
+    {
+        txtLanguageStatus.Text = status;
+        ToolTip.SetTip(txtLanguageStatus, string.IsNullOrWhiteSpace(status)
+            ? "F12 definition · Shift+F12 references · F2 rename · Ctrl+Shift+O symbols · Shift+Alt+F format"
+            : status);
     }
 
     private void CloseCompletionWindow()
@@ -1019,6 +1434,25 @@ public partial class SourcesView : UserControl
         }
         return Path.GetDirectoryName(fileName);
     }
+
+    private sealed record JavaScriptProjectEntry(string FileName, string Text, bool IsWorkspace);
+
+    private sealed record JavaScriptEditorContext(
+        SourcesViewModel Sources,
+        string FileName,
+        string NormalizedFileName,
+        int Line,
+        int Column,
+        System.Threading.CancellationToken CancellationToken);
+}
+
+public sealed record JavaScriptOutlineItem(
+    string DisplayName,
+    string FileName,
+    int Offset,
+    IReadOnlyList<JavaScriptOutlineItem> Children)
+{
+    public override string ToString() => DisplayName;
 }
 
 public class LspDiagnosticColorizer : DocumentColorizingTransformer

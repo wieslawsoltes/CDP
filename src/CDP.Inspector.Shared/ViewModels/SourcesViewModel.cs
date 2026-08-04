@@ -643,8 +643,16 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public string SelectedFileName
     {
         get => _selectedFileName;
-        set => RaiseAndSetIfChanged(ref _selectedFileName, value);
+        set
+        {
+            if (RaiseAndSetIfChanged(ref _selectedFileName, value))
+            {
+                OnPropertyChanged(nameof(IsJavaScriptFile));
+            }
+        }
     }
+
+    public bool IsJavaScriptFile => IsJavaScriptProjectFile(SelectedFileName);
 
     public string SelectedFileContent
     {
