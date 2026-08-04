@@ -64,10 +64,13 @@ jobs:
             # synthetic drag and float/merge tests isolated as well: macOS 26 can
             # retain routed pointer state across headless tests until testhost exit.
             run_test_project "$proj" \
-              "$FILTER&FullyQualifiedName!~V8InspectorAppIntegrationTests&FullyQualifiedName!~Test_SuperSplitBox_TabDragStarted_Fires_When_Dragged_Outside&FullyQualifiedName!~Test_SuperSplit_Float_And_Merge" || exit 1
+              "$FILTER&FullyQualifiedName!~V8InspectorAppIntegrationTests&FullyQualifiedName!~Test_SuperSplitBox_TabDragStarted_Fires_When_Dragged_Outside&FullyQualifiedName!~Test_SuperSplitBox_Tab_Reordering_Preserves_Capture&FullyQualifiedName!~Test_SuperSplit_Float_And_Merge" || exit 1
             echo "=== Executing isolated split tab-drag test for $proj ==="
             run_test_project "$proj" \
               "$FILTER&FullyQualifiedName~Test_SuperSplitBox_TabDragStarted_Fires_When_Dragged_Outside" || exit 1
+            echo "=== Executing isolated split tab-reordering test for $proj ==="
+            run_test_project "$proj" \
+              "$FILTER&FullyQualifiedName~Test_SuperSplitBox_Tab_Reordering_Preserves_Capture" || exit 1
             echo "=== Executing isolated split float/merge test for $proj ==="
             run_test_project "$proj" \
               "$FILTER&FullyQualifiedName~Test_SuperSplit_Float_And_Merge" || exit 1
