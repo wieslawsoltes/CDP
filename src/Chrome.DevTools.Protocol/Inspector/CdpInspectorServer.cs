@@ -151,6 +151,13 @@ public sealed class CdpInspectorServer : IAsyncDisposable
             {
                 break;
             }
+            catch (ObjectDisposedException)
+            {
+                // HttpListener.Close completes an outstanding GetContextAsync
+                // with ObjectDisposedException on Windows. This is the normal
+                // listener shutdown path, equivalent to cancellation on Unix.
+                break;
+            }
 
             var requestId = Interlocked.Increment(ref _nextRequestId);
             var requestTask = HandleRequestAsync(context, cancellationToken);
