@@ -22,6 +22,7 @@ using CdpInspectorApp.Models;
 using CdpInspectorApp.Services;
 using CDP.Xaml.LanguageServer;
 using CDP.CSharp.LanguageServer;
+using CDP.JavaScript.LanguageServer;
 using CDP.Markdown.Editor;
 using CDP.Document.Editor;
 using Avalonia.Controls.Primitives;
@@ -48,10 +49,14 @@ public partial class SourcesView : UserControl
     private readonly System.Collections.Generic.Dictionary<string, Control> _viewsCache = new();
     private readonly XamlLanguageServer _xamlLsp = new();
     private readonly CSharpLanguageServer _csharpLsp = new();
+    private readonly JavaScriptLanguageService _javaScriptLanguageService = new();
     private readonly LspDiagnosticColorizer _diagnosticColorizer = new();
     private DebuggerLineColorizer? _debuggerLineColorizer;
     private CompletionWindow? _completionWindow;
     private System.Threading.CancellationTokenSource? _debuggerHoverCancellation;
+    private System.Threading.CancellationTokenSource? _languageHoverCancellation;
+    private System.Threading.CancellationTokenSource? _languageCompletionCancellation;
+    private System.Threading.CancellationTokenSource? _languageDiagnosticsCancellation;
     private string _lastDebuggerHoverKey = "";
 
     private Control GetOrCreateViewInstance(string viewName, CDP.Editor.Splits.Controls.SuperSplitBox? targetBox = null)
@@ -247,6 +252,14 @@ public partial class SourcesView : UserControl
                     }
                 }
             });
+        };
+        DetachedFromVisualTree += (_, _) =>
+        {
+            _debuggerHoverCancellation?.Cancel();
+            _languageHoverCancellation?.Cancel();
+            _languageCompletionCancellation?.Cancel();
+            _languageDiagnosticsCancellation?.Cancel();
+            CloseCompletionWindow();
         };
     }
 
@@ -600,7 +613,7 @@ public partial class SourcesView : UserControl
 
         if (e.Key == Key.Space && e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
-            ShowCompletion(explicitInvocation: true);
+            _ = ShowCompletionAsync(explicitInvocation: true);
             e.Handled = true;
         }
     }
@@ -614,11 +627,11 @@ public partial class SourcesView : UserControl
 
         if (trigger == '<' || trigger == '.' || trigger == ' ')
         {
-            ShowCompletion(explicitInvocation: false);
+            _ = ShowCompletionAsync(explicitInvocation: false);
         }
     }
 
-    private void ShowCompletion(bool explicitInvocation)
+    private async System.Threading.Tasks.Task ShowCompletionAsync(bool explicitInvocation)
     {
         var editor = txtSourceContent;
         if (editor == null || editor.Document == null) return;
@@ -626,32 +639,76 @@ public partial class SourcesView : UserControl
         var vm = DataContext as MainWindowViewModel;
         if (vm == null) return;
 
-        var fileName = vm.Sources.SelectedFileName;
+        var fileName = GetLanguageFileName(vm.Sources);
         if (string.IsNullOrEmpty(fileName)) return;
 
-        string ext = Path.GetExtension(fileName).ToLowerInvariant();
-        if (ext != ".xaml" && ext != ".axaml" && ext != ".cs") return;
+        string ext = GetLanguageExtension(fileName);
+        if (ext != ".xaml" && ext != ".axaml" && ext != ".cs" && !IsJavaScriptExtension(ext)) return;
 
         string text = editor.Text ?? "";
         int caretOffset = editor.CaretOffset;
+        if (!explicitInvocation && IsJavaScriptExtension(ext) &&
+            (caretOffset == 0 || text[caretOffset - 1] is not ('.' or '<')))
+        {
+            return;
+        }
 
         var loc = editor.Document.GetLocation(caretOffset);
         int line = loc.Line;
         int col = loc.Column;
 
-        List<string> suggestions = new();
+        List<LspCompletionData> suggestions = new();
 
         if (ext == ".xaml" || ext == ".axaml")
         {
             _xamlLsp.OpenDocument(fileName, text);
             var comps = _xamlLsp.GetCompletions(fileName, line, col);
-            suggestions.AddRange(comps.Select(c => c.Label));
+            suggestions.AddRange(comps.Select(c => new LspCompletionData(c.Label, "XAML")));
         }
         else if (ext == ".cs")
         {
             _csharpLsp.OpenDocument(fileName, text);
             var comps = _csharpLsp.GetCompletions(fileName, line, col);
-            suggestions.AddRange(comps.Select(c => c.Label));
+            suggestions.AddRange(comps.Select(c => new LspCompletionData(c.Label, "C#")));
+        }
+        else
+        {
+            _languageCompletionCancellation?.Cancel();
+            _languageCompletionCancellation?.Dispose();
+            _languageCompletionCancellation = new System.Threading.CancellationTokenSource();
+            var cancellationToken = _languageCompletionCancellation.Token;
+            try
+            {
+                await _javaScriptLanguageService.OpenDocumentAsync(
+                    fileName,
+                    text,
+                    GetProjectRoot(vm.Sources, fileName),
+                    cancellationToken);
+                var completions = await _javaScriptLanguageService.GetCompletionsAsync(
+                    fileName,
+                    line,
+                    col,
+                    cancellationToken);
+                if (cancellationToken.IsCancellationRequested ||
+                    editor.CaretOffset != caretOffset || editor.Text != text)
+                {
+                    return;
+                }
+                suggestions.AddRange(completions.Select(completion => new LspCompletionData(
+                    string.IsNullOrWhiteSpace(completion.InsertText) ? completion.Name : completion.InsertText,
+                    string.IsNullOrWhiteSpace(completion.Source)
+                        ? $"{completion.Kind} · TypeScript {_javaScriptLanguageService.TypeScriptVersion}"
+                        : $"{completion.Kind} · {completion.Source}")));
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[SourcesView] JavaScript completion failed: {ex.Message}");
+                return;
+            }
         }
 
         if (suggestions.Count == 0)
@@ -675,7 +732,7 @@ public partial class SourcesView : UserControl
         completionWindow.CompletionList.IsFiltering = true;
         foreach (var suggestion in suggestions)
         {
-            completionWindow.CompletionList.CompletionData.Add(new LspCompletionData(suggestion));
+            completionWindow.CompletionList.CompletionData.Add(suggestion);
         }
 
         completionWindow.Closed += (s, e) => _completionWindow = null;
@@ -716,6 +773,8 @@ public partial class SourcesView : UserControl
     {
         var editor = txtSourceContent;
         if (editor == null || editor.Document == null) return;
+        _debuggerHoverCancellation?.Cancel();
+        _languageHoverCancellation?.Cancel();
 
         var pos = e.GetPosition(editor.TextArea.TextView);
         var position = editor.TextArea.TextView.GetPosition(pos + editor.TextArea.TextView.ScrollOffset);
@@ -725,10 +784,10 @@ public partial class SourcesView : UserControl
             var loc = editor.Document.GetLocation(offset);
             
             var vm = DataContext as MainWindowViewModel;
-            if (vm != null && !string.IsNullOrEmpty(vm.Sources.SelectedFileName))
+            var fileName = vm is null ? null : GetLanguageFileName(vm.Sources);
+            if (vm != null && !string.IsNullOrEmpty(fileName))
             {
-                var fileName = vm.Sources.SelectedFileName;
-                string ext = Path.GetExtension(fileName).ToLowerInvariant();
+                string ext = GetLanguageExtension(fileName);
 
                 if (vm.Sources.IsDebuggerPaused && vm.Sources.SelectedCallFrame?.CanInspect == true &&
                     ext is ".js" or ".jsx" or ".mjs" or ".cjs" or ".ts" or ".tsx")
@@ -777,6 +836,41 @@ public partial class SourcesView : UserControl
                     var hover = _csharpLsp.GetHover(fileName, loc.Line, loc.Column);
                     contents = hover?.Contents;
                 }
+                else if (IsJavaScriptExtension(ext))
+                {
+                    _languageHoverCancellation?.Dispose();
+                    _languageHoverCancellation = new System.Threading.CancellationTokenSource();
+                    var cancellationToken = _languageHoverCancellation.Token;
+                    try
+                    {
+                        await System.Threading.Tasks.Task.Delay(250, cancellationToken);
+                        var text = editor.Text;
+                        await _javaScriptLanguageService.OpenDocumentAsync(
+                            fileName,
+                            text,
+                            GetProjectRoot(vm.Sources, fileName),
+                            cancellationToken);
+                        var hover = await _javaScriptLanguageService.GetQuickInfoAsync(
+                            fileName,
+                            loc.Line,
+                            loc.Column,
+                            cancellationToken);
+                        if (!cancellationToken.IsCancellationRequested && editor.Text == text && hover is not null)
+                        {
+                            contents = string.IsNullOrWhiteSpace(hover.Documentation)
+                                ? hover.DisplayText
+                                : $"{hover.DisplayText}\n\n{hover.Documentation}";
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SourcesView] JavaScript hover failed: {ex.Message}");
+                    }
+                }
 
                 if (!string.IsNullOrEmpty(contents))
                 {
@@ -793,14 +887,18 @@ public partial class SourcesView : UserControl
 
     private void UpdateDiagnostics()
     {
+        _languageDiagnosticsCancellation?.Cancel();
+        _languageDiagnosticsCancellation?.Dispose();
+        _languageDiagnosticsCancellation = null;
+
         var editor = txtSourceContent;
         if (editor == null || editor.Document == null) return;
 
         var vm = DataContext as MainWindowViewModel;
-        if (vm == null || string.IsNullOrEmpty(vm.Sources.SelectedFileName)) return;
+        var fileName = vm is null ? null : GetLanguageFileName(vm.Sources);
+        if (vm == null || string.IsNullOrEmpty(fileName)) return;
 
-        var fileName = vm.Sources.SelectedFileName;
-        string ext = Path.GetExtension(fileName).ToLowerInvariant();
+        string ext = GetLanguageExtension(fileName);
 
         List<LspDiagnosticColorizer.DiagnosticRange> diags = new();
 
@@ -822,9 +920,104 @@ public partial class SourcesView : UserControl
                 diags.Add(new LspDiagnosticColorizer.DiagnosticRange(d.StartLine, d.StartColumn, d.EndLine, d.EndColumn));
             }
         }
+        else if (IsJavaScriptExtension(ext))
+        {
+            _diagnosticColorizer.Diagnostics = diags;
+            editor.TextArea.TextView.Redraw();
+            _languageDiagnosticsCancellation = new System.Threading.CancellationTokenSource();
+            _ = UpdateJavaScriptDiagnosticsAsync(
+                vm.Sources,
+                fileName,
+                editor.Text,
+                _languageDiagnosticsCancellation.Token);
+            return;
+        }
 
         _diagnosticColorizer.Diagnostics = diags;
         editor.TextArea.TextView.Redraw();
+    }
+
+    private async System.Threading.Tasks.Task UpdateJavaScriptDiagnosticsAsync(
+        SourcesViewModel sources,
+        string fileName,
+        string text,
+        System.Threading.CancellationToken cancellationToken)
+    {
+        try
+        {
+            await System.Threading.Tasks.Task.Delay(300, cancellationToken);
+            await _javaScriptLanguageService.OpenDocumentAsync(
+                fileName,
+                text,
+                GetProjectRoot(sources, fileName),
+                cancellationToken);
+            var diagnostics = await _javaScriptLanguageService.GetDiagnosticsAsync(fileName, cancellationToken);
+            var ranges = diagnostics
+                .Where(diagnostic => diagnostic.Length > 0)
+                .Select(diagnostic =>
+                {
+                    var start = _javaScriptLanguageService.GetLineColumn(fileName, diagnostic.Start);
+                    var end = _javaScriptLanguageService.GetLineColumn(
+                        fileName,
+                        diagnostic.Start + Math.Max(1, diagnostic.Length));
+                    return new LspDiagnosticColorizer.DiagnosticRange(
+                        start.Line,
+                        start.Column,
+                        end.Line,
+                        end.Column);
+                })
+                .ToList();
+
+            if (cancellationToken.IsCancellationRequested) return;
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (cancellationToken.IsCancellationRequested || txtSourceContent.Text != text ||
+                    DataContext is not MainWindowViewModel current ||
+                    GetLanguageFileName(current.Sources) != fileName)
+                {
+                    return;
+                }
+                _diagnosticColorizer.Diagnostics = ranges;
+                txtSourceContent.TextArea.TextView.Redraw();
+            });
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[SourcesView] JavaScript diagnostics failed: {ex.Message}");
+        }
+    }
+
+    private static bool IsJavaScriptExtension(string extension) =>
+        extension is ".js" or ".jsx" or ".mjs" or ".cjs" or ".ts" or ".tsx";
+
+    private static string GetLanguageExtension(string fileName)
+    {
+        if (Uri.TryCreate(fileName, UriKind.Absolute, out var uri)) fileName = uri.AbsolutePath;
+        return Path.GetExtension(fileName).ToLowerInvariant();
+    }
+
+    private static string? GetLanguageFileName(SourcesViewModel sources)
+    {
+        if (!string.IsNullOrWhiteSpace(sources.SelectedFilePath)) return sources.SelectedFilePath;
+        if (!string.IsNullOrWhiteSpace(sources.SelectedRuntimeScript?.Url)) return sources.SelectedRuntimeScript.Url;
+        return string.IsNullOrWhiteSpace(sources.SelectedFileName) ? null : sources.SelectedFileName;
+    }
+
+    private static string? GetProjectRoot(SourcesViewModel sources, string fileName)
+    {
+        if (!string.IsNullOrWhiteSpace(sources.SelectedFilePath))
+        {
+            return Path.GetDirectoryName(sources.SelectedFilePath);
+        }
+        if (Uri.TryCreate(fileName, UriKind.Absolute, out var uri))
+        {
+            var slash = uri.AbsolutePath.LastIndexOf('/');
+            return slash <= 0 ? $"{uri.Scheme}://{uri.Host}/" : $"{uri.Scheme}://{uri.Host}{uri.AbsolutePath[..slash]}";
+        }
+        return Path.GetDirectoryName(fileName);
     }
 }
 
