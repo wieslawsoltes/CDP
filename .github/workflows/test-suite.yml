@@ -84,6 +84,15 @@ jobs:
             echo "=== Executing isolated V8 Inspector app integration for $proj ==="
             run_test_project "$proj" \
               "$FILTER&FullyQualifiedName~V8InspectorAppIntegrationTests" || exit 1
+          elif [[ "$proj" == "tests/CDP.Rdp.Tests/CDP.Rdp.Tests.csproj" ]]; then
+            # Raw pointer dispatch uses process-global Avalonia input and
+            # dispatcher state. Keep the end-to-end connect-button click in a
+            # fresh host after the large protocol/stress suite has completed.
+            run_test_project "$proj" \
+              "$FILTER&FullyQualifiedName!~DispatchMouseEvent_ClickConnectButton_UpdatesConnectionState" || exit 1
+            echo "=== Executing isolated RDP connect-button pointer test for $proj ==="
+            run_test_project "$proj" \
+              "$FILTER&FullyQualifiedName~DispatchMouseEvent_ClickConnectButton_UpdatesConnectionState" || exit 1
           else
             run_test_project "$proj" "$FILTER" || exit 1
           fi
