@@ -92,7 +92,7 @@ public class MvvmDomainTests
         window.Show();
 
         using var clientWs = new ClientWebSocket();
-        var session = new CdpSession(clientWs, window);
+        using var session = new CdpSession(clientWs, window);
 
         // 1. Enable MVVM domain
         var enableResult = await MvvmDomain.HandleAsync(session, "enable", new JsonObject());
@@ -109,7 +109,7 @@ public class MvvmDomainTests
 
         var rootNode = tree[0] as JsonObject;
         Assert.NotNull(rootNode);
-        
+
         string vmId = rootNode["id"]?.GetValue<string>() ?? "";
         Assert.NotEmpty(vmId);
         Assert.Contains("TestViewModel", rootNode["type"]?.GetValue<string>());
@@ -161,9 +161,7 @@ public class MvvmDomainTests
         // Trigger change in the ViewModel directly
         vm.Value = 99;
 
-        // Wait up to 100ms for event broadcast
-        await Task.Delay(100);
-
+        // EventSentForTesting is raised synchronously before socket dispatch.
         Assert.True(eventReceived);
         Assert.Equal("Value", changedPropName);
         Assert.Equal("99", changedValue);
@@ -188,9 +186,7 @@ public class MvvmDomainTests
         // Trigger command execution on the VM directly
         vm.RunCommand.Execute(null);
 
-        // Wait up to 100ms for event broadcast
-        await Task.Delay(100);
-
+        // EventSentForTesting is raised synchronously before socket dispatch.
         Assert.True(commandExecutedEventReceived);
         Assert.Equal("RunCommand", executedCmdName);
 
