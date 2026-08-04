@@ -580,7 +580,7 @@ public static class AccessibilityDomain
         {
             foreach (var child in children)
             {
-                childIds.Add(GetPeerId(session, child));
+                childIds.Add((JsonNode?)GetPeerId(session, child));
             }
         }
 
@@ -594,7 +594,7 @@ public static class AccessibilityDomain
                     string extraId = GetPeerId(session, extra);
                     if (!string.IsNullOrEmpty(extraId) && !childIds.Any(c => c?.GetValue<string>() == extraId))
                     {
-                        childIds.Add(extraId);
+                        childIds.Add((JsonNode?)extraId);
                     }
                 }
             }
@@ -957,7 +957,7 @@ public static class AccessibilityDomain
         var childIds = new JsonArray();
         foreach (var child in visual.GetVisualChildren())
         {
-            childIds.Add(session.NodeMap.GetOrAdd(child).ToString());
+            childIds.Add((JsonNode?)session.NodeMap.GetOrAdd(child).ToString());
         }
 
         var propertiesJson = new JsonArray();

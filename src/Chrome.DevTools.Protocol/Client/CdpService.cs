@@ -9,6 +9,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,12 @@ namespace Chrome.DevTools.Protocol;
 public class CdpService : ICdpService, INotifyPropertyChanged
 {
     private static readonly ILogger Logger = CdpLogging.CreateLogger<CdpService>();
+    private static readonly JsonSerializerOptions ProtocolJsonOptions = new()
+    {
+        MaxDepth = 256,
+        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
+        TypeInfoResolver = CdpServiceJsonContext.Default
+    };
     private ClientWebSocket? _ws;
     private OsAutomationCdpSession? _osSession;
     private CancellationTokenSource? _cts;
@@ -541,7 +548,8 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         _pendingRequests[id] = tcs;
         Logger.SendingCommand(method, id);
 
-        var bytes = Encoding.UTF8.GetBytes(request.ToJsonString());
+        var requestJson = request.ToJsonString(ProtocolJsonOptions);
+        var bytes = Encoding.UTF8.GetBytes(requestJson);
         
         await _sendSemaphore.WaitAsync().ConfigureAwait(false);
         try
@@ -706,3 +714,23 @@ public class CdpService : ICdpService, INotifyPropertyChanged
         }
     }
 }
+
+[JsonSourceGenerationOptions(DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
+[JsonSerializable(typeof(JsonNode))]
+[JsonSerializable(typeof(JsonObject))]
+[JsonSerializable(typeof(JsonArray))]
+[JsonSerializable(typeof(string))]
+[JsonSerializable(typeof(bool))]
+[JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(uint))]
+[JsonSerializable(typeof(long))]
+[JsonSerializable(typeof(ulong))]
+[JsonSerializable(typeof(short))]
+[JsonSerializable(typeof(ushort))]
+[JsonSerializable(typeof(byte))]
+[JsonSerializable(typeof(sbyte))]
+[JsonSerializable(typeof(float))]
+[JsonSerializable(typeof(double))]
+[JsonSerializable(typeof(decimal))]
+[JsonSerializable(typeof(JsonElement))]
+internal sealed partial class CdpServiceJsonContext : JsonSerializerContext;
