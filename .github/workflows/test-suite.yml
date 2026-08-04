@@ -60,9 +60,14 @@ jobs:
           if [[ "$proj" == "tests/CDP.Inspector.Shared.Tests/CDP.Inspector.Shared.Tests.csproj" ]]; then
             # The real Node/Inspector session owns a long-lived WebSocket and an
             # Avalonia window. Give it a fresh testhost so its native teardown
-            # cannot stall an unrelated headless layout test on macOS.
+            # cannot stall an unrelated headless layout test on macOS. Keep the
+            # synthetic float/merge test isolated as well: macOS 26 can retain
+            # routed pointer state from the preceding drag test until testhost exit.
             run_test_project "$proj" \
-              "$FILTER&FullyQualifiedName!~V8InspectorAppIntegrationTests" || exit 1
+              "$FILTER&FullyQualifiedName!~V8InspectorAppIntegrationTests&FullyQualifiedName!~Test_SuperSplit_Float_And_Merge" || exit 1
+            echo "=== Executing isolated split float/merge test for $proj ==="
+            run_test_project "$proj" \
+              "$FILTER&FullyQualifiedName~Test_SuperSplit_Float_And_Merge" || exit 1
             echo "=== Executing isolated V8 Inspector app integration for $proj ==="
             run_test_project "$proj" \
               "$FILTER&FullyQualifiedName~V8InspectorAppIntegrationTests" || exit 1
