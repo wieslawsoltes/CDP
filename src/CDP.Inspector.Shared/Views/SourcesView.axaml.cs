@@ -42,6 +42,9 @@ public partial class SourcesView : UserControl
     public DocumentEditor? DocVisualEditor => this.FindControl<DocumentEditor>("docVisualEditor");
     public TreeView TreeOutline => treeOutline;
     public Button BtnThemeSelector => btnThemeSelector;
+    public Border SourcePalette => pnlSourcePalette;
+    public TextBox SourcePaletteQuery => txtSourcePaletteQuery;
+    public ListBox SourcePaletteResults => lstSourcePalette;
 
     private TextMate.Installation? _textMateInstallation;
     private RegistryOptions? _registryOptions;
@@ -60,6 +63,8 @@ public partial class SourcesView : UserControl
     private System.Threading.CancellationTokenSource? _languageNavigationCancellation;
     private System.Threading.CancellationTokenSource? _languageSignatureCancellation;
     private readonly Dictionary<string, JavaScriptProjectEntry> _javaScriptProject = new(StringComparer.Ordinal);
+    private IReadOnlyList<SourcesPaletteItem> _sourcePaletteItems = Array.Empty<SourcesPaletteItem>();
+    private int _sourcePaletteRequestVersion;
     private JavaScriptRenameResult? _pendingJavaScriptRename;
     private string _lastDebuggerHoverKey = "";
 
@@ -117,6 +122,7 @@ public partial class SourcesView : UserControl
     public SourcesView()
     {
         InitializeComponent();
+        AddHandler(KeyDownEvent, SourcePaletteShortcut_KeyDown, RoutingStrategies.Tunnel);
 
         // Cache control references in local variables explicitly before detaching
         var wFiles = treeWorkspaceFiles;
@@ -188,6 +194,10 @@ public partial class SourcesView : UserControl
         btnSourceSymbols.Click += (_, _) => _ = ShowJavaScriptSymbolsAsync();
         btnSourceReferences.Click += (_, _) => _ = ShowJavaScriptReferencesAsync();
         btnFormatSource.Click += (_, _) => _ = FormatJavaScriptDocumentAsync();
+        btnSourceQuickOpen.Click += (_, _) => ShowSourceQuickOpen();
+        txtSourcePaletteQuery.TextChanged += (_, _) => FilterSourcePalette();
+        txtSourcePaletteQuery.KeyDown += SourcePaletteQuery_KeyDown;
+        lstSourcePalette.DoubleTapped += (_, _) => _ = ExecuteSelectedSourcePaletteItemAsync();
         btnApplySourceRename.Click += (_, _) => _ = ApplyPreparedJavaScriptRenameAsync();
         btnCancelSourceRename.Click += (_, _) => CloseJavaScriptRename();
         txtRenameSource.KeyDown += (_, e) =>
@@ -531,11 +541,352 @@ public partial class SourcesView : UserControl
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (TryHandleSourcePaletteShortcut(e))
+        {
+            return;
+        }
         if (e.Key == Key.S && e.KeyModifiers == KeyModifiers.Control)
         {
             e.Handled = true;
             SaveCurrentFile();
         }
+    }
+
+    private void SourcePaletteShortcut_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!e.Handled) TryHandleSourcePaletteShortcut(e);
+    }
+
+    private bool TryHandleSourcePaletteShortcut(KeyEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control)) return false;
+
+        if (e.Key == Key.P && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            ShowSourceCommandPalette();
+        }
+        else if (e.Key == Key.P)
+        {
+            ShowSourceQuickOpen();
+        }
+        else if (e.Key == Key.O && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            _ = ShowCurrentSourceSymbolPaletteAsync();
+        }
+        else if (e.Key == Key.T && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            _ = ShowWorkspaceSourceSymbolPaletteAsync();
+        }
+        else
+        {
+            return false;
+        }
+
+        e.Handled = true;
+        return true;
+    }
+
+    private void ShowSourceQuickOpen()
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        var items = new List<SourcesPaletteItem>();
+        var paths = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var file in EnumerateWorkspaceFileNodes(vm.Sources.WorkspaceFiles)
+                     .OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var path = file.Path;
+            if (!paths.Add(path)) continue;
+            items.Add(new SourcesPaletteItem(
+                file.Name,
+                path,
+                GetPaletteFileKind(path),
+                "",
+                () =>
+                {
+                    vm.Sources.SelectedFile = file;
+                    return System.Threading.Tasks.Task.CompletedTask;
+                }));
+        }
+
+        foreach (var script in vm.Sources.RuntimeScripts
+                     .OrderBy(script => script.DisplayName, StringComparer.OrdinalIgnoreCase))
+        {
+            var path = script.Url;
+            if (!paths.Add(path)) continue;
+            items.Add(new SourcesPaletteItem(
+                script.DisplayName,
+                string.IsNullOrWhiteSpace(path) ? script.DetailDisplay : path,
+                script.LanguageBadge,
+                "runtime",
+                () =>
+                {
+                    vm.Sources.SelectedRuntimeScript = script;
+                    return System.Threading.Tasks.Task.CompletedTask;
+                }));
+        }
+
+        ShowSourcePalette("Go to File", "Search files by name or path", items);
+    }
+
+    private void ShowSourceCommandPalette()
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        var sources = vm.Sources;
+        var items = new[]
+        {
+            new SourcesPaletteItem("Go to File", "Open a workspace or runtime source", "FILE", "Ctrl+P",
+                () => { ShowSourceQuickOpen(); return System.Threading.Tasks.Task.CompletedTask; }),
+            new SourcesPaletteItem("Go to Symbol in Editor", "Search symbols in the current JavaScript or TypeScript file", "SYMBOL", "Ctrl+Shift+O",
+                async () => await ShowCurrentSourceSymbolPaletteAsync()),
+            new SourcesPaletteItem("Go to Symbol in Workspace", "Search symbols across the loaded JavaScript or TypeScript project", "SYMBOL", "Ctrl+T",
+                async () => await ShowWorkspaceSourceSymbolPaletteAsync()),
+            new SourcesPaletteItem("Go to Definition", "Navigate to the definition at the caret", "EDIT", "F12",
+                GoToJavaScriptDefinitionAsync),
+            new SourcesPaletteItem("Find All References", "Show references for the symbol at the caret", "EDIT", "Shift+F12",
+                ShowJavaScriptReferencesAsync),
+            new SourcesPaletteItem("Rename Symbol", "Rename across the loaded project", "EDIT", "F2",
+                PrepareJavaScriptRenameAsync),
+            new SourcesPaletteItem("Format Document", "Apply TypeScript formatting edits", "EDIT", "Shift+Alt+F",
+                FormatJavaScriptDocumentAsync),
+            new SourcesPaletteItem("Save Source", "Save workspace changes or apply a V8 live edit", "FILE", "Ctrl+S",
+                () => { SaveCurrentFile(); return System.Threading.Tasks.Task.CompletedTask; }),
+            new SourcesPaletteItem("Toggle Breakpoint", "Add or remove a breakpoint at the caret", "DEBUG", "F9",
+                () => { ToggleBreakpointAtCaret(); return System.Threading.Tasks.Task.CompletedTask; }),
+            new SourcesPaletteItem("Continue", "Resume the paused debugger", "DEBUG", "F5",
+                () => { if (sources.ResumeCommand.CanExecute(null)) sources.ResumeCommand.Execute(null); return System.Threading.Tasks.Task.CompletedTask; }),
+            new SourcesPaletteItem("Pause", "Pause JavaScript execution", "DEBUG", "F6",
+                () => { if (sources.PauseCommand.CanExecute(null)) sources.PauseCommand.Execute(null); return System.Threading.Tasks.Task.CompletedTask; }),
+            new SourcesPaletteItem("Step Over", "Advance over the current statement", "DEBUG", "F10",
+                () => { if (sources.StepOverCommand.CanExecute(null)) sources.StepOverCommand.Execute(null); return System.Threading.Tasks.Task.CompletedTask; }),
+            new SourcesPaletteItem("Step Into", "Enter the current function call", "DEBUG", "F11",
+                () => { if (sources.StepIntoCommand.CanExecute(null)) sources.StepIntoCommand.Execute(null); return System.Threading.Tasks.Task.CompletedTask; }),
+            new SourcesPaletteItem("Step Out", "Leave the current function", "DEBUG", "Shift+F11",
+                () => { if (sources.StepOutCommand.CanExecute(null)) sources.StepOutCommand.Execute(null); return System.Threading.Tasks.Task.CompletedTask; }),
+            new SourcesPaletteItem("Run to Cursor", "Continue to the source line at the caret", "DEBUG", "Ctrl+F10",
+                () => { RunToCursorAtCaret(); return System.Threading.Tasks.Task.CompletedTask; })
+        };
+        ShowSourcePalette("Command Palette", "Type a command", items);
+    }
+
+    private async System.Threading.Tasks.Task ShowCurrentSourceSymbolPaletteAsync()
+    {
+        ShowSourcePalette("Go to Symbol in Editor", "Loading document symbols…", []);
+        var requestVersion = _sourcePaletteRequestVersion;
+        var context = await PrepareJavaScriptEditorContextAsync();
+        if (context is null)
+        {
+            if (IsCurrentSourcePaletteRequest(requestVersion))
+                SetEmptySourcePalette("No JavaScript or TypeScript document is selected");
+            return;
+        }
+
+        try
+        {
+            var root = await _javaScriptLanguageService.GetDocumentSymbolsAsync(
+                context.FileName, context.CancellationToken);
+            var items = root is null
+                ? []
+                : CreateSourceSymbolPaletteItems(context.FileName, root.Children).ToArray();
+            if (IsCurrentSourcePaletteRequest(requestVersion))
+                ShowSourcePalette("Go to Symbol in Editor", "Search symbols in the current file", items, true);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            if (IsCurrentSourcePaletteRequest(requestVersion))
+                SetEmptySourcePalette($"Symbols unavailable: {ex.Message}");
+        }
+    }
+
+    private async System.Threading.Tasks.Task ShowWorkspaceSourceSymbolPaletteAsync()
+    {
+        ShowSourcePalette("Go to Symbol in Workspace", "Loading project symbols…", []);
+        var requestVersion = _sourcePaletteRequestVersion;
+        var context = await PrepareJavaScriptEditorContextAsync();
+        if (context is null)
+        {
+            if (IsCurrentSourcePaletteRequest(requestVersion))
+                SetEmptySourcePalette("Open a JavaScript or TypeScript document to load its project");
+            return;
+        }
+
+        try
+        {
+            var items = new List<SourcesPaletteItem>();
+            foreach (var entry in _javaScriptProject.Values
+                         .OrderBy(entry => entry.FileName, StringComparer.OrdinalIgnoreCase))
+            {
+                context.CancellationToken.ThrowIfCancellationRequested();
+                if (!IsJavaScriptExtension(GetLanguageExtension(entry.FileName))) continue;
+                var root = await _javaScriptLanguageService.GetDocumentSymbolsAsync(
+                    entry.FileName, context.CancellationToken);
+                if (root is not null)
+                {
+                    items.AddRange(CreateSourceSymbolPaletteItems(entry.FileName, root.Children));
+                }
+            }
+            if (IsCurrentSourcePaletteRequest(requestVersion))
+                ShowSourcePalette("Go to Symbol in Workspace", "Search project symbols", items, true);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            if (IsCurrentSourcePaletteRequest(requestVersion))
+                SetEmptySourcePalette($"Workspace symbols unavailable: {ex.Message}");
+        }
+    }
+
+    private IEnumerable<SourcesPaletteItem> CreateSourceSymbolPaletteItems(
+        string fileName,
+        IEnumerable<JavaScriptNavigationSymbol> symbols)
+    {
+        foreach (var symbol in symbols)
+        {
+            var navigation = CreateSymbolItem(fileName, symbol);
+            yield return new SourcesPaletteItem(
+                symbol.Text,
+                $"{Path.GetFileName(fileName)} · {symbol.Kind}",
+                "SYMBOL",
+                "",
+                () =>
+                {
+                    NavigateToJavaScriptItem(navigation);
+                    return System.Threading.Tasks.Task.CompletedTask;
+                });
+            foreach (var child in CreateSourceSymbolPaletteItems(fileName, symbol.Children))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    private void ShowSourcePalette(
+        string title,
+        string placeholder,
+        IReadOnlyList<SourcesPaletteItem> items,
+        bool preserveRequestVersion = false)
+    {
+        if (!preserveRequestVersion) _sourcePaletteRequestVersion++;
+        _sourcePaletteItems = items;
+        txtSourcePaletteTitle.Text = title;
+        txtSourcePaletteQuery.PlaceholderText = placeholder;
+        if (!preserveRequestVersion) txtSourcePaletteQuery.Text = "";
+        pnlSourcePalette.IsVisible = true;
+        FilterSourcePalette();
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            txtSourcePaletteQuery.Focus();
+            txtSourcePaletteQuery.SelectAll();
+        });
+    }
+
+    private bool IsCurrentSourcePaletteRequest(int requestVersion) =>
+        pnlSourcePalette.IsVisible && requestVersion == _sourcePaletteRequestVersion;
+
+    private void SetEmptySourcePalette(string message)
+    {
+        _sourcePaletteItems = Array.Empty<SourcesPaletteItem>();
+        lstSourcePalette.ItemsSource = _sourcePaletteItems;
+        lstSourcePalette.SelectedItem = null;
+        txtSourcePaletteCount.Text = "0 results";
+        txtSourcePaletteQuery.PlaceholderText = message;
+    }
+
+    private void FilterSourcePalette()
+    {
+        var query = txtSourcePaletteQuery.Text?.Trim() ?? "";
+        var filtered = _sourcePaletteItems
+            .Select((item, index) => (item, index, score: GetSourcePaletteMatchScore(item, query)))
+            .Where(value => value.score >= 0)
+            .OrderBy(value => value.score)
+            .ThenBy(value => value.index)
+            .Select(value => value.item)
+            .ToArray();
+        lstSourcePalette.ItemsSource = filtered;
+        lstSourcePalette.SelectedIndex = filtered.Length == 0 ? -1 : 0;
+        txtSourcePaletteCount.Text = filtered.Length == 1 ? "1 result" : $"{filtered.Length} results";
+    }
+
+    private static int GetSourcePaletteMatchScore(SourcesPaletteItem item, string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return 0;
+        if (item.Label.StartsWith(query, StringComparison.OrdinalIgnoreCase)) return 0;
+        if (item.Label.Contains(query, StringComparison.OrdinalIgnoreCase)) return 1;
+        if (item.Detail.Contains(query, StringComparison.OrdinalIgnoreCase)) return 2;
+        var search = item.SearchText;
+        var position = 0;
+        foreach (var character in query)
+        {
+            position = search.IndexOf(character.ToString(), position, StringComparison.OrdinalIgnoreCase);
+            if (position < 0) return -1;
+            position++;
+        }
+        return 3;
+    }
+
+    private void SourcePaletteQuery_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            CloseSourcePalette();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            _ = ExecuteSelectedSourcePaletteItemAsync();
+            e.Handled = true;
+        }
+        else if (e.Key is Key.Down or Key.Up)
+        {
+            var count = lstSourcePalette.ItemCount;
+            if (count > 0)
+            {
+                var delta = e.Key == Key.Down ? 1 : -1;
+                lstSourcePalette.SelectedIndex = Math.Clamp(lstSourcePalette.SelectedIndex + delta, 0, count - 1);
+                if (lstSourcePalette.SelectedItem is { } selected) lstSourcePalette.ScrollIntoView(selected);
+            }
+            e.Handled = true;
+        }
+    }
+
+    private async System.Threading.Tasks.Task ExecuteSelectedSourcePaletteItemAsync()
+    {
+        if (lstSourcePalette.SelectedItem is not SourcesPaletteItem item) return;
+        CloseSourcePalette();
+        await item.InvokeAsync();
+    }
+
+    private void CloseSourcePalette()
+    {
+        _sourcePaletteRequestVersion++;
+        pnlSourcePalette.IsVisible = false;
+        _sourcePaletteItems = Array.Empty<SourcesPaletteItem>();
+        lstSourcePalette.ItemsSource = null;
+        txtSourcePaletteQuery.Text = "";
+        txtSourceContent.Focus();
+    }
+
+    private static IEnumerable<WorkspaceFileNode> EnumerateWorkspaceFileNodes(
+        IEnumerable<WorkspaceFileNode> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            if (!node.IsDirectory)
+            {
+                yield return node;
+            }
+            else
+            {
+                foreach (var child in EnumerateWorkspaceFileNodes(node.Children)) yield return child;
+            }
+        }
+    }
+
+    private static string GetPaletteFileKind(string path)
+    {
+        var extension = Path.GetExtension(path).TrimStart('.').ToUpperInvariant();
+        return string.IsNullOrWhiteSpace(extension) ? "FILE" : extension.Length <= 6 ? extension : "FILE";
     }
 
     private void UpdateHighlighting(string? fileName)
@@ -571,6 +922,11 @@ public partial class SourcesView : UserControl
 
     private void TextArea_KeyDown(object? sender, KeyEventArgs e)
     {
+        if (TryHandleSourcePaletteShortcut(e))
+        {
+            return;
+        }
+
         if (DataContext is MainWindowViewModel vm)
         {
             if (e.Key == Key.F12)
@@ -590,7 +946,7 @@ public partial class SourcesView : UserControl
             if (e.Key == Key.O && e.KeyModifiers.HasFlag(KeyModifiers.Control) &&
                 e.KeyModifiers.HasFlag(KeyModifiers.Shift))
             {
-                _ = ShowJavaScriptSymbolsAsync();
+                _ = ShowCurrentSourceSymbolPaletteAsync();
                 e.Handled = true;
                 return;
             }
@@ -1151,7 +1507,7 @@ public partial class SourcesView : UserControl
     {
         txtLanguageStatus.Text = status;
         ToolTip.SetTip(txtLanguageStatus, string.IsNullOrWhiteSpace(status)
-            ? "F12 definition · Shift+F12 references · F2 rename · Ctrl+Shift+O symbols · Shift+Alt+F format"
+            ? "Ctrl+P files · Ctrl+Shift+P commands · Ctrl+T workspace symbols · Ctrl+Shift+O document symbols"
             : status);
     }
 
@@ -1453,6 +1809,35 @@ public sealed record JavaScriptOutlineItem(
     IReadOnlyList<JavaScriptOutlineItem> Children)
 {
     public override string ToString() => DisplayName;
+}
+
+public sealed class SourcesPaletteItem
+{
+    private readonly Func<System.Threading.Tasks.Task> _invoke;
+
+    public SourcesPaletteItem(
+        string label,
+        string detail,
+        string kind,
+        string shortcut,
+        Func<System.Threading.Tasks.Task> invoke)
+    {
+        Label = label;
+        Detail = detail;
+        Kind = kind;
+        Shortcut = shortcut;
+        _invoke = invoke;
+    }
+
+    public string Label { get; }
+    public string Detail { get; }
+    public string Kind { get; }
+    public string Shortcut { get; }
+    public string SearchText => $"{Label} {Detail} {Kind}";
+
+    internal System.Threading.Tasks.Task InvokeAsync() => _invoke();
+
+    public override string ToString() => Label;
 }
 
 public class LspDiagnosticColorizer : DocumentColorizingTransformer

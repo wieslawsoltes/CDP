@@ -165,9 +165,13 @@
                                    Classes.live-edit-error="{Binding Sources.IsLiveEditError}"
                                    MaxWidth="210" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,5,0"
                                    ToolTip.Tip="{Binding Sources.LiveEditStatus}"/>
+                        <Button Name="btnSourceQuickOpen" Classes="debug-action" Height="24" Width="27"
+                                ToolTip.Tip="Quick Open (Ctrl+P)" AutomationProperties.Name="Quick open source file">
+                            <PathIcon Data="{StaticResource SearchIcon}" Width="12" Height="12"/>
+                        </Button>
                         <TextBlock Name="txtLanguageStatus" Classes="sources-meta" MaxWidth="230" IsVisible="{Binding Sources.IsJavaScriptFile}"
                                    TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                   ToolTip.Tip="F12 definition · Shift+F12 references · F2 rename · Ctrl+Shift+O symbols · Shift+Alt+F format"/>
+                                   ToolTip.Tip="Ctrl+P files · Ctrl+Shift+P commands · Ctrl+T workspace symbols · Ctrl+Shift+O document symbols"/>
                         <Button Name="btnSourceSymbols" Classes="sources-compact" Content="Outline" Height="24" Padding="7,0" IsVisible="{Binding Sources.IsJavaScriptFile}"
                                 ToolTip.Tip="Document symbols (Ctrl+Shift+O)" AutomationProperties.Name="Show document symbols"/>
                         <Button Name="btnSourceReferences" Classes="sources-compact" Content="Refs" Height="24" Padding="7,0" IsVisible="{Binding Sources.IsJavaScriptFile}"
@@ -211,6 +215,50 @@
                                            IsVisible="{Binding Sources.IsSourceEditorVisible}"
                                            FontFamily="Consolas,Monaco,Courier New,monospace" FontSize="12" Foreground="{DynamicResource Brush.Sources.Text}" Background="{DynamicResource Brush.Sources.Editor}" BorderThickness="0" ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
                                            ToolTip.Tip="F9 breakpoint · F5 continue · F6 pause · F10 step over · Ctrl+F10 run to cursor · F11 step into · Shift+F11 step out · Ctrl+Shift+E evaluate selection · Ctrl+S save/live edit"/>
+                    <Border Name="pnlSourcePalette" IsVisible="False" HorizontalAlignment="Stretch" VerticalAlignment="Top"
+                            MaxWidth="680" Margin="32,12" CornerRadius="4" BorderThickness="1"
+                            Background="{DynamicResource Brush.Sources.Panel}" BorderBrush="{DynamicResource Brush.Sources.Accent}"
+                            BoxShadow="0 8 24 2 #80000000" ZIndex="30">
+                        <Grid RowDefinitions="Auto,Auto,240,Auto">
+                            <Grid Margin="10,7,10,3" ColumnDefinitions="*,Auto">
+                                <TextBlock Name="txtSourcePaletteTitle" Classes="sources-pane-title" VerticalAlignment="Center"/>
+                                <TextBlock Name="txtSourcePaletteCount" Grid.Column="1" Classes="sources-meta" VerticalAlignment="Center"/>
+                            </Grid>
+                            <TextBox Name="txtSourcePaletteQuery" Grid.Row="1" Margin="8,3,8,6" Height="31"
+                                     VerticalContentAlignment="Center" AutomationProperties.Name="Source navigation query"/>
+                            <ListBox Name="lstSourcePalette" Grid.Row="2" Margin="4,0" Background="Transparent" ClipToBounds="True"
+                                     BorderThickness="0" AutomationProperties.Name="Source navigation results">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="views:SourcesPaletteItem">
+                                        <Grid Margin="5,3" ColumnDefinitions="50,*,Auto" ColumnSpacing="7">
+                                            <Border Background="{DynamicResource Brush.Sources.Editor}" CornerRadius="3"
+                                                    Padding="4,2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Kind}" FontSize="9" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource Brush.Sources.Accent}"
+                                                           HorizontalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="1" Spacing="1">
+                                                <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Detail}" Classes="sources-meta"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding Shortcut}" Classes="sources-meta"
+                                                       VerticalAlignment="Center" Margin="8,0,3,0"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <Border Grid.Row="3" Background="{DynamicResource Brush.Sources.Panel}">
+                                <Grid Margin="10,5,10,7" ColumnDefinitions="*,Auto">
+                                    <TextBlock Name="txtSourcePaletteHint" Classes="sources-meta"
+                                               Text="↑↓ navigate · Enter open · Esc close"/>
+                                    <TextBlock Grid.Column="1" Classes="sources-meta"
+                                               Text="Ctrl+P files · Ctrl+Shift+P commands"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
                     <Border Name="pnlSourceRename" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Top"
                             Margin="0,8,18,0" Padding="8" CornerRadius="4" BorderThickness="1"
                             Background="{DynamicResource Brush.Sources.Panel}" BorderBrush="{DynamicResource Brush.Sources.Accent}"
