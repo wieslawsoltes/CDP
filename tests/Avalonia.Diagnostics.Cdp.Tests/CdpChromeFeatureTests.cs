@@ -442,7 +442,7 @@ public class CdpChromeFeatureTests
         }
     }
 
-    [AvaloniaFact]
+    [Fact]
     public void TestRecordingParser()
     {
         // 1. JSON parse test
