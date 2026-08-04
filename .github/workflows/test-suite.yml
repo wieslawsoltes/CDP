@@ -69,18 +69,27 @@ jobs:
             echo "=== Executing isolated console view-model tests for $proj ==="
             run_test_project "$proj" \
               "$FILTER&FullyQualifiedName~ConsoleViewModelTests" || exit 1
-            echo "=== Executing isolated ordinary views-layout tests for $proj ==="
-            run_test_project "$proj" \
-              "$FILTER&FullyQualifiedName~ViewsLayoutTests&FullyQualifiedName!~Test_SuperSplitBox_TabDragStarted_Fires_When_Dragged_Outside&FullyQualifiedName!~Test_SuperSplitBox_Tab_Reordering_Preserves_Capture&FullyQualifiedName!~Test_SuperSplit_Float_And_Merge" || exit 1
-            echo "=== Executing isolated split tab-drag test for $proj ==="
-            run_test_project "$proj" \
-              "$FILTER&FullyQualifiedName~Test_SuperSplitBox_TabDragStarted_Fires_When_Dragged_Outside" || exit 1
-            echo "=== Executing isolated split tab-reordering test for $proj ==="
-            run_test_project "$proj" \
-              "$FILTER&FullyQualifiedName~Test_SuperSplitBox_Tab_Reordering_Preserves_Capture" || exit 1
-            echo "=== Executing isolated split float/merge test for $proj ==="
-            run_test_project "$proj" \
-              "$FILTER&FullyQualifiedName~Test_SuperSplit_Float_And_Merge" || exit 1
+            # Each layout test gets its own process. Avalonia's headless input
+            # manager is process-global, and cross-window drag/capture tests can
+            # otherwise leave the next test waiting on routed input on macOS.
+            views_layout_tests=()
+            while IFS= read -r test_name; do
+              views_layout_tests+=("$test_name")
+            done < <(
+              dotnet test "$proj" -c Release --no-build --no-restore \
+                --list-tests --verbosity quiet \
+                --filter "$FILTER&FullyQualifiedName~ViewsLayoutTests" |
+                sed -n 's/^    //p'
+            )
+            if [[ "${#views_layout_tests[@]}" -eq 0 ]]; then
+              echo "No ViewsLayoutTests were discovered" >&2
+              exit 1
+            fi
+            for test_name in "${views_layout_tests[@]}"; do
+              echo "=== Executing isolated layout test $test_name ==="
+              run_test_project "$proj" \
+                "$FILTER&FullyQualifiedName=$test_name" || exit 1
+            done
             echo "=== Executing isolated V8 Inspector app integration for $proj ==="
             run_test_project "$proj" \
               "$FILTER&FullyQualifiedName~V8InspectorAppIntegrationTests" || exit 1
