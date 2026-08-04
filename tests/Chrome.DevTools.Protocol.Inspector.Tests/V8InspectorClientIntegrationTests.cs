@@ -221,22 +221,22 @@ public sealed class V8InspectorClientIntegrationTests
                 // preceding dry run. In that case the desired resumed state has
                 // already been reached; all other protocol errors remain fatal.
             }
-            // On Windows, V8 can acknowledge resume just before the top frame has
-            // finished unwinding. Retry only that documented transient status;
-            // any compiler or protocol failure still reaches the assertion.
-            JsonObject? applied = null;
-            for (var attempt = 0; attempt < 200; ++attempt)
+            // A resume response only acknowledges the protocol command; the
+            // JavaScript frame may still be active. Await a Node event-loop turn so
+            // V8 has unwound the target frame before replacing its script.
+            var frameUnwound = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
             {
-                applied = await inspector.SendCommandAsync("Debugger.setScriptSource", new JsonObject
-                {
-                    ["scriptId"] = script["scriptId"]!.GetValue<string>(),
-                    ["scriptSource"] = mutation.GeneratedSource,
-                    ["dryRun"] = false
-                });
-                if (applied["status"]?.GetValue<string>() != "BlockedByActiveFunction") break;
-                await Task.Delay(25, TestContext.Current.CancellationToken);
-            }
-            Assert.NotNull(applied);
+                ["expression"] = "new Promise(resolve => setImmediate(() => resolve(true)))",
+                ["awaitPromise"] = true,
+                ["returnByValue"] = true
+            });
+            Assert.True(frameUnwound["result"]?["value"]?.GetValue<bool>());
+            var applied = await inspector.SendCommandAsync("Debugger.setScriptSource", new JsonObject
+            {
+                ["scriptId"] = script["scriptId"]!.GetValue<string>(),
+                ["scriptSource"] = mutation.GeneratedSource,
+                ["dryRun"] = false
+            });
             Assert.Equal("Ok", applied["status"]?.GetValue<string>());
 
             var mappedResult = await inspector.SendCommandAsync("Runtime.evaluate", new JsonObject
