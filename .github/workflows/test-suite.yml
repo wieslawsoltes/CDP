@@ -61,10 +61,17 @@ jobs:
             # The real Node/Inspector session owns a long-lived WebSocket and an
             # Avalonia window. Give it a fresh testhost so its native teardown
             # cannot stall an unrelated headless layout test on macOS. Keep the
-            # synthetic drag and float/merge tests isolated as well: macOS 26 can
-            # retain routed pointer state across headless tests until testhost exit.
+            # stateful console/layout classes in fresh testhosts too: their
+            # background expansion and routed pointer state otherwise survives
+            # between headless tests differently across X11, macOS, and Windows.
             run_test_project "$proj" \
-              "$FILTER&FullyQualifiedName!~V8InspectorAppIntegrationTests&FullyQualifiedName!~Test_SuperSplitBox_TabDragStarted_Fires_When_Dragged_Outside&FullyQualifiedName!~Test_SuperSplitBox_Tab_Reordering_Preserves_Capture&FullyQualifiedName!~Test_SuperSplit_Float_And_Merge" || exit 1
+              "$FILTER&FullyQualifiedName!~V8InspectorAppIntegrationTests&FullyQualifiedName!~ConsoleViewModelTests&FullyQualifiedName!~ViewsLayoutTests" || exit 1
+            echo "=== Executing isolated console view-model tests for $proj ==="
+            run_test_project "$proj" \
+              "$FILTER&FullyQualifiedName~ConsoleViewModelTests" || exit 1
+            echo "=== Executing isolated ordinary views-layout tests for $proj ==="
+            run_test_project "$proj" \
+              "$FILTER&FullyQualifiedName~ViewsLayoutTests&FullyQualifiedName!~Test_SuperSplitBox_TabDragStarted_Fires_When_Dragged_Outside&FullyQualifiedName!~Test_SuperSplitBox_Tab_Reordering_Preserves_Capture&FullyQualifiedName!~Test_SuperSplit_Float_And_Merge" || exit 1
             echo "=== Executing isolated split tab-drag test for $proj ==="
             run_test_project "$proj" \
               "$FILTER&FullyQualifiedName~Test_SuperSplitBox_TabDragStarted_Fires_When_Dragged_Outside" || exit 1
