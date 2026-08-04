@@ -12,6 +12,7 @@ using CdpInspectorApp.Services;
 using Avalonia.Controls.DataGridHierarchical;
 using Avalonia.Layout;
 using CDP.Editor.Splits.Models;
+using CDP.JavaScript.LanguageServer;
 using Chrome.DevTools.Protocol;
 using Chrome.DevTools.Protocol.Inspector;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     private const string WatchObjectGroup = "cdp-inspector-watch";
     private readonly V8SourceMutationEngine _sourceMutationEngine;
     private const int MaximumVariableDepth = 32;
+    private const int MaximumJavaScriptProjectDocuments = 256;
+    private const int MaximumJavaScriptProjectBytes = 8 * 1024 * 1024;
     private SplitNode? _layoutRoot;
     private BoxNode? _selectedPane;
     private SplitNode? _debuggerLayoutRoot;
@@ -1609,7 +1612,8 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
             });
             if (SelectedRuntimeScript?.ScriptId == script.ScriptId)
             {
-                SelectedFileContent = response["scriptSource"]?.GetValue<string>() ?? "";
+                script.SourceContent = response["scriptSource"]?.GetValue<string>() ?? "";
+                SelectedFileContent = script.SourceContent;
             }
         }
         catch (Exception ex)
@@ -3255,6 +3259,101 @@ public class SourcesViewModel : ViewModelBase, IStateProvider
     public WorkspaceFileNode? FindFileByPath(string path)
     {
         return FindFileByPath(WorkspaceFiles, path);
+    }
+
+    public async Task<IReadOnlyList<JavaScriptProjectDocument>> LoadJavaScriptProjectDocumentsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var documents = new List<JavaScriptProjectDocument>();
+        var totalBytes = 0;
+
+        if (_cdpService.IsConnected && _cdpService.SupportsDomain("Sources"))
+        {
+            foreach (var file in EnumerateWorkspaceFiles(WorkspaceFiles))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (documents.Count >= MaximumJavaScriptProjectDocuments) break;
+                if (!IsJavaScriptProjectFile(file.Path)) continue;
+
+                try
+                {
+                    var response = await _cdpService.SendCommandAsync("Sources.getFileContent", new JsonObject
+                    {
+                        ["path"] = file.Path
+                    });
+                    if (response["base64Encoded"]?.GetValue<bool>() == true) continue;
+                    var content = response["content"]?.GetValue<string>() ?? "";
+                    var byteCount = Encoding.UTF8.GetByteCount(content);
+                    if (totalBytes + byteCount > MaximumJavaScriptProjectBytes) break;
+                    documents.Add(new JavaScriptProjectDocument(file.Path, content));
+                    totalBytes += byteCount;
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogDebug(ex, "Unable to load JavaScript project document {Path}", file.Path);
+                }
+            }
+        }
+
+        foreach (var script in RuntimeScripts.Where(script =>
+                     !string.IsNullOrWhiteSpace(script.SourceContent) &&
+                     IsJavaScriptProjectFile(script.Url)))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (documents.Count >= MaximumJavaScriptProjectDocuments) break;
+            if (documents.Any(document => string.Equals(document.FileName, script.Url, StringComparison.Ordinal))) continue;
+            var content = script.SourceContent!;
+            var byteCount = Encoding.UTF8.GetByteCount(content);
+            if (totalBytes + byteCount > MaximumJavaScriptProjectBytes) break;
+            documents.Add(new JavaScriptProjectDocument(script.Url, content));
+            totalBytes += byteCount;
+        }
+
+        return documents;
+    }
+
+    public async Task<bool> SaveJavaScriptProjectDocumentAsync(
+        string path,
+        string content,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_cdpService.IsConnected || !_cdpService.SupportsDomain("Sources") ||
+            FindFileByPath(path) is not { IsDirectory: false })
+        {
+            return false;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var response = await _cdpService.SendCommandAsync("Sources.setFileContent", new JsonObject
+        {
+            ["path"] = path,
+            ["content"] = content
+        });
+        return response["success"]?.GetValue<bool>() == true;
+    }
+
+    private static IEnumerable<WorkspaceFileNode> EnumerateWorkspaceFiles(
+        IEnumerable<WorkspaceFileNode> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            if (!node.IsDirectory)
+            {
+                yield return node;
+                continue;
+            }
+
+            foreach (var child in EnumerateWorkspaceFiles(node.Children))
+            {
+                yield return child;
+            }
+        }
+    }
+
+    private static bool IsJavaScriptProjectFile(string path)
+    {
+        var extension = Path.GetExtension(path).ToLowerInvariant();
+        return extension is ".js" or ".jsx" or ".mjs" or ".cjs" or ".ts" or ".tsx";
     }
 
     private WorkspaceFileNode? FindFileByPath(ObservableCollection<WorkspaceFileNode> nodes, string path)
