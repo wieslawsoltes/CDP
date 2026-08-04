@@ -43,6 +43,33 @@ public sealed record JavaScriptDocumentSpan(
 
 public sealed record JavaScriptTextChange(int Start, int Length, string NewText);
 
+public sealed record JavaScriptSignatureParameter(
+    string Name,
+    string Display,
+    string Documentation,
+    bool Optional);
+
+public sealed record JavaScriptSignatureItem(
+    string Prefix,
+    string Suffix,
+    string Separator,
+    string Documentation,
+    List<JavaScriptSignatureParameter> Parameters);
+
+public sealed record JavaScriptSignatureHelp(
+    int ArgumentIndex,
+    int ArgumentCount,
+    int SelectedItemIndex,
+    List<JavaScriptSignatureItem> Items);
+
+public sealed record JavaScriptNavigationSymbol(
+    string Text,
+    string Kind,
+    string KindModifiers,
+    List<JavaScriptTextSpan> Spans,
+    JavaScriptTextSpan? NameSpan,
+    List<JavaScriptNavigationSymbol> Children);
+
 public sealed record JavaScriptRenameResult(
     bool CanRename,
     string? Error,
@@ -139,12 +166,12 @@ public sealed class JavaScriptLanguageService
         await InvokeJsonAsync<List<JavaScriptDiagnostic>>(
             "__cdpTsDiagnostics", fileName, cancellationToken).ConfigureAwait(false);
 
-    public Task<JsonElement?> GetSignatureHelpAsync(
+    public Task<JavaScriptSignatureHelp?> GetSignatureHelpAsync(
         string fileName,
         int line,
         int column,
         CancellationToken cancellationToken = default) =>
-        InvokeJsonAsync<JsonElement?>(
+        InvokeJsonAsync<JavaScriptSignatureHelp?>(
             "__cdpTsSignatureHelp", fileName, line, column, cancellationToken);
 
     public async Task<IReadOnlyList<JavaScriptDocumentSpan>> GetDefinitionsAsync(
@@ -173,10 +200,10 @@ public sealed class JavaScriptLanguageService
         InvokeJsonAsync<JavaScriptRenameResult>(
             "__cdpTsRename", fileName, line, column, cancellationToken);
 
-    public Task<JsonElement?> GetDocumentSymbolsAsync(
+    public Task<JavaScriptNavigationSymbol?> GetDocumentSymbolsAsync(
         string fileName,
         CancellationToken cancellationToken = default) =>
-        InvokeJsonAsync<JsonElement?>(
+        InvokeJsonAsync<JavaScriptNavigationSymbol?>(
             "__cdpTsSymbols", fileName, cancellationToken);
 
     public async Task<IReadOnlyList<int>> GetSemanticClassificationsAsync(
@@ -210,6 +237,41 @@ public sealed class JavaScriptLanguageService
             }
         }
         return (line, offset - lineStart + 1);
+    }
+
+    public string GetNormalizedFileName(string fileName) => NormalizeFileName(fileName);
+
+    public bool TryGetDocumentText(string fileName, out string text) =>
+        _documents.TryGetValue(NormalizeFileName(fileName), out text!);
+
+    public static string ApplyTextChanges(
+        string text,
+        IEnumerable<JavaScriptTextChange> changes)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(changes);
+        var ordered = changes
+            .OrderByDescending(change => change.Start)
+            .ThenByDescending(change => change.Length)
+            .ToArray();
+        var previousStart = text.Length;
+        foreach (var change in ordered)
+        {
+            if (change.Start < 0 || change.Length < 0 || change.Start > text.Length - change.Length)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(changes),
+                    $"Text change [{change.Start}, {change.Length}] is outside a {text.Length}-character document.");
+            }
+            if (change.Start + change.Length > previousStart)
+            {
+                throw new InvalidOperationException("Text changes overlap and cannot be applied deterministically.");
+            }
+            text = text.Remove(change.Start, change.Length)
+                .Insert(change.Start, change.NewText ?? string.Empty);
+            previousStart = change.Start;
+        }
+        return text;
     }
 
     private async Task<T> InvokeJsonAsync<T>(
@@ -396,11 +458,11 @@ public sealed class JavaScriptLanguageService
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(List<JavaScriptCompletion>))]
 [JsonSerializable(typeof(JavaScriptQuickInfo))]
-[JsonSerializable(typeof(JsonElement?))]
 [JsonSerializable(typeof(List<JavaScriptDiagnostic>))]
-[JsonSerializable(typeof(JsonElement))]
+[JsonSerializable(typeof(JavaScriptSignatureHelp))]
 [JsonSerializable(typeof(List<JavaScriptDocumentSpan>))]
 [JsonSerializable(typeof(JavaScriptRenameResult))]
+[JsonSerializable(typeof(JavaScriptNavigationSymbol))]
 [JsonSerializable(typeof(List<int>))]
 [JsonSerializable(typeof(List<JavaScriptTextChange>))]
 internal sealed partial class JavaScriptLanguageServiceJsonContext : JsonSerializerContext;

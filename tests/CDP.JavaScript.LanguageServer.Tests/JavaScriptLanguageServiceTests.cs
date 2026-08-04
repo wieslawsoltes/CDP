@@ -28,7 +28,8 @@ public sealed class JavaScriptLanguageServiceTests
         Assert.Contains("add", hover.DisplayText);
         Assert.Contains(definitions, item => item.FileName.EndsWith("/math.ts", StringComparison.Ordinal));
         Assert.True(references.Count >= 2);
-        Assert.True(symbols.HasValue);
+        Assert.NotNull(symbols);
+        Assert.Contains(symbols.Children, item => item.Text == "add" && item.Kind == "function");
         Assert.NotEmpty(semantic);
     }
 
@@ -50,10 +51,17 @@ public sealed class JavaScriptLanguageServiceTests
             cancellationToken: cancellationToken);
 
         Assert.Contains(diagnostics, item => item.Code == 2322);
-        Assert.True(signature.HasValue);
+        Assert.NotNull(signature);
+        Assert.Equal(1, signature.ArgumentIndex);
+        Assert.Contains(signature.Items, item =>
+            item.Parameters.Count == 2 && item.Parameters[0].Name == "name");
         Assert.True(rename.CanRename);
         Assert.True(rename.Locations.Count >= 3);
         Assert.NotEmpty(formatting);
+
+        var formatted = JavaScriptLanguageService.ApplyTextChanges(source, formatting);
+        Assert.EndsWith("\n", formatted, StringComparison.Ordinal);
+        Assert.Contains("function greet", formatted, StringComparison.Ordinal);
     }
 
     [Fact]
