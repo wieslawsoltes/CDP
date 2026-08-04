@@ -11,14 +11,15 @@ public sealed class JavaScriptLanguageServiceTests
         var service = new JavaScriptLanguageService();
         await service.OpenProjectAsync(
         [
-            new("/workspace/math.ts", "export function add(left: number, right: number) { return left + right; }"),
-            new("/workspace/app.ts", "import { add } from './math';\nconst total = add(20, 22);\nconsole.log(total);\n")
+            new("/workspace/math.ts", "function add(left: number, right: number) { return left + right; }"),
+            new("/workspace/app.ts", "const total = add(20, 22);\nconsole.log(total);\n")
         ], "/workspace", cancellationToken);
 
-        var completions = await service.GetCompletionsAsync("/workspace/app.ts", 3, 9, cancellationToken);
-        var hover = await service.GetQuickInfoAsync("/workspace/app.ts", 2, 16, cancellationToken);
-        var definitions = await service.GetDefinitionsAsync("/workspace/app.ts", 2, 16, cancellationToken);
-        var references = await service.GetReferencesAsync("/workspace/app.ts", 2, 16, cancellationToken);
+        var completions = await service.GetCompletionsAsync("/workspace/app.ts", 2, 9, cancellationToken);
+        var hover = await service.GetQuickInfoAsync("/workspace/app.ts", 1, 16, cancellationToken);
+        var definitions = await service.GetDefinitionsAsync("/workspace/app.ts", 1, 16, cancellationToken);
+        var references = await service.GetReferencesAsync("/workspace/app.ts", 1, 16, cancellationToken);
+        var rename = await service.GetRenameLocationsAsync("/workspace/app.ts", 1, 16, cancellationToken);
         var symbols = await service.GetDocumentSymbolsAsync("/workspace/math.ts", cancellationToken);
         var semantic = await service.GetSemanticClassificationsAsync("/workspace/app.ts", cancellationToken);
 
@@ -28,6 +29,9 @@ public sealed class JavaScriptLanguageServiceTests
         Assert.Contains("add", hover.DisplayText);
         Assert.Contains(definitions, item => item.FileName.EndsWith("/math.ts", StringComparison.Ordinal));
         Assert.True(references.Count >= 2);
+        Assert.True(rename.CanRename);
+        Assert.Contains(rename.Locations, item => item.FileName.EndsWith("/math.ts", StringComparison.Ordinal));
+        Assert.Contains(rename.Locations, item => item.FileName.EndsWith("/app.ts", StringComparison.Ordinal));
         Assert.NotNull(symbols);
         Assert.Contains(symbols.Children, item => item.Text == "add" && item.Kind == "function");
         Assert.NotEmpty(semantic);
