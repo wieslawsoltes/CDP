@@ -37,6 +37,16 @@ public static class RuntimeDomain
         CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.Xray.XrayService());
         CDP.Integration.Core.TestServiceRegistry.Register(new CDP.Integration.Zephyr.ZephyrService());
     }
+    private static JsonObject CreateAriaSnapshotResult(string full)
+    {
+        return new JsonObject
+        {
+            ["full"] = full,
+            ["iframeRefs"] = new JsonArray(),
+            ["iframeDepths"] = new JsonObject()
+        };
+    }
+
     private static string GenerateAriaSnapshot(CdpSession session)
     {
         Logger.LogAriaDebug("GenerateAriaSnapshot started");
@@ -471,9 +481,9 @@ public static class RuntimeDomain
 
                         if (target is PlaywrightInjectedFunctionMock || functionDeclaration.Contains("incrementalAriaSnapshot"))
                         {
-                            var emptySnapshot = new JsonObject { ["full"] = GenerateAriaSnapshot(session) };
-                            return returnByValue 
-                                ? new JsonObject { ["result"] = CreateReturnByValueObject(emptySnapshot) } 
+                            var emptySnapshot = CreateAriaSnapshotResult(GenerateAriaSnapshot(session));
+                            return returnByValue
+                                ? new JsonObject { ["result"] = CreateReturnByValueObject(emptySnapshot) }
                                 : new JsonObject { ["result"] = CreateRemoteObject(session, emptySnapshot) };
                         }
 
@@ -632,7 +642,7 @@ public static class RuntimeDomain
                               if (expression.Contains("incrementalAriaSnapshot"))
                             {
                                 var snapshotFull = await Dispatcher.UIThread.InvokeAsync(() => GenerateAriaSnapshot(session));
-                                var emptySnapshot = new JsonObject { ["full"] = snapshotFull };
+                                var emptySnapshot = CreateAriaSnapshotResult(snapshotFull);
                                 return returnByValue 
                                     ? new JsonObject { ["result"] = CreateReturnByValueObject(emptySnapshot) } 
                                     : new JsonObject { ["result"] = CreateRemoteObject(session, emptySnapshot) };
