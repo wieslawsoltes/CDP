@@ -24,7 +24,7 @@ public class CdpSession : IDisposable
     public bool IsTargetAttached(string targetId) =>
         _attachedTargets.Values.Any(x => !x.IsBrowserSession && x.TargetId == targetId);
     private readonly CdpTargetSession? _defaultTargetSession;
-    private readonly AsyncLocal<CdpTargetSession?> _currentTargetSession = new();
+    private CdpTargetSession? _currentTargetSession;
 
     private static readonly ConcurrentDictionary<string, object> _dummyRemoteObjects = new();
     private static readonly ConcurrentDictionary<string, string> _dummyScripts = new();
@@ -32,8 +32,8 @@ public class CdpSession : IDisposable
 
     public CdpTargetSession? CurrentTargetSession
     {
-        get => _currentTargetSession.Value ?? _defaultTargetSession;
-        set => _currentTargetSession.Value = value;
+        get => _currentTargetSession ?? _defaultTargetSession;
+        set => _currentTargetSession = value;
     }
 
     public ICdpTarget? Target => CurrentTargetSession?.Target;
@@ -435,15 +435,15 @@ public class CdpSession : IDisposable
                 }
             }
 
-            var previousSession = _currentTargetSession.Value;
-            _currentTargetSession.Value = targetSession ?? _defaultTargetSession;
+            var previousSession = _currentTargetSession;
+            _currentTargetSession = targetSession ?? _defaultTargetSession;
             try
             {
                 return await CdpDispatcher.DispatchAsync(this, method, @params);
             }
             finally
             {
-                _currentTargetSession.Value = previousSession;
+                _currentTargetSession = previousSession;
             }
         };
 
