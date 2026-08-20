@@ -56,6 +56,16 @@ public static class RuntimeDomain
         return result;
     }
 
+    private static JsonObject GenerateAriaSnapshotResult(CdpSession session)
+    {
+        return new JsonObject
+        {
+            ["iframeRefs"] = new JsonArray(),
+            ["iframeDepths"] = new JsonObject(),
+            ["full"] = GenerateAriaSnapshot(session)
+        };
+    }
+
     private static void TraverseAria(Visual visual, CdpSession session, System.Collections.Generic.List<string> list)
     {
         if (visual == null) return;
@@ -471,10 +481,10 @@ public static class RuntimeDomain
 
                         if (target is PlaywrightInjectedFunctionMock || functionDeclaration.Contains("incrementalAriaSnapshot"))
                         {
-                            var emptySnapshot = new JsonObject { ["full"] = GenerateAriaSnapshot(session) };
+                            var snapshot = GenerateAriaSnapshotResult(session);
                             return returnByValue 
-                                ? new JsonObject { ["result"] = CreateReturnByValueObject(emptySnapshot) } 
-                                : new JsonObject { ["result"] = CreateRemoteObject(session, emptySnapshot) };
+                                ? new JsonObject { ["result"] = CreateReturnByValueObject(snapshot) }
+                                : new JsonObject { ["result"] = CreateRemoteObject(session, snapshot) };
                         }
 
                         if ((functionDeclaration.Contains("log") || functionDeclaration.Contains("success") || functionDeclaration.Contains("element")) && arguments != null)
@@ -631,11 +641,10 @@ public static class RuntimeDomain
 
                               if (expression.Contains("incrementalAriaSnapshot"))
                             {
-                                var snapshotFull = await Dispatcher.UIThread.InvokeAsync(() => GenerateAriaSnapshot(session));
-                                var emptySnapshot = new JsonObject { ["full"] = snapshotFull };
+                                var snapshot = await Dispatcher.UIThread.InvokeAsync(() => GenerateAriaSnapshotResult(session));
                                 return returnByValue 
-                                    ? new JsonObject { ["result"] = CreateReturnByValueObject(emptySnapshot) } 
-                                    : new JsonObject { ["result"] = CreateRemoteObject(session, emptySnapshot) };
+                                    ? new JsonObject { ["result"] = CreateReturnByValueObject(snapshot) }
+                                    : new JsonObject { ["result"] = CreateRemoteObject(session, snapshot) };
                             }
 
                             if ((expression.Contains("log") || expression.Contains("success") || expression.Contains("element")) && !expression.Contains("injected") && arguments != null)
