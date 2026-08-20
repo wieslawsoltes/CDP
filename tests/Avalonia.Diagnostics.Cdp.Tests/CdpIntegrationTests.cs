@@ -744,6 +744,51 @@ public class CdpIntegrationTests
                 Assert.Equal(pageSessionId, documentResponse["sessionId"]?.GetValue<string>());
                 Assert.NotNull(documentResponse["result"]?["root"]);
 
+                await SendJsonAsync(ws, new JsonObject
+                {
+                    ["id"] = 5,
+                    ["sessionId"] = pageSessionId,
+                    ["method"] = "Runtime.evaluate",
+                    ["params"] = new JsonObject
+                    {
+                        ["expression"] = "(() => { class UtilityScript {} return new UtilityScript(); })()"
+                    }
+                });
+
+                JsonObject evaluateResponse;
+                do
+                {
+                    evaluateResponse = await ReceiveJsonAsync(ws);
+                }
+                while (evaluateResponse["id"]?.GetValue<int>() != 5);
+
+                var utilityScriptObjectId = evaluateResponse["result"]?["result"]?["objectId"]?.GetValue<string>();
+                Assert.False(string.IsNullOrWhiteSpace(utilityScriptObjectId));
+
+                await SendJsonAsync(ws, new JsonObject
+                {
+                    ["id"] = 6,
+                    ["sessionId"] = pageSessionId,
+                    ["method"] = "Runtime.callFunctionOn",
+                    ["params"] = new JsonObject
+                    {
+                        ["objectId"] = utilityScriptObjectId,
+                        ["functionDeclaration"] = "(utilityScript) => utilityScript.incrementalAriaSnapshot()",
+                        ["returnByValue"] = true
+                    }
+                });
+
+                JsonObject callFunctionResponse;
+                do
+                {
+                    callFunctionResponse = await ReceiveJsonAsync(ws);
+                }
+                while (callFunctionResponse["id"]?.GetValue<int>() != 6);
+
+                Assert.Null(callFunctionResponse["error"]);
+                Assert.Equal(pageSessionId, callFunctionResponse["sessionId"]?.GetValue<string>());
+                Assert.NotNull(callFunctionResponse["result"]?["result"]?["value"]?["full"]);
+
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
             });
 
