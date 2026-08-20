@@ -787,7 +787,10 @@ public class CdpIntegrationTests
 
                 Assert.Null(callFunctionResponse["error"]);
                 Assert.Equal(pageSessionId, callFunctionResponse["sessionId"]?.GetValue<string>());
-                Assert.NotNull(callFunctionResponse["result"]?["result"]?["value"]?["full"]);
+                var snapshot = Assert.IsType<JsonObject>(callFunctionResponse["result"]?["result"]?["value"]);
+                Assert.Empty(Assert.IsType<JsonArray>(snapshot["iframeRefs"]));
+                Assert.Empty(Assert.IsType<JsonObject>(snapshot["iframeDepths"]));
+                Assert.NotNull(snapshot["full"]);
 
                 await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
             });
