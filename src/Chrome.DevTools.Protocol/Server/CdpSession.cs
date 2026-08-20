@@ -25,6 +25,9 @@ public class CdpSession : IDisposable
         _attachedTargets.Values.Any(x => !x.IsBrowserSession && x.TargetId == targetId);
     private readonly CdpTargetSession? _defaultTargetSession;
     private readonly AsyncLocal<CdpTargetSession?> _currentTargetSession = new();
+    // UI dispatchers may suppress ExecutionContext. Keep the active request session available
+    // to nested UI-thread work; messages on a CdpSession are dispatched sequentially.
+    private CdpTargetSession? _dispatchTargetSession;
 
     private static readonly ConcurrentDictionary<string, object> _dummyRemoteObjects = new();
     private static readonly ConcurrentDictionary<string, string> _dummyScripts = new();
@@ -32,7 +35,7 @@ public class CdpSession : IDisposable
 
     public CdpTargetSession? CurrentTargetSession
     {
-        get => _currentTargetSession.Value ?? _defaultTargetSession;
+        get => _currentTargetSession.Value ?? Volatile.Read(ref _dispatchTargetSession) ?? _defaultTargetSession;
         set => _currentTargetSession.Value = value;
     }
 
@@ -435,8 +438,11 @@ public class CdpSession : IDisposable
                 }
             }
 
+            var selectedSession = targetSession ?? _defaultTargetSession;
             var previousSession = _currentTargetSession.Value;
-            _currentTargetSession.Value = targetSession ?? _defaultTargetSession;
+            var previousDispatchSession = Volatile.Read(ref _dispatchTargetSession);
+            _currentTargetSession.Value = selectedSession;
+            Volatile.Write(ref _dispatchTargetSession, selectedSession);
             try
             {
                 return await CdpDispatcher.DispatchAsync(this, method, @params);
@@ -444,6 +450,7 @@ public class CdpSession : IDisposable
             finally
             {
                 _currentTargetSession.Value = previousSession;
+                Volatile.Write(ref _dispatchTargetSession, previousDispatchSession);
             }
         };
 

@@ -1,0 +1,54 @@
+appId: "CdpInspectorApp"
+description: "Verify flattened browser-session runtime state remains usable while preview recording and replay complete without failures"
+tags:
+  - "connection"
+  - "browser-session"
+  - "runtime"
+  - "preview"
+  - "record-replay"
+---
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Connection.DisconnectCommand.Execute(null)"
+- delay: "300"
+- evalScript: |
+    var connection = ((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Connection;
+    connection.HostAddress = "http://127.0.0.1:9222";
+    connection.RefreshTargetsCommand.Execute(null);
+- delay: "700"
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Connection.ConnectCommand.Execute(null)"
+- delay: "1500"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Connection.IsConnected == true"
+- runFlow: "shared/navigate_to_recorder.yaml"
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Simulation.SelectedZoomPreset = \"50%\""
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Simulation.ResetPan()"
+- delay: "500"
+- evalScript: |
+    var recorder = ((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder;
+    if (recorder.IsRecording)
+    {
+        recorder.ToggleRecordCommand.Execute(null);
+    }
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.ClearCommand.Execute(null)"
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.ClearRecording()"
+- delay: "300"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsRecordVideoEnabled == true"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsGenerateReportEnabled == true"
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.ToggleRecordCommand.Execute(null)"
+- delay: "500"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.IsRecording == true"
+- tapOn:
+    selector: "#imgScreenshot"
+    point: "126,509"
+- delay: "500"
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.ToggleRecordCommand.Execute(null)"
+- delay: "2500"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.IsRecording == false"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.RecordedSteps.Count > 0"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps.Count == 2"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps[0].Selector != null"
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.PlayCommand.Execute(null)"
+- delay: "8000"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsExecuting == false"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps[0].Status == 2"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps[1].Status == 2"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.LastReportPath != null"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.LastPdfReportPath != null"
