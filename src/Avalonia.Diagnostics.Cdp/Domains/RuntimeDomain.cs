@@ -753,7 +753,7 @@ public static class RuntimeDomain
                                             }
                                         }
                                     }
-                                    
+
                                     // Let's extract the value parameter from arguments
                                     foreach (var argNode in arguments)
                                     {
@@ -1889,29 +1889,9 @@ public static class RuntimeDomain
             }
             return Jint.Native.JsValue.Undefined;
         }));
-        
+
         var rawDoc = new CdpRuntimeDocument(session);
         engine.SetValue("__raw_document", rawDoc);
-        
-        engine.SetValue("__getProperty", new Func<object, string, object?>((obj, propName) => {
-            if (obj == null) return null;
-            if (obj is Jint.Native.JsValue jsVal)
-            {
-                obj = jsVal.ToObject();
-            }
-            if (obj is JintObjectWrapper wrapper)
-            {
-                obj = wrapper.Value.ToObject();
-            }
-            if (obj == null) return null;
-            var type = obj.GetType();
-            Logger.LogPlaywrightDebug($"obj={obj}, type={type.FullName}, propName={propName}");
-            var prop = type.GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Static);
-            if (prop != null) return prop.GetValue(obj);
-            var field = type.GetField(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Static);
-            if (field != null) return field.GetValue(obj);
-            return null;
-        }));
 
         engine.SetValue("Print", new Action<object?>(obj =>
         {
@@ -1959,48 +1939,58 @@ public static class RuntimeDomain
             });
             rawDoc._activeElement = null;
         }));
-        engine.SetValue("__getTypeName", new Func<Visual, string>(visual => visual.GetType().Name));
-        engine.SetValue("__getProperty", new Func<Visual, string, object?>((visual, propName) => {
+        // The __wrap proxy applies these helpers to every wrapped CLR object, including
+        // collections such as ItemCollection. Jint does not translate CLR exceptions into
+        // JavaScript errors, so a Visual-typed delegate would abort the whole evaluation with
+        // "Object must implement IConvertible" before the proxy's own try/catch could run.
+        engine.SetValue("__getTypeName", new Func<object?, string>(target => UnwrapInteropTarget(target)?.GetType().Name ?? "null"));
+        engine.SetValue("__getProperty", new Func<object?, string, object?>((target, propName) => {
+            var obj = UnwrapInteropTarget(target);
+            if (obj == null) return null;
             return Dispatcher.UIThread.Invoke(() => {
-                var avProperty = AvaloniaPropertyRegistry.Instance.GetRegistered(visual)
-                    .FirstOrDefault(p => p.Name.Equals(propName, StringComparison.OrdinalIgnoreCase));
+                var avProperty = FindAvaloniaProperty(obj, propName);
                 if (avProperty != null)
                 {
-                    return visual.GetValue(avProperty);
+                    return ((AvaloniaObject)obj).GetValue(avProperty);
                 }
 
                 // Fallback to CLR property reflection
-                var prop = visual.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
-                return prop != null && prop.CanRead ? prop.GetValue(visual) : null;
+                var type = obj.GetType();
+                var prop = type.GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+                if (prop != null && prop.CanRead) return prop.GetValue(obj);
+                var field = type.GetField(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+                return field?.GetValue(obj);
             });
         }));
-        engine.SetValue("__hasProperty", new Func<Visual, string, bool>((visual, propName) => {
+        engine.SetValue("__hasProperty", new Func<object?, string, bool>((target, propName) => {
+            var obj = UnwrapInteropTarget(target);
+            if (obj == null) return false;
             return Dispatcher.UIThread.Invoke(() => {
-                var avProperty = AvaloniaPropertyRegistry.Instance.GetRegistered(visual)
-                    .FirstOrDefault(p => p.Name.Equals(propName, StringComparison.OrdinalIgnoreCase));
-                if (avProperty != null) return true;
+                if (FindAvaloniaProperty(obj, propName) != null) return true;
 
-                var prop = visual.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+                var prop = obj.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
                 return prop != null;
             });
         }));
-        engine.SetValue("__setProperty", new Action<Visual, string, object?>((visual, propName, val) => {
+        engine.SetValue("__setProperty", new Action<object?, string, object?>((target, propName, val) => {
+            var obj = UnwrapInteropTarget(target);
+            if (obj == null) return;
             Dispatcher.UIThread.Invoke(() => {
-                var avProperty = AvaloniaPropertyRegistry.Instance.GetRegistered(visual)
-                    .FirstOrDefault(p => p.Name.Equals(propName, StringComparison.OrdinalIgnoreCase));
+                var avProperty = FindAvaloniaProperty(obj, propName);
                 if (avProperty != null)
                 {
+                    var avaloniaObject = (AvaloniaObject)obj;
                     try
                     {
                         var converted = Convert.ChangeType(val, avProperty.PropertyType);
-                        visual.SetValue(avProperty, converted);
+                        avaloniaObject.SetValue(avProperty, converted);
                         return;
                     }
                     catch
                     {
                         try
                         {
-                            visual.SetValue(avProperty, val);
+                            avaloniaObject.SetValue(avProperty, val);
                             return;
                         }
                         catch { }
@@ -2008,14 +1998,14 @@ public static class RuntimeDomain
                 }
 
                 // Fallback to CLR property reflection
-                var prop = visual.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
+                var prop = obj.GetType().GetProperty(propName, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.IgnoreCase);
                 if (prop != null && prop.CanWrite) {
                     try {
                         var converted = Convert.ChangeType(val, prop.PropertyType);
-                        prop.SetValue(visual, converted);
+                        prop.SetValue(obj, converted);
                     } catch {
                         try {
-                            prop.SetValue(visual, val);
+                            prop.SetValue(obj, val);
                         } catch { }
                     }
                 }
@@ -2355,7 +2345,7 @@ public static class RuntimeDomain
                         if (other.contains(this)) return 10;
                         return 1;
                     };
-                    
+
                     var timers = new Map();
                     var nextTimerId = 1;
                     globalThis.setInterval = function(callback, delay) {
@@ -2432,7 +2422,7 @@ public static class RuntimeDomain
                             return instance && instance.nodeType === 1;
                         }
                     };
- 
+
                     globalThis.SVGElement = class extends globalThis.Element {
                         static [Symbol.hasInstance](instance) {
                             return false;
@@ -2503,7 +2493,7 @@ public static class RuntimeDomain
                         };
                     }
                 }
-                
+
                 globalThis.__resolveNode = function(nodeId) {
                     var visual = typeof __getVisualByNodeId === 'function' ? __getVisualByNodeId(nodeId) : null;
                     return visual ? globalThis.__wrap(visual) : null;
@@ -2513,17 +2503,17 @@ public static class RuntimeDomain
                     if (!target) return target;
                     if (typeof target !== 'object' && typeof target !== 'function') return target;
                     if (target.__isProxy) return target;
-                    
+
                     var raw = target;
                     if (target.visual) {
                         raw = target.visual;
                     }
                     if (!raw || (typeof raw !== 'object' && typeof raw !== 'function')) return raw;
-                    
+
                     if (globalThis.__proxyCache.has(raw)) {
                         return globalThis.__proxyCache.get(raw);
                     }
-                    
+
                     var p = new Proxy(raw, {
                         get(t, prop, receiver) {
                             try { globalThis.__log('wrap.get: ' + String(prop) + ' on type: ' + globalThis.__getTypeName(t)); } catch(e) {}
@@ -2892,6 +2882,30 @@ public static class RuntimeDomain
         }
 
         return engine;
+    }
+
+    private static object? UnwrapInteropTarget(object? target)
+    {
+        if (target is Jint.Native.JsValue jsVal)
+        {
+            target = jsVal.ToObject();
+        }
+        if (target is JintObjectWrapper wrapper)
+        {
+            target = wrapper.Value.ToObject();
+        }
+        if (target is CdpRuntimeElement element)
+        {
+            target = element.visual;
+        }
+        return target;
+    }
+
+    private static AvaloniaProperty? FindAvaloniaProperty(object obj, string propName)
+    {
+        if (obj is not AvaloniaObject avaloniaObject) return null;
+        return AvaloniaPropertyRegistry.Instance.GetRegistered(avaloniaObject)
+            .FirstOrDefault(p => p.Name.Equals(propName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static object? EvaluateExpression(CdpSession session, object target, string expression, Dictionary<string, object?>? variableBindings = null)
@@ -3820,7 +3834,7 @@ public static class RuntimeDomain
             _engines.TryRemove(key, out _);
         }
     }
- 
+
     private static async Task<Jint.Native.JsValue> AwaitPromiseIfNeededAsync(Jint.Engine engine, Jint.Native.JsValue value)
     {
         if (value != null && (value.GetType().Name == "PromiseInstance" || value.GetType().Name == "JsPromise" || value.GetType().FullName?.Contains("Promise") == true))
@@ -3866,12 +3880,12 @@ public static class RuntimeDomain
             var stateProp = value.GetType().GetProperty("State", flags);
             var valueProp = value.GetType().GetProperty("Value", flags);
             var runMethod = engine.GetType().GetMethod("RunAvailableContinuations", flags);
- 
+
             if (stateProp != null && valueProp != null && runMethod != null)
             {
                 var startTime = DateTime.UtcNow;
                 var timeout = TimeSpan.FromSeconds(30);
- 
+
                 while (true)
                 {
                     try
@@ -3883,9 +3897,9 @@ public static class RuntimeDomain
                         }
                     }
                     catch (Exception) { }
- 
+
                     runMethod.Invoke(engine, null);
- 
+
                     var state = stateProp.GetValue(value)?.ToString();
                     if (state == "Fulfilled")
                     {
@@ -3896,19 +3910,19 @@ public static class RuntimeDomain
                         var errorVal = (Jint.Native.JsValue?)valueProp.GetValue(value) ?? Jint.Native.JsValue.Undefined;
                         throw new Exception(errorVal.ToString());
                     }
- 
+
                     if (DateTime.UtcNow - startTime > timeout)
                     {
                         throw new TimeoutException("Timeout waiting for promise to resolve");
                     }
- 
+
                     await Task.Delay(10);
                 }
             }
         }
         return value;
     }
- 
+
     private static Jint.Native.JsValue ConvertJsonNodeToJsValue(Jint.Engine engine, JsonNode? node)
     {
         if (node == null) return Jint.Native.JsValue.Null;
@@ -4028,7 +4042,7 @@ public sealed class CdpRuntimeDocument
     public object? defaultView => null;
     public string visibilityState => "visible";
     public bool hidden => false;
- 
+
     public CdpRuntimeElement[] getElementsByTagName(string tagName)
     {
         return querySelectorAll(tagName);
@@ -4167,7 +4181,7 @@ public sealed class CdpRuntimeElement
     }
     public CdpRuntimeElement? parentElement => __raw_parentNode;
     public CdpRuntimeDocument ownerDocument => new CdpRuntimeDocument(_session);
- 
+
     public CdpRuntimeElement[] children
     {
         get
