@@ -1,0 +1,81 @@
+appId: "CdpInspectorApp"
+description: "Records a preview tap on the sample context-menu button, replays it, then verifies MenuItem text selectors and Items collection access through the console"
+tags:
+  - "console"
+  - "menu"
+  - "selectors"
+  - "preview"
+  - "e2e"
+---
+- evalScript: "Window.DataContext.Connection.HostAddress = \"http://127.0.0.1:9222\""
+- runFlow: "shared/connect_to_sample.yaml"
+- evalScript: "Window.DataContext.NavigateToView(\"Console\")"
+- delay: "500"
+- assertTrue: "document.querySelector('#TabConsole') != null"
+
+# 1. Switch the sample app to the Popups & Windows tab (index 5)
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#tabContainer').selectedIndex = 5; 'tab5'\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1000"
+
+# 2. Record a tap on #btnContextMenu through the inspector preview canvas (50% zoom, no pan).
+#    The Recorder tab can be scrolled out of the tab strip, so it is activated through the view model.
+- evalScript: "Window.DataContext.NavigateToView(\"Recorder\")"
+- evalScript: "Window.DataContext.Recorder.IsTestStudioActive = true"
+- delay: "500"
+- assertTrue: "document.querySelector('#btnTestStudioClear') != null"
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Simulation.SelectedZoomPreset = \"50%\""
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Simulation.ResetPan()"
+- delay: "1500"
+- tapOn: "#btnTestStudioClear"
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.ClearRecording()"
+- delay: "300"
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.ToggleRecordCommand.Execute(null)"
+- delay: "500"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.IsRecording == true"
+- tapOn:
+    selector: "#imgScreenshot"
+    point: "156,564"
+- delay: "800"
+- evalScript: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.ToggleRecordCommand.Execute(null)"
+- delay: "2500"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.IsRecording == false"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps.Count > 0"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps[0].Selector == \"#btnContextMenu\""
+
+# 3. Replay the recorded preview interaction with 0 failures
+- tapOn: "#btnTestStudioPlay"
+- delay: "8000"
+- assertFalse: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.IsExecuting == true"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps[0].Status == 2"
+- assertTrue: "((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps[((CdpInspectorApp.ViewModels.MainWindowViewModel)Window.DataContext).Recorder.TestStudio.Steps.Count - 1].Status == 2"
+
+# 4. Open the context menu and verify MenuItem header selectors and collection access
+- evalScript: "Window.DataContext.NavigateToView(\"Console\")"
+- delay: "500"
+- assertTrue: "document.querySelector('#TabConsole') != null"
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"var btn = document.querySelector('#btnContextMenu').__raw_node; btn.ContextMenu.Open(btn); 'Opened'\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+
+- evalScript: |
+    Window.DataContext.Console.ConsoleInputText = "document.querySelector('[text=\"Menu Item 2\"]').id";
+    Window.DataContext.Console.EvaluateAsync();
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == 'menuItem2'"
+
+- evalScript: |
+    Window.DataContext.Console.ConsoleInputText = "document.querySelector('MenuItem[Header=\"Menu Item 1\"]').id";
+    Window.DataContext.Console.EvaluateAsync();
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == 'menuItem1'"
+
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#contextMenu').Items.Count\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == '2'"
+
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"document.querySelector('#contextMenu').Items[1].Header\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == 'Menu Item 2'"
+
+- evalScript: "Window.DataContext.Console.ConsoleInputText = \"Array.from(document.querySelectorAll('MenuItem')).map(function (m) { return m.Header; }).join(',')\"; Window.DataContext.Console.EvaluateAsync();"
+- delay: "1500"
+- assertTrue: "Window.DataContext.Console.ConsoleHistory[Window.DataContext.Console.ConsoleHistory.Count - 1].Result == 'Menu Item 1,Menu Item 2'"

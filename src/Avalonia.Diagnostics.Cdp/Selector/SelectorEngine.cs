@@ -230,6 +230,12 @@ public static class SelectorEngine
             return true;
         }
 
+        if (visual is HeaderedSelectingItemsControl headeredSelectingItemsControl)
+        {
+            value = headeredSelectingItemsControl.Header?.ToString() ?? "";
+            return true;
+        }
+
         if (visual is ContentControl contentControl)
         {
             value = contentControl.Content?.ToString() ?? "";
