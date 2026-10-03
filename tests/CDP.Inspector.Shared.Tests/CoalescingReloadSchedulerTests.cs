@@ -12,21 +12,24 @@ public class CoalescingReloadSchedulerTests
     private static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan MaxDelay = TimeSpan.FromMilliseconds(1000);
 
-    /// <summary>Delay source whose waits complete only when the test releases them.</summary>
-    private sealed class ManualTime
+    /// <summary>Time provider whose clock stands still and whose timers fire only when the test releases them.</summary>
+    private sealed class ManualTime : TimeProvider
     {
-        private readonly List<(TimeSpan Duration, TaskCompletionSource Completion)> _pending = new();
+        private readonly List<ManualTimer> _pending = new();
         private readonly object _gate = new();
-        public DateTime UtcNow { get; set; } = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        private long _nowTicks = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).Ticks;
 
-        public Task Delay(TimeSpan duration)
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() => Interlocked.Read(ref _nowTicks);
+
+        public override DateTimeOffset GetUtcNow() => new(GetTimestamp(), TimeSpan.Zero);
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
         {
-            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            lock (_gate)
-            {
-                _pending.Add((duration, completion));
-            }
-            return completion.Task;
+            var timer = new ManualTimer(this, callback, state);
+            timer.Change(dueTime, period);
+            return timer;
         }
 
         /// <summary>Returns true once a wait is pending, false once <paramref name="stop"/> holds first.</summary>
@@ -44,17 +47,71 @@ public class CoalescingReloadSchedulerTests
             throw new TimeoutException("No pending delay");
         }
 
-        /// <summary>Advances the clock by the requested duration of the oldest wait and completes it.</summary>
+        /// <summary>Advances the clock to the due time of the oldest wait and fires it.</summary>
         public void ElapseNext()
         {
-            (TimeSpan Duration, TaskCompletionSource Completion) next;
+            ManualTimer next;
             lock (_gate)
             {
                 next = _pending[0];
                 _pending.RemoveAt(0);
             }
-            UtcNow += next.Duration;
-            next.Completion.SetResult();
+            Interlocked.Exchange(ref _nowTicks, Math.Max(GetTimestamp(), next.DueTicks));
+            next.Fire();
+        }
+
+        private void Schedule(ManualTimer timer, TimeSpan dueTime)
+        {
+            lock (_gate)
+            {
+                _pending.Remove(timer);
+                if (dueTime != Timeout.InfiniteTimeSpan)
+                {
+                    timer.DueTicks = GetTimestamp() + dueTime.Ticks;
+                    _pending.Add(timer);
+                }
+            }
+        }
+
+        private void Remove(ManualTimer timer)
+        {
+            lock (_gate)
+            {
+                _pending.Remove(timer);
+            }
+        }
+
+        private sealed class ManualTimer : ITimer
+        {
+            private readonly ManualTime _owner;
+            private readonly TimerCallback _callback;
+            private readonly object? _state;
+
+            public ManualTimer(ManualTime owner, TimerCallback callback, object? state)
+            {
+                _owner = owner;
+                _callback = callback;
+                _state = state;
+            }
+
+            public long DueTicks { get; set; }
+
+            public void Fire() => _callback(_state);
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                // The scheduler only uses one-shot delays.
+                _owner.Schedule(this, dueTime);
+                return true;
+            }
+
+            public void Dispose() => _owner.Remove(this);
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
         }
     }
 
@@ -72,7 +129,7 @@ public class CoalescingReloadSchedulerTests
     {
         var time = new ManualTime();
         int reloads = 0;
-        var scheduler = new CoalescingReloadScheduler(() => { Interlocked.Increment(ref reloads); return Task.CompletedTask; }, Quiet, MaxDelay, time.Delay, () => time.UtcNow);
+        var scheduler = new CoalescingReloadScheduler(() => { Interlocked.Increment(ref reloads); return Task.CompletedTask; }, Quiet, MaxDelay, time);
 
         for (int i = 0; i < 2000; i++)
         {
@@ -116,7 +173,7 @@ public class CoalescingReloadSchedulerTests
             Interlocked.Decrement(ref running);
         }
 
-        var scheduler = new CoalescingReloadScheduler(Reload, Quiet, MaxDelay, time.Delay, () => time.UtcNow);
+        var scheduler = new CoalescingReloadScheduler(Reload, Quiet, MaxDelay, time);
 
         scheduler.Request();
         Assert.True(await time.WaitForPendingDelayAsync());
@@ -154,7 +211,7 @@ public class CoalescingReloadSchedulerTests
     {
         var time = new ManualTime();
         int reloads = 0;
-        var scheduler = new CoalescingReloadScheduler(() => { Interlocked.Increment(ref reloads); return Task.CompletedTask; }, Quiet, MaxDelay, time.Delay, () => time.UtcNow);
+        var scheduler = new CoalescingReloadScheduler(() => { Interlocked.Increment(ref reloads); return Task.CompletedTask; }, Quiet, MaxDelay, time);
 
         scheduler.Request();
         int waits = 0;
@@ -172,6 +229,41 @@ public class CoalescingReloadSchedulerTests
         await scheduler.WhenIdleAsync();
         Assert.Equal(1, reloads);
         Assert.Equal(11, scheduler.RequestCount);
+    }
+
+    [Fact]
+    public async Task FailingReload_IsCounted_AndLaterRequestStillReloads()
+    {
+        var time = new ManualTime();
+        int reloads = 0;
+        var scheduler = new CoalescingReloadScheduler(() =>
+        {
+            if (Interlocked.Increment(ref reloads) == 1)
+            {
+                throw new InvalidOperationException("reload failed");
+            }
+            return Task.CompletedTask;
+        }, Quiet, MaxDelay, time);
+
+        scheduler.Request();
+        Assert.True(await time.WaitForPendingDelayAsync());
+        time.ElapseNext();
+        await scheduler.WhenIdleAsync();
+
+        Assert.Equal(1, reloads);
+        Assert.Equal(1, scheduler.FailedReloadCount);
+        Assert.False(scheduler.IsBusy);
+
+        // The failure must neither stop the scheduler nor leave it busy.
+        scheduler.Request();
+        Assert.True(await time.WaitForPendingDelayAsync());
+        time.ElapseNext();
+        await scheduler.WhenIdleAsync();
+
+        Assert.Equal(2, reloads);
+        Assert.Equal(2, scheduler.ReloadCount);
+        Assert.Equal(1, scheduler.FailedReloadCount);
+        Assert.False(scheduler.IsBusy);
     }
 
     private static void InterlockedMax(ref int target, int value)

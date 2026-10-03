@@ -76,7 +76,7 @@ public static class InputDomain
             // The session window and the windows shown on top of it; for the main window session these are
             // all windows, a dialog session never reaches its owner behind it.
             var rootWin = window;
-            if (rootWin.Content == null || CdpServer.GetPrimaryWindow() == null) return;
+            if (rootWin.Content == null) return;
             var windows = CdpServer.GetWindows()
                 .Where(t => t.Window == rootWin || CdpVisualTreeHelper.IsOverlayWindowFor(rootWin, t.Window))
                 .ToList();

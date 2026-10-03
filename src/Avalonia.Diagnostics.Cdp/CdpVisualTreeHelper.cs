@@ -41,14 +41,12 @@ public static class CdpVisualTreeHelper
                     list.Add(win);
                 }
             }
-        }
 
-        // Anchor open popups to the main window
-        if (mainWin != null && visual == mainWin)
-        {
-            // 2. Append all open popups' contents as children
+            // 2. Append the contents of the open popups opened from this window; popups without a shown
+            //    CDP owner window stay below the main window.
             foreach (var popup in GetOpenPopups())
             {
+                if (GetPopupParentWindow(popup, mainWin) != topLevel) continue;
                 var content = GetPopupContent(popup);
                 if (content != null && !list.Contains(content))
                 {
@@ -68,7 +66,7 @@ public static class CdpVisualTreeHelper
         var popup = FindPopupForRoot(visual);
         if (popup != null)
         {
-            return mainWin;
+            return GetPopupParentWindow(popup, mainWin);
         }
 
         // Check if this visual is a secondary Window
@@ -121,12 +119,14 @@ public static class CdpVisualTreeHelper
         return GetPopupHost(popup);
     }
 
+    private static readonly System.Reflection.PropertyInfo? PopupHostProperty =
+        typeof(Popup).GetProperty("Host", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
     public static Visual? GetPopupHost(Popup popup)
     {
         try
         {
-            var hostProp = typeof(Popup).GetProperty("Host", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            return hostProp?.GetValue(popup) as Visual;
+            return PopupHostProperty?.GetValue(popup) as Visual;
         }
         catch
         {
@@ -214,24 +214,46 @@ public static class CdpVisualTreeHelper
 
     /// <summary>
     /// Open popups that belong to a CDP window, in opening order. Replaces scanning all window trees.
+    /// Popups that are closed, detached or whose owner window is gone are removed from the registry itself,
+    /// so it does not keep them alive.
     /// </summary>
     internal static List<Popup> GetOpenPopups()
     {
         EnsureOpenPopupTracking();
-        List<Popup> snapshot;
+        var mainWin = CdpServer.GetPrimaryWindow();
         lock (_openPopupsGate)
         {
-            snapshot = new List<Popup>(_openPopups);
+            _openPopups.RemoveAll(popup =>
+            {
+                if (!popup.IsOpen) return true;
+                var owner = GetPopupOwnerWindow(popup);
+                return owner == null || (owner != mainWin && !CdpServer.IsRegistered(owner));
+            });
+            return new List<Popup>(_openPopups);
         }
+    }
 
-        var mainWin = CdpServer.GetPrimaryWindow();
-        snapshot.RemoveAll(popup =>
+    /// <summary>True while <paramref name="popup"/> is held by the open-popup registry.</summary>
+    internal static bool IsTrackedOpenPopup(Popup popup)
+    {
+        lock (_openPopupsGate)
         {
-            if (!popup.IsOpen) return true;
-            var owner = GetPopupOwnerWindow(popup);
-            return owner == null || (owner != mainWin && !CdpServer.IsRegistered(owner));
-        });
-        return snapshot;
+            return _openPopups.Contains(popup);
+        }
+    }
+
+    /// <summary>
+    /// Parent of an open popup's content in the CDP tree: the window the popup was opened from when it is
+    /// the main window or a shown CDP window, otherwise the main window.
+    /// </summary>
+    internal static TopLevel? GetPopupParentWindow(Popup popup, TopLevel? mainWin)
+    {
+        var owner = GetPopupOwnerWindow(popup);
+        if (owner != null && (owner == mainWin || (owner.IsVisible && CdpServer.IsRegistered(owner))))
+        {
+            return owner;
+        }
+        return mainWin;
     }
 
     /// <summary>The window a popup is opened from, following the logical parents and the placement target.</summary>
@@ -370,6 +392,13 @@ public static class CdpVisualTreeHelper
         return false;
     }
 
+    /// <summary>
+    /// Returns true when a window or an open popup is shown on top of <paramref name="primaryWindow"/>.
+    /// </summary>
+    /// <param name="primaryWindow">
+    /// Any session root window, not only the primary window. Only windows and popups shown on top of it are
+    /// considered: for the primary window these are all other windows, for a secondary window only the windows it owns.
+    /// </param>
     public static bool HasSecondaryWindowsOrPopups(TopLevel? primaryWindow)
     {
         if (primaryWindow == null) return false;
@@ -427,6 +456,13 @@ public static class CdpVisualTreeHelper
         return false;
     }
 
+    /// <summary>
+    /// Draws the windows and open popups shown on top of <paramref name="primaryWindow"/> into <paramref name="baseSkBitmap"/>.
+    /// </summary>
+    /// <param name="primaryWindow">
+    /// Any session root window, not only the primary window. Only windows and popups shown on top of it are
+    /// considered: for the primary window these are all other windows, for a secondary window only the windows it owns.
+    /// </param>
     public static bool CompositeAllWindowsAndPopups(TopLevel? primaryWindow, SkiaSharp.SKBitmap? baseSkBitmap, double scale, string? targetViewId = null)
     {
         if (primaryWindow == null || baseSkBitmap == null) return false;
@@ -482,6 +518,14 @@ public static class CdpVisualTreeHelper
         return compositedAny;
     }
 
+    /// <summary>
+    /// Draws the open popups shown on top of <paramref name="topLevel"/> into <paramref name="baseSkBitmap"/>.
+    /// </summary>
+    /// <param name="topLevel">
+    /// Any session root window, not only the primary window. Only popups of this window and of the windows shown
+    /// on top of it are considered: for the primary window these are all other windows, for a secondary window
+    /// only the windows it owns.
+    /// </param>
     public static bool CompositeOpenPopups(TopLevel? topLevel, SkiaSharp.SKBitmap? baseSkBitmap, double scale)
     {
         if (topLevel == null || baseSkBitmap == null) return false;

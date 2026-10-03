@@ -1,6 +1,8 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Chrome.DevTools.Protocol;
+using Microsoft.Extensions.Logging;
 
 namespace CdpInspectorApp.Services;
 
@@ -15,33 +17,38 @@ public sealed class CoalescingReloadScheduler
     public static readonly TimeSpan DefaultQuietPeriod = TimeSpan.FromMilliseconds(150);
     public static readonly TimeSpan DefaultMaxDelay = TimeSpan.FromMilliseconds(1000);
 
+    private static readonly ILogger Logger = CdpLogging.CreateLogger<CoalescingReloadScheduler>();
+
     private readonly Func<Task> _reload;
     private readonly TimeSpan _quietPeriod;
     private readonly TimeSpan _maxDelay;
-    private readonly Func<TimeSpan, Task> _delay;
-    private readonly Func<DateTime> _utcNow;
+    private readonly TimeProvider _timeProvider;
     private readonly object _gate = new();
     private long _requestVersion;
     private Task? _loop;
     private int _reloadCount;
     private int _requestCount;
+    private int _failedReloadCount;
 
     public CoalescingReloadScheduler(Func<Task> reload)
-        : this(reload, DefaultQuietPeriod, DefaultMaxDelay, null, null)
+        : this(reload, DefaultQuietPeriod, DefaultMaxDelay, null)
     {
     }
 
-    public CoalescingReloadScheduler(Func<Task> reload, TimeSpan quietPeriod, TimeSpan maxDelay, Func<TimeSpan, Task>? delay, Func<DateTime>? utcNow)
+    /// <param name="timeProvider">Clock and delay source; <see cref="TimeProvider.System"/> when null.</param>
+    public CoalescingReloadScheduler(Func<Task> reload, TimeSpan quietPeriod, TimeSpan maxDelay, TimeProvider? timeProvider)
     {
         _reload = reload ?? throw new ArgumentNullException(nameof(reload));
         _quietPeriod = quietPeriod;
         _maxDelay = maxDelay;
-        _delay = delay ?? Task.Delay;
-        _utcNow = utcNow ?? (() => DateTime.UtcNow);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>Number of reload runs that were started.</summary>
     public int ReloadCount => Volatile.Read(ref _reloadCount);
+
+    /// <summary>Number of reload runs that failed with an exception.</summary>
+    public int FailedReloadCount => Volatile.Read(ref _failedReloadCount);
 
     /// <summary>Number of reload requests received.</summary>
     public int RequestCount => Volatile.Read(ref _requestCount);
@@ -97,7 +104,7 @@ public sealed class CoalescingReloadScheduler
 
         while (true)
         {
-            var burstStart = _utcNow();
+            var burstStart = _timeProvider.GetTimestamp();
             long handledVersion;
             while (true)
             {
@@ -107,13 +114,13 @@ public sealed class CoalescingReloadScheduler
                     seenVersion = _requestVersion;
                 }
 
-                var remaining = _maxDelay - (_utcNow() - burstStart);
+                var remaining = _maxDelay - _timeProvider.GetElapsedTime(burstStart);
                 if (remaining <= TimeSpan.Zero)
                 {
                     handledVersion = seenVersion;
                     break;
                 }
-                await _delay(remaining < _quietPeriod ? remaining : _quietPeriod).ConfigureAwait(false);
+                await Task.Delay(remaining < _quietPeriod ? remaining : _quietPeriod, _timeProvider).ConfigureAwait(false);
 
                 lock (_gate)
                 {
@@ -130,9 +137,11 @@ public sealed class CoalescingReloadScheduler
             {
                 await _reload().ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
-                // The reload delegate reports its own errors; a failed run must not stop later reloads.
+                // A failed run must not stop later reloads.
+                Interlocked.Increment(ref _failedReloadCount);
+                Logger.LogWarningMessage(nameof(CoalescingReloadScheduler), "Reload failed", ex);
             }
 
             lock (_gate)

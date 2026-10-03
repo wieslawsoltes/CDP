@@ -312,4 +312,38 @@ public class SelectorTests
             window.Close();
         }
     }
+
+    /// <summary>Lists a control in its LogicalChildren without becoming its LogicalParent.</summary>
+    private sealed class ForeignLogicalChildHost : Control
+    {
+        public void ListLogicalChild(Control child) => LogicalChildren.Add(child);
+    }
+
+    [AvaloniaFact]
+    public void QuerySelectorAll_LogicalTree_KeepsChildWhoseLogicalParentIsOutsideSubtree()
+    {
+        var foreign = new TextBlock { Name = "foreignListedChild", Text = "foreign" };
+        var owner = new Border { Name = "foreignOwner", Child = foreign };
+        var host = new ForeignLogicalChildHost { Name = "foreignHost" };
+        host.ListLogicalChild(foreign);
+        var root = new StackPanel();
+        root.Children.Add(owner);
+        root.Children.Add(host);
+        var window = new Window { Width = 400, Height = 300, Content = root };
+        window.Show();
+
+        try
+        {
+            Assert.Same(owner, foreign.Parent);
+            Assert.Contains(foreign, ((Avalonia.LogicalTree.ILogical)host).LogicalChildren);
+
+            // The real LogicalParent lies outside the host subtree, so the host must still report the child.
+            Assert.Contains(foreign, CdpVisualTreeHelper.GetChildren(host, true));
+            Assert.Same(foreign, Assert.Single(SelectorEngine.QuerySelectorAll(host, "#foreignListedChild", true)));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
 }

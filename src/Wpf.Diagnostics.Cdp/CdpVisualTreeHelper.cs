@@ -36,23 +36,29 @@ public static class CdpVisualTreeHelper
                     list.Add(win);
                 }
             }
-        }
 
-        // Anchor open popups to the main window
-        if (mainWin != null && visual == mainWin)
-        {
-            // 2. Append all open popups' contents as children
+            // 2. Append the contents of the open popups opened from this window; popups without a shown
+            //    CDP owner window stay below the main window. Such a popup lies in its owner's tree, so a
+            //    secondary window only scans its own tree.
             var openPopups = new List<Popup>();
             var visited = new HashSet<Visual>();
-            foreach (var target in CdpServer.GetWindows())
+            if (topWindow == mainWin)
             {
-                if (target.Window != null)
+                foreach (var target in CdpServer.GetWindows())
                 {
-                    FindOpenPopups(target.Window, openPopups, visited);
+                    if (target.Window != null)
+                    {
+                        FindOpenPopups(target.Window, openPopups, visited);
+                    }
                 }
+            }
+            else
+            {
+                FindOpenPopups(topWindow, openPopups, visited);
             }
             foreach (var popup in openPopups)
             {
+                if (GetPopupParentWindow(popup, mainWin) != topWindow) continue;
                 var content = GetPopupContent(popup);
                 if (content != null && !list.Contains(content))
                 {
@@ -74,7 +80,7 @@ public static class CdpVisualTreeHelper
             var popup = FindPopupForRoot(visual);
             if (popup != null)
             {
-                return mainWin;
+                return GetPopupParentWindow(popup, mainWin);
             }
 
             // Check if this visual is a secondary Window
@@ -167,11 +173,6 @@ public static class CdpVisualTreeHelper
         return mainWin;
     }
 
-    private static int _popupScanVisitCount;
-
-    /// <summary>Number of visuals visited by <see cref="FindOpenPopups"/> scans; used to check scan complexity.</summary>
-    internal static int PopupScanVisitCount => System.Threading.Volatile.Read(ref _popupScanVisitCount);
-
     private static Popup? FindPopupForRoot(Visual visual)
     {
         // Popup content is the logical child of its Popup, so the Popup is found without scanning the windows.
@@ -196,6 +197,20 @@ public static class CdpVisualTreeHelper
         return null;
     }
 
+    /// <summary>
+    /// Parent of an open popup's content in the CDP tree: the window the popup was opened from when it is
+    /// the main window or a shown CDP window, otherwise the main window.
+    /// </summary>
+    internal static Window? GetPopupParentWindow(Popup popup, Window? mainWin)
+    {
+        var owner = GetPopupOwnerWindow(popup);
+        if (owner != null && (owner == mainWin || (owner.IsVisible && CdpServer.IsRegistered(owner))))
+        {
+            return owner;
+        }
+        return mainWin;
+    }
+
     /// <summary>The window a popup belongs to is <paramref name="rootWindow"/> or shown on top of it.</summary>
     private static bool IsPopupVisibleFor(Window rootWindow, Popup popup)
     {
@@ -206,7 +221,6 @@ public static class CdpVisualTreeHelper
     public static void FindOpenPopups(Visual visual, List<Popup> popups, HashSet<Visual> visited)
     {
         if (visual == null || !visited.Add(visual)) return;
-        System.Threading.Interlocked.Increment(ref _popupScanVisitCount);
 
         if (visual is Popup popup)
         {

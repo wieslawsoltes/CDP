@@ -104,25 +104,20 @@ public static class CdpVisualTreeHelper
                     list.Add(win.Content);
                 }
             }
-        }
 
-        if (mainWin != null && mainWin.Content != null && visual == mainWin.Content)
-        {
-            // 2. Append all open popup contents as children
-            foreach (var t in windows)
+            // 2. Append the open popup contents of this window's XamlRoot. A popup that is also listed for the
+            //    main window's XamlRoot belongs to the main window, so every popup appears exactly once.
+            if (visualWindow.Content.XamlRoot != null)
             {
-                var win = t.Window;
-                if (win != null && win.Content != null && win.Content.XamlRoot != null)
+                var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(visualWindow.Content.XamlRoot);
+                if (popups != null)
                 {
-                    var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(win.Content.XamlRoot);
-                    if (popups != null)
+                    foreach (var popup in popups)
                     {
-                        foreach (var popup in popups)
+                        if (popup != null && popup.Child is UIElement popupChild && !list.Contains(popupChild) &&
+                            GetPopupParentWindow(popupChild, windows, mainWin) == visualWindow)
                         {
-                            if (popup != null && popup.Child is UIElement popupChild && !list.Contains(popupChild))
-                            {
-                                list.Add(popupChild);
-                            }
+                            list.Add(popupChild);
                         }
                     }
                 }
@@ -130,6 +125,33 @@ public static class CdpVisualTreeHelper
         }
 
         return list;
+    }
+
+    /// <summary>
+    /// The window whose Content is the CDP parent of an open popup's child: the main window when the popup is
+    /// open in the main window's XamlRoot, otherwise the first registered window whose XamlRoot lists it, or null.
+    /// </summary>
+    private static Window? GetPopupParentWindow(UIElement popupChild, List<(string Id, Window Window, string Title)> windows, Window mainWin)
+    {
+        if (IsOpenPopupChildOf(mainWin, popupChild)) return mainWin;
+        foreach (var t in windows)
+        {
+            var win = t.Window;
+            if (win != null && win != mainWin && IsOpenPopupChildOf(win, popupChild)) return win;
+        }
+        return null;
+    }
+
+    private static bool IsOpenPopupChildOf(Window win, UIElement popupChild)
+    {
+        if (win.Content == null || win.Content.XamlRoot == null) return false;
+        var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(win.Content.XamlRoot);
+        if (popups == null) return false;
+        foreach (var popup in popups)
+        {
+            if (popup != null && popup.Child == popupChild) return true;
+        }
+        return false;
     }
 
     public static UIElement? GetParent(UIElement visual, bool useLogicalTree)
@@ -149,24 +171,11 @@ public static class CdpVisualTreeHelper
                 }
             }
 
-            // Return main window's Content if the visual is an open popup's Child
-            foreach (var t in windows)
+            // An open popup's Child belongs below the Content of the window whose XamlRoot shows the popup
+            var popupWindow = GetPopupParentWindow(visual, windows, mainWin);
+            if (popupWindow != null)
             {
-                var win = t.Window;
-                if (win != null && win.Content != null && win.Content.XamlRoot != null)
-                {
-                    var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(win.Content.XamlRoot);
-                    if (popups != null)
-                    {
-                        foreach (var popup in popups)
-                        {
-                            if (popup != null && popup.Child == visual)
-                            {
-                                return mainWin.Content;
-                            }
-                        }
-                    }
-                }
+                return popupWindow.Content ?? mainWin.Content;
             }
         }
 

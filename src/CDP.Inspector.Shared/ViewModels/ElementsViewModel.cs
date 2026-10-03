@@ -37,6 +37,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
     }
     private readonly ICdpService _cdpService;
     private readonly CoalescingReloadScheduler _mutationReload;
+    private volatile Dispatcher? _mutationDispatcher;
     private readonly Dictionary<string, JsonObject> _axNodeDetailsMap = new();
 
     /// <summary>
@@ -712,7 +713,10 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
     public ElementsViewModel(ICdpService cdpService)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
-        _mutationReload = new CoalescingReloadScheduler(() => Dispatcher.UIThread.InvokeAsync(ReloadTreesAfterMutationAsync));
+        // The scheduler calls back on a thread-pool thread after its quiet period. Resolving Dispatcher.UIThread
+        // there could bind a new UI dispatcher to that pool thread while none exists (e.g. between headless unit
+        // tests), so the dispatcher is taken when the mutation event arrives.
+        _mutationReload = new CoalescingReloadScheduler(() => (_mutationDispatcher ?? Dispatcher.UIThread).InvokeAsync(ReloadTreesAfterMutationAsync));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
         _cdpService.TimeMachine.FrameChanged += async (sender, args) =>
@@ -841,6 +845,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         else if (e.Method == "DOM.documentUpdated" || e.Method == "DOM.childNodeInserted" || e.Method == "DOM.childNodeRemoved" || e.Method == "Accessibility.axTreeUpdated")
         {
             // Every reload fetches the whole DOM and AX tree, so a burst of mutations is merged into one reload.
+            _mutationDispatcher = Dispatcher.UIThread;
             _mutationReload.Request();
         }
     }

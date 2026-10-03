@@ -123,6 +123,9 @@ public static class PerformanceDomain
     {
         private readonly CdpSession _session;
         private readonly TopLevel? _window;
+
+        // Captured once; the metrics push loop runs on thread-pool threads (see DispatcherWatchdog).
+        private readonly Dispatcher _dispatcher = Dispatcher.UIThread;
         private CancellationTokenSource? _loopCts;
         private bool _isHooked;
         private long _lastFrameTimestamp;
@@ -327,7 +330,7 @@ public static class PerformanceDomain
             int nodesCount = 0;
             if (_window != null)
             {
-                nodesCount = await Dispatcher.UIThread.InvokeAsync(() => CountVisuals(_window));
+                nodesCount = await _dispatcher.InvokeAsync(() => CountVisuals(_window));
             }
 
             double deltaMb;
@@ -367,6 +370,11 @@ public static class PerformanceDomain
     private class DispatcherWatchdog : IDisposable
     {
         private readonly CancellationTokenSource _cts = new();
+
+        // The loop runs on thread-pool threads. Resolving Dispatcher.UIThread there would bind a new UI
+        // dispatcher to a pool thread whenever none exists yet (e.g. between headless unit tests), so the
+        // dispatcher is captured once at creation.
+        private readonly Dispatcher _dispatcher = Dispatcher.UIThread;
         private double _queueDelayMs;
         private double _blockingTimeMs;
 
@@ -386,7 +394,7 @@ public static class PerformanceDomain
                 long scheduleTime = Stopwatch.GetTimestamp();
                 var uiSignal = new SemaphoreSlim(0, 1);
 
-                Dispatcher.UIThread.Post(() =>
+                _dispatcher.Post(() =>
                 {
                     long executeTime = Stopwatch.GetTimestamp();
                     _queueDelayMs = (executeTime - scheduleTime) * 1000.0 / Stopwatch.Frequency;

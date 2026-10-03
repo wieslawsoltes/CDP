@@ -163,11 +163,20 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
     /// <summary>
     /// A control can be listed in the LogicalChildren of a second element while its LogicalParent
     /// points elsewhere, e.g. TabControl lists the selected TabItem's content next to the TabItem
-    /// that owns it. Only the owning parent reports such a child, so every node appears once.
+    /// that owns it. Such a child is skipped only when its LogicalParent is itself a logical descendant
+    /// of <paramref name="parent"/>, because the owner then reports it in the same subtree. A child whose
+    /// LogicalParent lies outside that subtree is kept, so it does not disappear from the tree.
     /// </summary>
     internal static bool IsOwnLogicalChild(ILogical parent, ILogical child)
     {
-        return child.LogicalParent == null || child.LogicalParent == parent;
+        var owner = child.LogicalParent;
+        if (owner == null || owner == parent) return true;
+
+        for (var ancestor = owner.LogicalParent; ancestor != null; ancestor = ancestor.LogicalParent)
+        {
+            if (ancestor == parent) return false;
+        }
+        return true;
     }
 
     internal bool IsLogicalNode(ILogical? node)

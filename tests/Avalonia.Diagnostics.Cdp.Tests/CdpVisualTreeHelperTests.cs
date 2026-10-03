@@ -1,3 +1,5 @@
+using System.Net.WebSockets;
+using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
@@ -22,6 +24,12 @@ public class CdpVisualTreeHelperTests
         panel.Children.Add(popup);
         var window = new Window { Title = "Popup Parent Window", Width = 300, Height = 200, Content = panel };
         window.Show();
+        // Popups hang below the window they were opened from, so this window must be the primary window.
+        // Tests run sequentially; windows still registered here were left behind by earlier tests.
+        foreach (var leftover in CdpServer.GetWindows().Select(w => w.Window).ToList())
+        {
+            CdpServer.Unregister(leftover);
+        }
         CdpServer.Register(window, "Popup Parent Window");
 
         try
@@ -51,6 +59,121 @@ public class CdpVisualTreeHelperTests
             popup.IsOpen = false;
             CdpServer.Unregister(window);
             window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void GetOpenPopups_RemovesPopupFromRegistry_WhenItsWindowCloses()
+    {
+        var popupContent = new Border { Name = "closingWindowPopupContent", Width = 40, Height = 40, Background = Brushes.Green };
+        var popup = new Popup { Child = popupContent };
+        var panel = new StackPanel();
+        panel.Children.Add(popup);
+        var window = new Window { Title = "Closing Popup Window", Width = 300, Height = 200, Content = panel };
+        window.Show();
+        CdpServer.Register(window, "Closing Popup Window");
+
+        try
+        {
+            CdpVisualTreeHelper.EnsureOpenPopupTracking();
+            popup.IsOpen = true;
+            Assert.Contains(popup, CdpVisualTreeHelper.GetOpenPopups());
+            Assert.True(CdpVisualTreeHelper.IsTrackedOpenPopup(popup));
+
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+
+            // The closed window is unregistered; the registry must drop the popup instead of holding it forever.
+            Assert.DoesNotContain(popup, CdpVisualTreeHelper.GetOpenPopups());
+            Assert.False(CdpVisualTreeHelper.IsTrackedOpenPopup(popup), $"Popup still tracked (IsOpen={popup.IsOpen})");
+        }
+        finally
+        {
+            popup.IsOpen = false;
+            CdpServer.Unregister(window);
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public void GetOpenPopups_RemovesPopupFromRegistry_WhenItsWindowIsUnregistered()
+    {
+        var popupContent = new Border { Name = "unregisteredPopupContent", Width = 40, Height = 40, Background = Brushes.Green };
+        var popup = new Popup { Child = popupContent };
+        var panel = new StackPanel();
+        panel.Children.Add(popup);
+        var window = new Window { Title = "Unregistered Popup Window", Width = 300, Height = 200, Content = panel };
+        window.Show();
+        CdpServer.Register(window, "Unregistered Popup Window");
+
+        try
+        {
+            CdpVisualTreeHelper.EnsureOpenPopupTracking();
+            popup.IsOpen = true;
+            Assert.Contains(popup, CdpVisualTreeHelper.GetOpenPopups());
+
+            // The popup stays open, but its owner window is gone from CDP.
+            CdpServer.Unregister(window);
+            Assert.True(popup.IsOpen);
+            Assert.DoesNotContain(popup, CdpVisualTreeHelper.GetOpenPopups());
+            Assert.False(CdpVisualTreeHelper.IsTrackedOpenPopup(popup));
+        }
+        finally
+        {
+            popup.IsOpen = false;
+            CdpServer.Unregister(window);
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task PopupOpenedFromOwnedDialog_IsChildOfDialog_AndInDialogSessionDom()
+    {
+        var mainWindow = new Window { Title = "Popup Owner Main Window", Width = 400, Height = 300 };
+        var dialogAnchor = new Button { Name = "dialogPopupAnchor", Content = "Anchor" };
+        var dialogPopupContent = new Border { Name = "dialogPopupContent", Width = 50, Height = 50, Background = Brushes.Green };
+        var dialogPopup = new Popup { PlacementTarget = dialogAnchor, Child = dialogPopupContent };
+        var dialogPanel = new StackPanel();
+        dialogPanel.Children.Add(dialogAnchor);
+        dialogPanel.Children.Add(dialogPopup);
+        var dialog = new Window { Title = "Popup Owner Dialog", Width = 200, Height = 150, Content = dialogPanel };
+        mainWindow.Show();
+        CdpServer.Register(mainWindow, "Popup Owner Main Window");
+        dialog.Show(mainWindow);
+        CdpServer.Register(dialog, "Popup Owner Dialog");
+
+        try
+        {
+            dialogPopup.IsOpen = true;
+            Assert.True(dialogPopup.IsOpen);
+            Assert.Same(dialog, CdpVisualTreeHelper.GetPopupOwnerWindow(dialogPopup));
+
+            // The popup content hangs below the dialog it was opened from, not below the main window.
+            Assert.Same(dialog, CdpVisualTreeHelper.GetParent(dialogPopupContent, false));
+            Assert.Same(dialog, CdpVisualTreeHelper.GetParent(dialogPopupContent, true));
+            Assert.Contains(dialogPopupContent, CdpVisualTreeHelper.GetChildren(dialog, false));
+            var primary = CdpServer.GetPrimaryWindow();
+            Assert.NotNull(primary);
+            Assert.DoesNotContain(dialogPopupContent, CdpVisualTreeHelper.GetChildren(primary!, false));
+            Assert.DoesNotContain(dialogPopupContent, CdpVisualTreeHelper.GetChildren(mainWindow, false));
+
+            // Compositing for the dialog session sees the dialog's own popup.
+            Assert.True(CdpVisualTreeHelper.HasSecondaryWindowsOrPopups(dialog));
+
+            // The dialog session's DOM reaches the popup content.
+            using var clientWs = new ClientWebSocket();
+            using var session = new CdpSession(clientWs, dialog);
+            var docResult = await Domains.DomDomain.HandleAsync(session, "getDocument", new JsonObject { ["depth"] = -1 });
+            Assert.NotNull(docResult?["root"]);
+            Assert.True(session.NodeMap.TryGetId(dialogPopupContent, out _), "Dialog session DOM does not contain the dialog popup");
+        }
+        finally
+        {
+            dialogPopup.IsOpen = false;
+            CdpServer.Unregister(dialog);
+            CdpServer.Unregister(mainWindow);
+            dialog.Close();
+            mainWindow.Close();
         }
     }
 
