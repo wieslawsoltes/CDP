@@ -333,6 +333,13 @@ public class UnoTests
                 Assert.NotNull(foundBtn);
                 Assert.Equal(popupBtn, foundBtn);
 
+                // 9. Overlay model: the main window session sees the secondary window; a secondary window without
+                //    an owner sees no other window, so its hit testing and tree never include the main window.
+                Assert.True(CdpVisualTreeHelper.IsOverlayWindowFor(mainWindow, secondaryWindow));
+                Assert.False(CdpVisualTreeHelper.IsOverlayWindowFor(secondaryWindow, mainWindow));
+                Assert.False(CdpVisualTreeHelper.IsOverlayWindowFor(secondaryWindow, secondaryWindow));
+                Assert.DoesNotContain(mainGrid, CdpVisualTreeHelper.GetChildren(secondaryGrid, true));
+
                 Console.WriteLine("[TEST SUCCESS] All Uno popup and secondary window integration tests passed!");
             }
             finally

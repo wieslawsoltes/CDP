@@ -269,4 +269,47 @@ public class SelectorTests
         Assert.True(foundMenuItem1, "Popup MenuItem 1 should be found in getFullAXTree");
         Assert.True(foundMenuItem2, "Popup MenuItem 2 should be found in getFullAXTree");
     }
+
+    [AvaloniaFact]
+    public void QuerySelectorAll_LogicalTree_ReturnsTabItemContentOnce()
+    {
+        var panel = new StackPanel { Name = "tabRowsHost" };
+        for (int i = 0; i < 25; i++)
+        {
+            panel.Children.Add(new TextBlock { Text = "tab row " + i });
+        }
+        var status = new TextBlock { Name = "tabStatusText", Text = "status" };
+        var content = new StackPanel();
+        content.Children.Add(status);
+        content.Children.Add(panel);
+        var tabs = new TabControl();
+        tabs.Items.Add(new TabItem { Header = "First", Content = new TextBlock { Text = "first tab" } });
+        tabs.Items.Add(new TabItem { Header = "Second", Name = "tabSecond", Content = content });
+        var window = new Window { Width = 400, Height = 300, Content = tabs };
+        window.Show();
+        tabs.SelectedIndex = 1;
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        try
+        {
+            // TabControl also lists the selected content in its LogicalChildren; the content is owned by the TabItem.
+            var tabChildren = CdpVisualTreeHelper.GetChildren(tabs, true).ToList();
+            Assert.DoesNotContain(content, tabChildren);
+            Assert.Contains(content, CdpVisualTreeHelper.GetChildren(tabs.Items[1] as Visual ?? tabs, true));
+
+            foreach (var useLogicalTree in new[] { true, false })
+            {
+                var rows = SelectorEngine.QuerySelectorAll(window, "#tabRowsHost TextBlock", useLogicalTree);
+                Assert.Equal(25, rows.Count);
+                Assert.Equal(25, rows.Distinct().Count());
+
+                var statusMatches = SelectorEngine.QuerySelectorAll(window, "#tabStatusText", useLogicalTree);
+                Assert.Same(status, Assert.Single(statusMatches));
+            }
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
 }

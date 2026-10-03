@@ -1,0 +1,78 @@
+appId: "CdpInspectorApp"
+description: "Sub-flow: open the owned modal dialog of the sample with a preview click on #btnOpenOwnedDialog and switch the inspector connection to the dialog's own page target"
+---
+# Requires an active inspector connection to the sample main window.
+# 1. Show the Test Studio preview at 100% zoom without pan, so sample coordinates map 1:1 onto #imgScreenshot.
+#    The Recorder tab can be scrolled out of the tab strip, so it is activated through the view model.
+- evalScript: "__raw_window.DataContext.NavigateToView(\"Recorder\")"
+- evalScript: "__raw_window.DataContext.Recorder.IsTestStudioActive = true"
+- evalScript: "__raw_window.DataContext.Simulation.SelectedZoomPreset = \"100%\""
+- evalScript: "__raw_window.DataContext.Simulation.ResetPan()"
+- extendedWaitUntil:
+    visible: "#imgScreenshot"
+    timeout: 5000
+
+# 2. Select the Popups & Windows tab by its name and scroll its content to the end, where the dialog button is.
+#    A large list left attached by another flow is detached first, otherwise it pushes the button out of view.
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "ownedDialogTabIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"document.querySelector('#tabPopups').__raw_node.IsSelected = true; var b = document.querySelector('#borderLargeList').__raw_node; if (b.Child != null) { __raw_window.BtnToggleLargeList_Click(null, null); } document.querySelector('#tabPopups ScrollViewer').__raw_node.ScrollToEnd(); 'tab-selected'\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${ownedDialogTabIndex} && __raw_window.DataContext.Console.ConsoleHistory[${ownedDialogTabIndex}].Result == 'tab-selected'"
+
+# 3. Resolve the button centre in sample coordinates after the scrolled layout, inside the visible window area.
+- delay: "500"
+- retry:
+    maxRetries: 20
+    commands:
+      - delay: "300"
+      - evalScript:
+          value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+          assignTo: "ownedDialogButtonPointIndex"
+      - evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"(function () { var b = document.querySelector('#btnOpenOwnedDialog'); var r = b.getBoundingClientRect(); var h = __raw_window.Bounds.Height; if (r.width <= 0 || r.y < 0 || r.y + r.height > h) return 'not-visible'; return Math.round(r.x + r.width / 2) + ',' + Math.round(r.y + r.height / 2); })()\"; __raw_window.DataContext.Console.EvaluateAsync();"
+      - retry:
+          maxRetries: 40
+          commands:
+            - delay: "100"
+            - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${ownedDialogButtonPointIndex}"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory[${ownedDialogButtonPointIndex}].Result.indexOf(',') > 0"
+- evalScript:
+    value: "(function () { var p = __raw_window.DataContext.Console.ConsoleHistory[${ownedDialogButtonPointIndex}].Result.split(','); var r = document.querySelector('#imgScreenshot').getBoundingClientRect(); return Math.round(r.x + parseFloat(p[0])); })()"
+    assignTo: "openDialogTapX"
+- evalScript:
+    value: "(function () { var p = __raw_window.DataContext.Console.ConsoleHistory[${ownedDialogButtonPointIndex}].Result.split(','); var r = document.querySelector('#imgScreenshot').getBoundingClientRect(); return Math.round(r.y + parseFloat(p[1])); })()"
+    assignTo: "openDialogTapY"
+
+# 4. Let the preview catch up with the scrolled tab, then click the button through the preview canvas.
+- delay: "1000"
+- tapOn:
+    x: "${openDialogTapX}"
+    y: "${openDialogTapY}"
+
+# 5. Wait until the dialog is listed as its own page target, then select it.
+#    Selecting another target while connected switches the connection to it.
+- retry:
+    maxRetries: 40
+    commands:
+      - tapOn: "#btnRefreshTargets"
+      - delay: "250"
+      - assertTrue: "(function () { var t = __raw_window.DataContext.Connection.Targets; for (var i = 0; i < t.Count; i++) { if (t[i].Title == 'Sample Owned Dialog') return true; } return false; })()"
+- evalScript: "(function () { var c = __raw_window.DataContext.Connection; for (var i = 0; i < c.Targets.Count; i++) { if (c.Targets[i].Title == 'Sample Owned Dialog') { c.SelectedTarget = c.Targets[i]; return 'selected'; } } return 'missing'; })()"
+- assertTrue: "__raw_window.DataContext.Connection.SelectedTarget.Title == 'Sample Owned Dialog'"
+
+# 6. The console session must now evaluate inside the dialog window.
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Connection.IsConnected"
+      - evalScript:
+          value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+          assignTo: "ownedDialogTitleIndex"
+      - evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"__raw_window.Title\"; __raw_window.DataContext.Console.EvaluateAsync();"
+      - delay: "300"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${ownedDialogTitleIndex} && __raw_window.DataContext.Console.ConsoleHistory[${ownedDialogTitleIndex}].Result == 'Sample Owned Dialog'"

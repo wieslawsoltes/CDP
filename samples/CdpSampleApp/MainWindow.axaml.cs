@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 
@@ -7,6 +8,8 @@ namespace CdpSampleApp;
 
 public partial class MainWindow : Window
 {
+    public const int LargeListItemCount = 2000;
+
     private readonly Stopwatch _stopwatch = new();
     private bool _dragSourcePressed;
 
@@ -130,6 +133,93 @@ public partial class MainWindow : Window
                 txtStatus.Text = $"Selected Menu: {menuItem.Header}";
             }
         }
+    }
+
+    public void BtnToggleLargeList_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs? e)
+    {
+        var border = this.FindControl<Border>("borderLargeList");
+        if (border == null)
+        {
+            return;
+        }
+
+        if (border.Child != null)
+        {
+            border.Child = null;
+            return;
+        }
+
+        // The panel is filled before it is attached, so the visual tree grows in one step.
+        var panel = new StackPanel { Name = "panelLargeList" };
+        for (var i = 1; i <= LargeListItemCount; i++)
+        {
+            var item = new TextBlock { Text = $"Large List Item {i}" };
+            item.Classes.Add("largeListItem");
+            panel.Children.Add(item);
+        }
+        border.Child = panel;
+    }
+
+    public void BtnAddLargeListIncrementally_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs? e)
+    {
+        var border = this.FindControl<Border>("borderLargeList");
+        if (border == null)
+        {
+            return;
+        }
+
+        // The empty panel is attached first, so every item is a separate insertion into the live tree
+        // and produces its own DOM.childNodeInserted event for connected CDP clients.
+        var panel = new StackPanel { Name = "panelLargeList" };
+        border.Child = panel;
+        for (var i = 1; i <= LargeListItemCount; i++)
+        {
+            var item = new TextBlock { Text = $"Large List Item {i}" };
+            item.Classes.Add("largeListItem");
+            panel.Children.Add(item);
+        }
+    }
+
+    public async void BtnOpenOwnedDialog_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs? e)
+    {
+        var clickCount = 0;
+        var countText = new TextBlock { Name = "txtOwnedDialogCount", Text = "Dialog Clicks: 0", FontSize = 14 };
+        var incrementButton = new Button { Name = "btnOwnedDialogIncrement", Content = "Increment", Width = 160 };
+        var closeButton = new Button { Name = "btnOwnedDialogClose", Content = "Close", Width = 160 };
+        AutomationProperties.SetAutomationId(countText, "txtOwnedDialogCount");
+        AutomationProperties.SetAutomationId(incrementButton, "btnOwnedDialogIncrement");
+        AutomationProperties.SetAutomationId(closeButton, "btnOwnedDialogClose");
+
+        var dialog = new Window
+        {
+            Title = "Sample Owned Dialog",
+            Width = 320,
+            Height = 220,
+            CanResize = false,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Spacing = 15,
+                Margin = new Avalonia.Thickness(20),
+                Children =
+                {
+                    new TextBlock { Text = "Owned modal dialog", FontSize = 16, FontWeight = Avalonia.Media.FontWeight.Bold },
+                    countText,
+                    incrementButton,
+                    closeButton
+                }
+            }
+        };
+
+        incrementButton.Click += (_, _) =>
+        {
+            clickCount++;
+            countText.Text = $"Dialog Clicks: {clickCount}";
+        };
+        closeButton.Click += (_, _) => dialog.Close();
+
+        await dialog.ShowDialog(this);
     }
 
     public void BtnInsideFlyout_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)

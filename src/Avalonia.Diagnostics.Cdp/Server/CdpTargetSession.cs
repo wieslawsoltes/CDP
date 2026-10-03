@@ -909,6 +909,10 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                         {
                             continue;
                         }
+                        if (item is ILogical itemLogical && !CdpSession.IsOwnLogicalChild(container, itemLogical))
+                        {
+                            continue;
+                        }
 
                         if (item is Visual child && child is not HighlightAdorner)
                         {
@@ -963,6 +967,10 @@ public class CdpTargetSession : Chrome.DevTools.Protocol.CdpTargetSession
                     foreach (var item in e.OldItems)
                     {
                         if (item is StyledElement se && se.TemplatedParent != null)
+                        {
+                            continue;
+                        }
+                        if (item is ILogical itemLogical && !CdpSession.IsOwnLogicalChild(container, itemLogical))
                         {
                             continue;
                         }

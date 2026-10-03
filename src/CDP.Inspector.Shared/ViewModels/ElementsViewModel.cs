@@ -36,7 +36,13 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         set => RaiseAndSetIfChanged(ref _selectedPane, value);
     }
     private readonly ICdpService _cdpService;
+    private readonly CoalescingReloadScheduler _mutationReload;
     private readonly Dictionary<string, JsonObject> _axNodeDetailsMap = new();
+
+    /// <summary>
+    /// Merges DOM mutation and accessibility tree events into single tree reloads.
+    /// </summary>
+    public CoalescingReloadScheduler MutationReload => _mutationReload;
     private ObservableCollection<DomNodeModel> _rootNodes = new();
     private ObservableCollection<AxNodeModel> _axRootNodes = new();
     private object? _selectedNodeNode;
@@ -706,6 +712,7 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
     public ElementsViewModel(ICdpService cdpService)
     {
         _cdpService = cdpService ?? throw new ArgumentNullException(nameof(cdpService));
+        _mutationReload = new CoalescingReloadScheduler(() => Dispatcher.UIThread.InvokeAsync(ReloadTreesAfterMutationAsync));
         _cdpService.PropertyChanged += CdpService_PropertyChanged;
         _cdpService.EventReceived += CdpService_EventReceived;
         _cdpService.TimeMachine.FrameChanged += async (sender, args) =>
@@ -833,23 +840,26 @@ public class ElementsViewModel : ViewModelBase, IStateProvider
         }
         else if (e.Method == "DOM.documentUpdated" || e.Method == "DOM.childNodeInserted" || e.Method == "DOM.childNodeRemoved" || e.Method == "Accessibility.axTreeUpdated")
         {
-            Dispatcher.UIThread.Post(async () =>
-            {
-                int? savedNodeId = SelectedNode?.NodeId;
-                string? savedAxNodeId = SelectedAxNode?.NodeId;
+            // Every reload fetches the whole DOM and AX tree, so a burst of mutations is merged into one reload.
+            _mutationReload.Request();
+        }
+    }
 
-                await RefreshDomTreeAsync();
-                await RefreshAxTreeAsync();
+    private async Task ReloadTreesAfterMutationAsync()
+    {
+        int? savedNodeId = SelectedNode?.NodeId;
+        string? savedAxNodeId = SelectedAxNode?.NodeId;
 
-                if (savedNodeId.HasValue)
-                {
-                    SelectNodeById(savedNodeId.Value);
-                }
-                if (!string.IsNullOrEmpty(savedAxNodeId))
-                {
-                    SelectAxNodeById(savedAxNodeId);
-                }
-            });
+        await RefreshDomTreeAsync();
+        await RefreshAxTreeAsync();
+
+        if (savedNodeId.HasValue)
+        {
+            SelectNodeById(savedNodeId.Value);
+        }
+        if (!string.IsNullOrEmpty(savedAxNodeId))
+        {
+            SelectAxNodeById(savedAxNodeId);
         }
     }
 

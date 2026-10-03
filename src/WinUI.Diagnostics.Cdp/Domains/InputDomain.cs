@@ -73,9 +73,13 @@ public static class InputDomain
         var window = session.Window;
         await window.DispatcherQueue.InvokeAsync(() =>
         {
-            var windows = CdpServer.GetWindows().ToList();
-            var mainWin = CdpServer.GetPrimaryWindow();
-            if (mainWin == null || mainWin.Content == null) return;
+            // The session window and the windows shown on top of it; for the main window session these are
+            // all windows, a dialog session never reaches its owner behind it.
+            var rootWin = window;
+            if (rootWin.Content == null || CdpServer.GetPrimaryWindow() == null) return;
+            var windows = CdpServer.GetWindows()
+                .Where(t => t.Window == rootWin || CdpVisualTreeHelper.IsOverlayWindowFor(rootWin, t.Window))
+                .ToList();
 
             // 1. Build the list of active visual roots (front-to-back: popups, secondary windows, then main window)
             var rootsToSearch = new List<(UIElement Root, Window Window)>();
@@ -108,7 +112,7 @@ public static class InputDomain
             }
 
             // Secondary windows
-            var secondaryWindows = windows.Select(x => x.Window).Where(win => win != null && win != mainWin).ToList();
+            var secondaryWindows = windows.Select(x => x.Window).Where(win => win != null && win != rootWin).ToList();
             secondaryWindows.Reverse();
             foreach (var win in secondaryWindows)
             {
@@ -119,7 +123,7 @@ public static class InputDomain
             }
 
             // Main window
-            rootsToSearch.Add((mainWin.Content, mainWin));
+            rootsToSearch.Add((rootWin.Content, rootWin));
 
             // Traverse front-to-back to find the hit target
             foreach (var item in rootsToSearch)

@@ -83,13 +83,15 @@ public static class InputDomain
                 var mainWin = CdpServer.GetPrimaryWindow();
                 if (mainWin != null)
                 {
-                    roots.Add(mainWin);
+                    // The session window and the windows shown on top of it; for the main window session
+                    // these are all windows, a dialog session never reaches its owner behind it.
+                    roots.Add(window);
 
                     // other active windows
                     foreach (var winInfo in CdpServer.GetWindows())
                     {
                         var win = winInfo.Window;
-                        if (win != null && win != mainWin && win.IsVisible)
+                        if (CdpVisualTreeHelper.IsOverlayWindowFor(window, win) && win.IsVisible)
                         {
                             roots.Add(win);
                         }
@@ -100,7 +102,7 @@ public static class InputDomain
                     var visited = new HashSet<Visual>();
                     foreach (var winInfo in CdpServer.GetWindows())
                     {
-                        if (winInfo.Window != null)
+                        if (winInfo.Window != null && (winInfo.Window == window || CdpVisualTreeHelper.IsOverlayWindowFor(window, winInfo.Window)))
                         {
                             CdpVisualTreeHelper.FindOpenPopups(winInfo.Window, openPopups, visited);
                         }

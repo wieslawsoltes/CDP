@@ -1,0 +1,29 @@
+appId: "CdpInspectorApp"
+description: "Sub-flow: close the owned modal dialog of the sample and reconnect the inspector to the sample main window target"
+---
+# Requires an inspector connection to the dialog target (see connect_to_sample_owned_dialog.yaml).
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"__raw_window.Close(); 'dialog-closed'\"; __raw_window.DataContext.Console.EvaluateAsync();"
+
+# Wait until the dialog target is gone, then select the main window target and connect to it.
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - tapOn: "#btnRefreshTargets"
+      - delay: "250"
+      - assertTrue: "(function () { var t = __raw_window.DataContext.Connection.Targets; if (t.Count == 0) return false; for (var i = 0; i < t.Count; i++) { if (t[i].Title == 'Sample Owned Dialog') return false; } return true; })()"
+- evalScript: "(function () { var c = __raw_window.DataContext.Connection; for (var i = 0; i < c.Targets.Count; i++) { if (c.Targets[i].Title == 'Avalonia CDP Inspector Sample') { c.SelectedTarget = c.Targets[i]; return 'selected'; } } return 'missing'; })()"
+- assertTrue: "__raw_window.DataContext.Connection.SelectedTarget.Title == 'Avalonia CDP Inspector Sample'"
+- evalScript: "__raw_window.DataContext.Connection.ConnectAsync(); 'connecting'"
+
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Connection.IsConnected"
+      - evalScript:
+          value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+          assignTo: "mainWindowTitleIndex"
+      - evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"__raw_window.Title\"; __raw_window.DataContext.Console.EvaluateAsync();"
+      - delay: "300"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${mainWindowTitleIndex} && __raw_window.DataContext.Console.ConsoleHistory[${mainWindowTitleIndex}].Result == 'Avalonia CDP Inspector Sample'"

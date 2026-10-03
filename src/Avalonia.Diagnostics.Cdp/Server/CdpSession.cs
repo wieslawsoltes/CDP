@@ -139,6 +139,10 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
             {
                 continue;
             }
+            if (!IsOwnLogicalChild(logical, child))
+            {
+                continue;
+            }
             if (child is Visual visualChild)
             {
                 if (visualChild.GetVisualParent() is not Avalonia.Controls.Presenters.ContentPresenter cp || cp.Content == visualChild)
@@ -154,6 +158,16 @@ public class CdpSession : Chrome.DevTools.Protocol.CdpSession
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// A control can be listed in the LogicalChildren of a second element while its LogicalParent
+    /// points elsewhere, e.g. TabControl lists the selected TabItem's content next to the TabItem
+    /// that owns it. Only the owning parent reports such a child, so every node appears once.
+    /// </summary>
+    internal static bool IsOwnLogicalChild(ILogical parent, ILogical child)
+    {
+        return child.LogicalParent == null || child.LogicalParent == parent;
     }
 
     internal bool IsLogicalNode(ILogical? node)

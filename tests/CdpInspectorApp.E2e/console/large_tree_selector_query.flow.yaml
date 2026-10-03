@@ -1,0 +1,67 @@
+appId: "CdpInspectorApp"
+description: "Attaches a 2000-item list to the sample and verifies through the console that a descendant selector query over the large tree returns every item exactly once"
+tags:
+  - "console"
+  - "selectors"
+  - "performance"
+  - "e2e"
+---
+- evalScript: "__raw_window.DataContext.Connection.HostAddress = \"http://127.0.0.1:9222\""
+- runFlow: "shared/connect_to_sample.yaml"
+- evalScript: "__raw_window.DataContext.NavigateToView(\"Console\")"
+- extendedWaitUntil:
+    visible: "#TabConsole"
+    timeout: 5000
+
+# 1. Select the Popups & Windows tab by its name and attach the large list (2000 TextBlock items in one panel).
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "largeListOnIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"document.querySelector('#tabPopups').__raw_node.IsSelected = true; var b = document.querySelector('#borderLargeList').__raw_node; if (b.Child == null) { __raw_window.BtnToggleLargeList_Click(null, null); } 'items-' + b.Child.Children.Count\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${largeListOnIndex} && __raw_window.DataContext.Console.ConsoleHistory[${largeListOnIndex}].Result == 'items-2000'"
+
+# 2. Query all item TextBlocks below the list through a descendant selector.
+#    The list sits in a TabItem; the console session uses the logical tree, where TabControl also lists the
+#    selected content, so every item must still be returned exactly once.
+#    Query cost is checked deterministically by the CdpVisualTreeHelper unit tests; the time here is only a
+#    generous sanity bound against a hang.
+#    The result is 'matches:milliseconds:last item text'.
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "largeListQueryIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"(function () { var t0 = Date.now(); var items = document.querySelectorAll('#panelLargeList TextBlock'); var ms = Date.now() - t0; var last = ''; for (var i = 0; i < items.length; i++) { if (items[i].__raw_node.Text == 'Large List Item 2000') { last = items[i].__raw_node.Text; } } return items.length + ':' + ms + ':' + last; })()\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 240
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${largeListQueryIndex}"
+- assertTrue: "__raw_window.DataContext.Console.ConsoleHistory[${largeListQueryIndex}].Result.split(':')[0] == '2000'"
+- assertTrue: "__raw_window.DataContext.Console.ConsoleHistory[${largeListQueryIndex}].Result.split(':')[2] == 'Large List Item 2000'"
+- assertTrue: "parseInt(__raw_window.DataContext.Console.ConsoleHistory[${largeListQueryIndex}].Result.split(':')[1]) < 10000"
+
+# 3. A named control inside the same TabItem is found exactly once as well.
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "popupStatusQueryIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"'status-' + document.querySelectorAll('#txtPopupStatus').length\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${popupStatusQueryIndex}"
+- assertTrue: "__raw_window.DataContext.Console.ConsoleHistory[${popupStatusQueryIndex}].Result == 'status-1'"
+
+# 4. Detach the list again so other flows keep the small sample tree.
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "largeListOffIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"__raw_window.BtnToggleLargeList_Click(null, null); document.querySelector('#borderLargeList').__raw_node.Child == null ? 'items-0' : 'items-left'\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${largeListOffIndex} && __raw_window.DataContext.Console.ConsoleHistory[${largeListOffIndex}].Result == 'items-0'"

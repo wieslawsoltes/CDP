@@ -926,22 +926,42 @@ public static class InputDomain
         session.RequestScreencastFrame();
     }
 
-    private static TopLevel? GetTargetTopLevel(CdpSession session)
+    private static TopLevel? GetTargetTopLevel(CdpSession session) => GetTargetTopLevel(session.Window);
+
+    /// <summary>
+    /// Key events go to the session window when it has focus, otherwise to a focused window shown on top of it.
+    /// A dialog session never falls back to its owner, which the dialog session does not see.
+    /// </summary>
+    internal static TopLevel? GetTargetTopLevel(TopLevel? sessionWindow)
     {
-        if (session.Window is TopLevel mainTl && mainTl.FocusManager?.GetFocusedElement() is Visual v1 && v1.IsVisible)
+        if (sessionWindow == null) return null;
+
+        // The focused element can be reported by every window's FocusManager, so its own TopLevel must be
+        // the session window or a window shown on top of it.
+        if (sessionWindow.FocusManager?.GetFocusedElement() is Visual v1 && v1.IsVisible)
         {
-            return TopLevel.GetTopLevel(v1) ?? mainTl;
+            var focusedTop = TopLevel.GetTopLevel(v1) ?? sessionWindow;
+            if (IsInputRootFor(sessionWindow, focusedTop)) return focusedTop;
         }
 
         foreach (var winInfo in CdpServer.GetWindows())
         {
+            if (!CdpVisualTreeHelper.IsOverlayWindowFor(sessionWindow, winInfo.Window)) continue;
             if (winInfo.Window is TopLevel tl && tl.FocusManager?.GetFocusedElement() is Visual v2 && v2.IsVisible)
             {
-                return TopLevel.GetTopLevel(v2) ?? tl;
+                var focusedTop = TopLevel.GetTopLevel(v2) ?? tl;
+                if (IsInputRootFor(sessionWindow, focusedTop)) return focusedTop;
             }
         }
 
-        return session.Window;
+        return sessionWindow;
+    }
+
+    private static bool IsInputRootFor(TopLevel sessionWindow, TopLevel focusedTop)
+    {
+        // A popup belongs to the window it was opened from.
+        var owner = focusedTop is PopupRoot popupRoot && popupRoot.ParentTopLevel is TopLevel parent ? parent : focusedTop;
+        return owner == sessionWindow || CdpVisualTreeHelper.IsOverlayWindowFor(sessionWindow, owner);
     }
 
     private static async Task DispatchKeyEventAsync(
