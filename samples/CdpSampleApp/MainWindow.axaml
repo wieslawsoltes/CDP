@@ -159,6 +159,18 @@
                             <TextBlock Text="Popup Status:" FontSize="12" FontWeight="SemiBold"/>
                             <TextBlock Name="txtPopupStatus" Text="No interaction yet" FontSize="14" Foreground="#4caf50" FontWeight="SemiBold"/>
                         </StackPanel>
+
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Owned Dialog:" FontSize="12" FontWeight="SemiBold"/>
+                            <Button Name="btnOpenOwnedDialog" AutomationProperties.AutomationId="btnOpenOwnedDialog" Content="Open Owned Dialog" Width="220" Click="BtnOpenOwnedDialog_Click"/>
+                        </StackPanel>
+
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Large List:" FontSize="12" FontWeight="SemiBold"/>
+                            <Button Name="btnToggleLargeList" AutomationProperties.AutomationId="btnToggleLargeList" Content="Toggle Large List" Width="220" Click="BtnToggleLargeList_Click"/>
+                            <Button Name="btnAddLargeListIncrementally" AutomationProperties.AutomationId="btnAddLargeListIncrementally" Content="Add Large List Items One By One" Width="220" Click="BtnAddLargeListIncrementally_Click"/>
+                            <Border Name="borderLargeList" AutomationProperties.AutomationId="borderLargeList"/>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

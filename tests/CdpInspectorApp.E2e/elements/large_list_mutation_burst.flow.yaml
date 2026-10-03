@@ -1,0 +1,96 @@
+appId: "CdpInspectorApp"
+description: "With the Elements view open, the sample inserts 2000 children one by one into a live panel; the inspector merges the 2000 DOM.childNodeInserted events into a few tree reloads, stays responsive and finally shows every item"
+tags:
+  - "elements"
+  - "dom"
+  - "mutation"
+  - "performance"
+  - "e2e"
+---
+- evalScript: "__raw_window.DataContext.Connection.HostAddress = \"http://127.0.0.1:9222\""
+- runFlow: "shared/connect_to_sample.yaml"
+- evalScript: "__raw_window.DataContext.NavigateToView(\"Elements\")"
+- extendedWaitUntil:
+    visible: "#TabElements"
+    timeout: 5000
+
+# 1. Wait for the initial tree and remember the reload counters of the Elements view.
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Elements.RootNodes.Count > 0 && __raw_window.DataContext.Elements.MutationReload.IsBusy == false"
+- evalScript:
+    value: "__raw_window.DataContext.Elements.MutationReload.RequestCount"
+    assignTo: "requestsBefore"
+- evalScript:
+    value: "__raw_window.DataContext.Elements.MutationReload.ReloadCount"
+    assignTo: "reloadsBefore"
+
+# 2. Let the sample attach an empty panel and add 2000 items to it one by one.
+#    The console view model evaluates in the sample without leaving the Elements view.
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "burstIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"document.querySelector('#tabPopups').__raw_node.IsSelected = true; __raw_window.BtnAddLargeListIncrementally_Click(null, null); 'items-' + document.querySelector('#borderLargeList').__raw_node.Child.Children.Count\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 120
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${burstIndex} && __raw_window.DataContext.Console.ConsoleHistory[${burstIndex}].Result == 'items-2000'"
+
+# 3. Every insertion reached the inspector, but the trees were reloaded only a few times.
+- retry:
+    maxRetries: 240
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Elements.MutationReload.RequestCount - ${requestsBefore} >= 2000"
+      - assertTrue: "__raw_window.DataContext.Elements.MutationReload.IsBusy == false"
+- assertTrue: "__raw_window.DataContext.Elements.MutationReload.ReloadCount - ${reloadsBefore} >= 1"
+- assertTrue: "__raw_window.DataContext.Elements.MutationReload.ReloadCount - ${reloadsBefore} <= 30"
+
+# 4. The last reload shows the complete list in the DOM tree of the Elements view.
+- assertTrue: |
+    (function () {
+        function find(nodes) {
+            for (var i = 0; i < nodes.Count; i++) {
+                var n = nodes[i];
+                for (var j = 0; j < n.AttributesList.Count; j++) {
+                    var a = n.AttributesList[j];
+                    if ((a.Name === 'id' || a.Name === 'Name') && a.Value === 'panelLargeList') return n;
+                }
+                var found = find(n.Children);
+                if (found != null) return found;
+            }
+            return null;
+        }
+        var panel = find(__raw_window.DataContext.Elements.RootNodes);
+        return panel != null && panel.Children.Count == 2000;
+    })()
+
+# 5. The inspector stays responsive: a console round trip to the sample still completes.
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "afterBurstIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"'alive-' + document.querySelectorAll('#panelLargeList TextBlock').length\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 120
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${afterBurstIndex} && __raw_window.DataContext.Console.ConsoleHistory[${afterBurstIndex}].Result == 'alive-2000'"
+
+# 6. Detach the list again so other flows keep the small sample tree.
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "listOffIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"__raw_window.BtnToggleLargeList_Click(null, null); document.querySelector('#borderLargeList').__raw_node.Child == null ? 'items-0' : 'items-left'\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${listOffIndex} && __raw_window.DataContext.Console.ConsoleHistory[${listOffIndex}].Result == 'items-0'"
+- retry:
+    maxRetries: 120
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Elements.MutationReload.IsBusy == false"

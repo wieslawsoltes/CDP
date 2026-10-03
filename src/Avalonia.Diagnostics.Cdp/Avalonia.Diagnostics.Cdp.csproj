@@ -29,6 +29,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Avalonia.Diagnostics.Cdp.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Chrome.DevTools.Protocol/Chrome.DevTools.Protocol.csproj" />
     <ProjectReference Include="../Chrome.DevTools.Protocol.Extensions/Chrome.DevTools.Protocol.Extensions.csproj" />
     <ProjectReference Include="../Xaml.Compiler/Xaml.Compiler.csproj" />

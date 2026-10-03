@@ -24,6 +24,54 @@ public static class CdpVisualTreeHelper
     [DllImport("user32.dll")]
     private static extern bool ScreenToClient(IntPtr hWnd, ref Win32Point lpPoint);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+    private const uint GW_OWNER = 4;
+
+    /// <summary>
+    /// The registered window that owns <paramref name="window"/> through the Win32 owner relation, or null.
+    /// WinUI has no XAML owner property; owned windows are created through the HWND owner.
+    /// </summary>
+    internal static Window? GetOwnerWindow(Window window)
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        var hwnd = GetWindowHandle(window);
+        if (hwnd == IntPtr.Zero) return null;
+        var ownerHwnd = GetWindow(hwnd, GW_OWNER);
+        if (ownerHwnd == IntPtr.Zero) return null;
+        return CdpServer.GetWindows().Select(x => x.Window).FirstOrDefault(w => w != null && w != window && GetWindowHandle(w) == ownerHwnd);
+    }
+
+    /// <summary>
+    /// Returns true when <paramref name="window"/> is shown on top of <paramref name="rootWindow"/>
+    /// from the point of view of a session attached to <paramref name="rootWindow"/>.
+    /// The primary window sees all other windows; a secondary window only sees the windows it owns.
+    /// </summary>
+    public static bool IsOverlayWindowFor(Window? rootWindow, Window? window)
+    {
+        if (rootWindow == null || window == null || window == rootWindow) return false;
+        if (rootWindow == CdpServer.GetPrimaryWindow()) return true;
+
+        var owner = GetOwnerWindow(window);
+        for (int depth = 0; owner != null && depth < 32; depth++)
+        {
+            if (owner == rootWindow) return true;
+            owner = GetOwnerWindow(owner);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Parent window of a secondary window in the CDP tree: its owner window when it has a registered owner,
+    /// otherwise the main window. This matches <see cref="IsOverlayWindowFor"/>.
+    /// </summary>
+    internal static Window? GetWindowParent(Window window, Window? mainWin)
+    {
+        var owner = GetOwnerWindow(window);
+        return owner != null && owner.Content != null ? owner : mainWin;
+    }
+
     public static IEnumerable<UIElement> GetChildren(UIElement visual, bool useLogicalTree)
     {
         var list = new List<UIElement>();
@@ -40,33 +88,36 @@ public static class CdpVisualTreeHelper
         var windows = CdpServer.GetWindows().ToList();
         var mainWin = CdpServer.GetPrimaryWindow();
 
-        if (mainWin != null && mainWin.Content != null && visual == mainWin.Content)
+        var visualWindow = mainWin != null && mainWin.Content != null
+            ? windows.Select(t => t.Window).FirstOrDefault(w => w != null && w.Content == visual)
+            : null;
+        if (mainWin != null && mainWin.Content != null && visualWindow != null)
         {
-            // 1. Append other active windows' Content
+            // 1. Append the Content of secondary windows whose parent is this window: owned windows below
+            //    their owner, all other windows below the main window.
             foreach (var t in windows)
             {
                 var win = t.Window;
-                if (win != null && win != mainWin && win.Content != null && !list.Contains(win.Content))
+                if (win != null && win != mainWin && win != visualWindow && win.Content != null &&
+                    GetWindowParent(win, mainWin) == visualWindow && !list.Contains(win.Content))
                 {
                     list.Add(win.Content);
                 }
             }
 
-            // 2. Append all open popup contents as children
-            foreach (var t in windows)
+            // 2. Append the open popup contents of this window's XamlRoot. A popup that is also listed for the
+            //    main window's XamlRoot belongs to the main window, so every popup appears exactly once.
+            if (visualWindow.Content.XamlRoot != null)
             {
-                var win = t.Window;
-                if (win != null && win.Content != null && win.Content.XamlRoot != null)
+                var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(visualWindow.Content.XamlRoot);
+                if (popups != null)
                 {
-                    var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(win.Content.XamlRoot);
-                    if (popups != null)
+                    foreach (var popup in popups)
                     {
-                        foreach (var popup in popups)
+                        if (popup != null && popup.Child is UIElement popupChild && !list.Contains(popupChild) &&
+                            GetPopupParentWindow(popupChild, windows, mainWin) == visualWindow)
                         {
-                            if (popup != null && popup.Child is UIElement popupChild && !list.Contains(popupChild))
-                            {
-                                list.Add(popupChild);
-                            }
+                            list.Add(popupChild);
                         }
                     }
                 }
@@ -76,6 +127,33 @@ public static class CdpVisualTreeHelper
         return list;
     }
 
+    /// <summary>
+    /// The window whose Content is the CDP parent of an open popup's child: the main window when the popup is
+    /// open in the main window's XamlRoot, otherwise the first registered window whose XamlRoot lists it, or null.
+    /// </summary>
+    private static Window? GetPopupParentWindow(UIElement popupChild, List<(string Id, Window Window, string Title)> windows, Window mainWin)
+    {
+        if (IsOpenPopupChildOf(mainWin, popupChild)) return mainWin;
+        foreach (var t in windows)
+        {
+            var win = t.Window;
+            if (win != null && win != mainWin && IsOpenPopupChildOf(win, popupChild)) return win;
+        }
+        return null;
+    }
+
+    private static bool IsOpenPopupChildOf(Window win, UIElement popupChild)
+    {
+        if (win.Content == null || win.Content.XamlRoot == null) return false;
+        var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(win.Content.XamlRoot);
+        if (popups == null) return false;
+        foreach (var popup in popups)
+        {
+            if (popup != null && popup.Child == popupChild) return true;
+        }
+        return false;
+    }
+
     public static UIElement? GetParent(UIElement visual, bool useLogicalTree)
     {
         var windows = CdpServer.GetWindows().ToList();
@@ -83,34 +161,21 @@ public static class CdpVisualTreeHelper
 
         if (mainWin != null && mainWin.Content != null)
         {
-            // Return main window's Content if the visual is secondary window's Content
+            // A secondary window's Content belongs below its owner window's Content, otherwise below the main window's Content
             foreach (var t in windows)
             {
                 var win = t.Window;
                 if (win != null && win != mainWin && win.Content == visual)
                 {
-                    return mainWin.Content;
+                    return GetWindowParent(win, mainWin)?.Content ?? mainWin.Content;
                 }
             }
 
-            // Return main window's Content if the visual is an open popup's Child
-            foreach (var t in windows)
+            // An open popup's Child belongs below the Content of the window whose XamlRoot shows the popup
+            var popupWindow = GetPopupParentWindow(visual, windows, mainWin);
+            if (popupWindow != null)
             {
-                var win = t.Window;
-                if (win != null && win.Content != null && win.Content.XamlRoot != null)
-                {
-                    var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(win.Content.XamlRoot);
-                    if (popups != null)
-                    {
-                        foreach (var popup in popups)
-                        {
-                            if (popup != null && popup.Child == visual)
-                            {
-                                return mainWin.Content;
-                            }
-                        }
-                    }
-                }
+                return popupWindow.Content ?? mainWin.Content;
             }
         }
 
@@ -216,7 +281,11 @@ public static class CdpVisualTreeHelper
             return new HitTestResult(null, null, mousePos);
         }
 
-        var windows = CdpServer.GetWindows().ToList();
+        // Only the session window and the windows shown on top of it take part; a dialog session
+        // must not hit its owner behind it.
+        var windows = CdpServer.GetWindows()
+            .Where(t => t.Window == primaryWindow || IsOverlayWindowFor(primaryWindow, t.Window))
+            .ToList();
 
         // Check popups in main and secondary windows
         foreach (var target in windows)

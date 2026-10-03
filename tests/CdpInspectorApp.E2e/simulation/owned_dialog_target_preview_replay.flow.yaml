@@ -1,0 +1,107 @@
+appId: "CdpInspectorApp"
+description: "Opens an owned modal dialog of the sample with a preview click, connects the inspector to the dialog page target, records a tap on a dialog button through the preview canvas #imgScreenshot, replays it and verifies that input and preview belong to the dialog and not to the main window behind it"
+tags:
+  - "simulation"
+  - "preview"
+  - "multi-window"
+  - "dialog"
+  - "recorder"
+  - "e2e"
+---
+- evalScript: "__raw_window.DataContext.Connection.HostAddress = \"http://127.0.0.1:9222\""
+- runFlow: "shared/connect_to_sample.yaml"
+- runFlow: "shared/connect_to_sample_owned_dialog.yaml"
+
+# 1. Show the Test Studio with the preview at 100% zoom and no pan.
+#    The Recorder tab can be scrolled out of the tab strip, so it is activated through the view model.
+- evalScript: "__raw_window.DataContext.NavigateToView(\"Recorder\")"
+- evalScript: "__raw_window.DataContext.Recorder.IsTestStudioActive = true"
+- evalScript: "__raw_window.DataContext.Simulation.SelectedZoomPreset = \"100%\""
+- evalScript: "__raw_window.DataContext.Simulation.ResetPan()"
+- extendedWaitUntil:
+    visible: "#btnTestStudioClear"
+    timeout: 5000
+
+# 2. The preview must show the dialog surface (320 x 220 DIP), not the 550 x 520 main window.
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Simulation.DeviceWidth == 320 && __raw_window.DataContext.Simulation.DeviceHeight == 220"
+      - assertTrue: "(function () { var img = __raw_window.DataContext.Simulation.ScreenshotImage; if (img == null) return false; var ratio = img.PixelSize.Width / img.PixelSize.Height; return Math.abs(ratio - 320 / 220) < 0.03; })()"
+
+# 3. Resolve the dialog button centre in dialog coordinates and map it onto #imgScreenshot.
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "dialogButtonPointIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"(function () { var r = document.querySelector('#btnOwnedDialogIncrement').getBoundingClientRect(); return Math.round(r.x + r.width / 2) + ',' + Math.round(r.y + r.height / 2); })()\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${dialogButtonPointIndex} && __raw_window.DataContext.Console.ConsoleHistory[${dialogButtonPointIndex}].Result.indexOf(',') > 0"
+- evalScript:
+    value: "(function () { var p = __raw_window.DataContext.Console.ConsoleHistory[${dialogButtonPointIndex}].Result.split(','); var r = document.querySelector('#imgScreenshot').getBoundingClientRect(); return Math.round(r.x + parseFloat(p[0])); })()"
+    assignTo: "previewTapX"
+- evalScript:
+    value: "(function () { var p = __raw_window.DataContext.Console.ConsoleHistory[${dialogButtonPointIndex}].Result.split(','); var r = document.querySelector('#imgScreenshot').getBoundingClientRect(); return Math.round(r.y + parseFloat(p[1])); })()"
+    assignTo: "previewTapY"
+
+# 4. Record one tap on the dialog button through the preview canvas.
+- tapOn: "#btnTestStudioClear"
+- evalScript: "__raw_window.DataContext.Recorder.ClearRecording()"
+- evalScript: "__raw_window.DataContext.Recorder.ToggleRecordCommand.Execute(null)"
+- retry:
+    maxRetries: 20
+    commands:
+      - delay: "100"
+      - assertTrue: "__raw_window.DataContext.Recorder.IsRecording == true"
+- tapOn:
+    x: "${previewTapX}"
+    y: "${previewTapY}"
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Recorder.TestStudio.Steps.Count > 0"
+- evalScript: "__raw_window.DataContext.Recorder.ToggleRecordCommand.Execute(null)"
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Recorder.IsRecording == false"
+- assertTrue: "__raw_window.DataContext.Recorder.TestStudio.Steps[0].Selector == \"#btnOwnedDialogIncrement\""
+
+# The live preview tap must have reached the dialog button.
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "dialogCountAfterTapIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"document.querySelector('#txtOwnedDialogCount').__raw_node.Text\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${dialogCountAfterTapIndex}"
+- assertTrue: "__raw_window.DataContext.Console.ConsoleHistory[${dialogCountAfterTapIndex}].Result == 'Dialog Clicks: 1'"
+
+# 5. Replay the recorded preview interaction with 0 failures; it must click the dialog button again.
+- tapOn: "#btnTestStudioPlay"
+- retry:
+    maxRetries: 60
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Recorder.TestStudio.IsExecuting == false"
+      - assertTrue: "(function () { var s = __raw_window.DataContext.Recorder.TestStudio.Steps; if (s.Count == 0) return false; for (var i = 0; i < s.Count; i++) { if (!s[i].IsPassed) return false; } return true; })()"
+- evalScript:
+    value: "__raw_window.DataContext.Console.ConsoleHistory.Count"
+    assignTo: "dialogCountAfterReplayIndex"
+- evalScript: "__raw_window.DataContext.Console.ConsoleInputText = \"document.querySelector('#txtOwnedDialogCount').__raw_node.Text\"; __raw_window.DataContext.Console.EvaluateAsync();"
+- retry:
+    maxRetries: 40
+    commands:
+      - delay: "250"
+      - assertTrue: "__raw_window.DataContext.Console.ConsoleHistory.Count > ${dialogCountAfterReplayIndex}"
+- assertTrue: "__raw_window.DataContext.Console.ConsoleHistory[${dialogCountAfterReplayIndex}].Result == 'Dialog Clicks: 2'"
+
+# 6. Close the dialog and reconnect the inspector to the sample main window.
+- runFlow: "shared/close_sample_owned_dialog.yaml"

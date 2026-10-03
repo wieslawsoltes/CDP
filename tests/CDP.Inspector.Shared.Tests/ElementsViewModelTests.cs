@@ -26,6 +26,8 @@ public class ElementsViewModelTests
 
         public List<(string Method, JsonObject? Parameters)> SentCommands { get; } = new();
 
+        public void RaiseEvent(string method, JsonObject parameters) => EventReceived?.Invoke(this, new CdpEventEventArgs(method, parameters));
+
         public Task<List<TargetItem>> GetTargetsAsync(string host) => Task.FromResult(new List<TargetItem>());
         public Task ConnectAsync(string host, TargetItem target) => Task.CompletedTask;
         public Task DisconnectAsync() => Task.CompletedTask;
@@ -221,5 +223,27 @@ public class ElementsViewModelTests
 
         Assert.Equal("80", vm.BoxWidth);
         Assert.Equal("80", vm.BoxHeight);
+    }
+
+    [Avalonia.Headless.XUnit.AvaloniaFact]
+    public async Task MutationBurst_ReloadsDomAndAxTreeOnce()
+    {
+        var spy = new SpyCdpService();
+        var vm = new ElementsViewModel(spy);
+        spy.SentCommands.Clear();
+
+        // One event per inserted child, as sent for a panel that receives 2000 children one by one.
+        for (int i = 0; i < 2000; i++)
+        {
+            spy.RaiseEvent("DOM.childNodeInserted", new JsonObject { ["parentNodeId"] = 7, ["previousNodeId"] = i, ["node"] = new JsonObject { ["nodeId"] = 1000 + i } });
+        }
+        spy.RaiseEvent("Accessibility.axTreeUpdated", new JsonObject());
+
+        await vm.MutationReload.WhenIdleAsync();
+
+        Assert.Equal(2001, vm.MutationReload.RequestCount);
+        Assert.Equal(1, vm.MutationReload.ReloadCount);
+        Assert.Equal(1, spy.SentCommands.Count(c => c.Method == "DOM.getDocument"));
+        Assert.Equal(1, spy.SentCommands.Count(c => c.Method == "Accessibility.getFullAXTree"));
     }
 }

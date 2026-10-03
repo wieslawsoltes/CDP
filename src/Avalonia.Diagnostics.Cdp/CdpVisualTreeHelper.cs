@@ -27,33 +27,26 @@ public static class CdpVisualTreeHelper
             list.AddRange(visual.GetVisualChildren());
         }
 
-        // Anchor secondary windows and open popups to the main window
         var mainWin = CdpServer.GetPrimaryWindow();
-        if (mainWin != null && visual == mainWin)
+        if (mainWin != null && visual is TopLevel topLevel && (topLevel == mainWin || CdpServer.IsRegistered(topLevel)))
         {
-            
-            // 1. Append other active Windows as children
+            // 1. Append the secondary windows whose parent is this window: owned windows below their owner,
+            //    all other windows below the main window.
             foreach (var target in CdpServer.GetWindows())
             {
                 var win = target.Window;
-                if (win != null && win != mainWin && win.IsVisible && !list.Contains(win))
+                if (win != null && win != mainWin && win != topLevel && win.IsVisible &&
+                    GetWindowParent(win, mainWin) == topLevel && !list.Contains(win))
                 {
                     list.Add(win);
                 }
             }
 
-            // 2. Append all open popups' contents as children
-            var openPopups = new List<Popup>();
-            var visited = new HashSet<Visual>();
-            foreach (var target in CdpServer.GetWindows())
+            // 2. Append the contents of the open popups opened from this window; popups without a shown
+            //    CDP owner window stay below the main window.
+            foreach (var popup in GetOpenPopups())
             {
-                if (target.Window != null)
-                {
-                    FindOpenPopups(target.Window, openPopups, visited);
-                }
-            }
-            foreach (var popup in openPopups)
-            {
+                if (GetPopupParentWindow(popup, mainWin) != topLevel) continue;
                 var content = GetPopupContent(popup);
                 if (content != null && !list.Contains(content))
                 {
@@ -73,13 +66,13 @@ public static class CdpVisualTreeHelper
         var popup = FindPopupForRoot(visual);
         if (popup != null)
         {
-            return mainWin;
+            return GetPopupParentWindow(popup, mainWin);
         }
 
         // Check if this visual is a secondary Window
         if (visual is Window win && win != mainWin)
         {
-            return mainWin;
+            return GetWindowParent(win, mainWin);
         }
 
         if (useLogicalTree)
@@ -126,12 +119,14 @@ public static class CdpVisualTreeHelper
         return GetPopupHost(popup);
     }
 
+    private static readonly System.Reflection.PropertyInfo? PopupHostProperty =
+        typeof(Popup).GetProperty("Host", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
     public static Visual? GetPopupHost(Popup popup)
     {
         try
         {
-            var hostProp = typeof(Popup).GetProperty("Host", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            return hostProp?.GetValue(popup) as Visual;
+            return PopupHostProperty?.GetValue(popup) as Visual;
         }
         catch
         {
@@ -139,27 +134,152 @@ public static class CdpVisualTreeHelper
         }
     }
 
+    /// <summary>
+    /// Parent of a secondary window in the CDP tree: its owner window when the owner is a shown CDP window,
+    /// otherwise the main window. This matches <see cref="IsOverlayWindowFor"/>, where a window session
+    /// only sees the windows it owns.
+    /// </summary>
+    internal static TopLevel? GetWindowParent(TopLevel window, TopLevel? mainWin)
+    {
+        if (window is Window win && win.Owner is TopLevel owner && owner != win && owner.IsVisible &&
+            (owner == mainWin || CdpServer.IsRegistered(owner)))
+        {
+            return owner;
+        }
+        return mainWin;
+    }
+
     private static Popup? FindPopupForRoot(Visual visual)
     {
-        foreach (var target in CdpServer.GetWindows())
+        // Only a popup host or the logical child of a Popup can be popup content.
+        if (visual is not PopupRoot && visual is not OverlayPopupHost && visual.GetLogicalParent() is not Popup)
         {
-            var openPopups = new List<Popup>();
-            var visited = new HashSet<Visual>();
-            FindOpenPopups(target.Window, openPopups, visited);
-            foreach (var popup in openPopups)
+            return null;
+        }
+
+        foreach (var popup in GetOpenPopups())
+        {
+            if (popup.Child == visual || GetPopupHost(popup) == visual)
             {
-                if (popup.Child == visual || GetPopupHost(popup) == visual)
-                {
-                    return popup;
-                }
+                return popup;
             }
         }
         return null;
     }
 
+    private static readonly object _openPopupsGate = new();
+    private static readonly List<Popup> _openPopups = new();
+    private static int _openPopupTrackingStarted;
+    private static int _popupScanVisitCount;
+
+    /// <summary>Number of visuals visited by <see cref="FindOpenPopups"/> scans; used to check scan complexity.</summary>
+    internal static int PopupScanVisitCount => Volatile.Read(ref _popupScanVisitCount);
+
+    /// <summary>
+    /// Starts tracking open popups through Popup.IsOpen changes, so popup lookups do not walk the window trees.
+    /// Popups that were already open are found by one scan of the CDP windows.
+    /// </summary>
+    internal static void EnsureOpenPopupTracking()
+    {
+        if (Interlocked.Exchange(ref _openPopupTrackingStarted, 1) == 1) return;
+
+        Popup.IsOpenProperty.Changed.AddClassHandler<Popup>((popup, _) => OnPopupIsOpenChanged(popup));
+
+        var popups = new List<Popup>();
+        var visited = new HashSet<Visual>();
+        foreach (var target in CdpServer.GetWindows())
+        {
+            FindOpenPopups(target.Window, popups, visited);
+        }
+        foreach (var popup in popups)
+        {
+            OnPopupIsOpenChanged(popup);
+        }
+    }
+
+    private static void OnPopupIsOpenChanged(Popup popup)
+    {
+        lock (_openPopupsGate)
+        {
+            if (popup.IsOpen)
+            {
+                if (!_openPopups.Contains(popup)) _openPopups.Add(popup);
+            }
+            else
+            {
+                _openPopups.Remove(popup);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Open popups that belong to a CDP window, in opening order. Replaces scanning all window trees.
+    /// Popups that are closed, detached or whose owner window is gone are removed from the registry itself,
+    /// so it does not keep them alive.
+    /// </summary>
+    internal static List<Popup> GetOpenPopups()
+    {
+        EnsureOpenPopupTracking();
+        var mainWin = CdpServer.GetPrimaryWindow();
+        lock (_openPopupsGate)
+        {
+            _openPopups.RemoveAll(popup =>
+            {
+                if (!popup.IsOpen) return true;
+                var owner = GetPopupOwnerWindow(popup);
+                return owner == null || (owner != mainWin && !CdpServer.IsRegistered(owner));
+            });
+            return new List<Popup>(_openPopups);
+        }
+    }
+
+    /// <summary>True while <paramref name="popup"/> is held by the open-popup registry.</summary>
+    internal static bool IsTrackedOpenPopup(Popup popup)
+    {
+        lock (_openPopupsGate)
+        {
+            return _openPopups.Contains(popup);
+        }
+    }
+
+    /// <summary>
+    /// Parent of an open popup's content in the CDP tree: the window the popup was opened from when it is
+    /// the main window or a shown CDP window, otherwise the main window.
+    /// </summary>
+    internal static TopLevel? GetPopupParentWindow(Popup popup, TopLevel? mainWin)
+    {
+        var owner = GetPopupOwnerWindow(popup);
+        if (owner != null && (owner == mainWin || (owner.IsVisible && CdpServer.IsRegistered(owner))))
+        {
+            return owner;
+        }
+        return mainWin;
+    }
+
+    /// <summary>The window a popup is opened from, following the logical parents and the placement target.</summary>
+    internal static TopLevel? GetPopupOwnerWindow(Popup popup)
+    {
+        ILogical? current = popup;
+        while (current != null)
+        {
+            if (current is PopupRoot popupRoot)
+            {
+                current = popupRoot.ParentTopLevel;
+                continue;
+            }
+            if (current is TopLevel topLevel) return topLevel;
+            current = current.LogicalParent;
+        }
+
+        var anchor = popup.PlacementTarget ?? (popup as Visual);
+        var anchorTop = TopLevel.GetTopLevel(anchor);
+        return anchorTop is PopupRoot root ? root.ParentTopLevel : anchorTop;
+    }
+
     public static void FindOpenPopups(Visual visual, List<Popup> popups, HashSet<Visual> visited)
     {
         if (visual == null || !visited.Add(visual)) return;
+        Interlocked.Increment(ref _popupScanVisitCount);
 
         if (visual is Popup popup)
         {
@@ -253,6 +373,32 @@ public static class CdpVisualTreeHelper
         return Enumerable.Empty<Visual>();
     }
 
+    /// <summary>
+    /// Returns true when <paramref name="window"/> is shown on top of <paramref name="rootWindow"/>
+    /// from the point of view of a session attached to <paramref name="rootWindow"/>.
+    /// The primary window sees all other windows; a secondary window only sees the windows it owns.
+    /// </summary>
+    public static bool IsOverlayWindowFor(TopLevel? rootWindow, TopLevel? window)
+    {
+        if (rootWindow == null || window == null || window == rootWindow) return false;
+        if (rootWindow == CdpServer.GetPrimaryWindow()) return true;
+
+        var owner = (window as Window)?.Owner;
+        while (owner != null)
+        {
+            if (owner == rootWindow) return true;
+            owner = (owner as Window)?.Owner;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Returns true when a window or an open popup is shown on top of <paramref name="primaryWindow"/>.
+    /// </summary>
+    /// <param name="primaryWindow">
+    /// Any session root window, not only the primary window. Only windows and popups shown on top of it are
+    /// considered: for the primary window these are all other windows, for a secondary window only the windows it owns.
+    /// </param>
     public static bool HasSecondaryWindowsOrPopups(TopLevel? primaryWindow)
     {
         if (primaryWindow == null) return false;
@@ -260,7 +406,7 @@ public static class CdpVisualTreeHelper
         {
             foreach (var target in CdpServer.GetWindows())
             {
-                if (target.Window != null && target.Window != primaryWindow && target.Window.IsVisible && target.Window.Bounds.Width > 0 && target.Window.Bounds.Height > 0)
+                if (IsOverlayWindowFor(primaryWindow, target.Window) && target.Window.IsVisible && target.Window.Bounds.Width > 0 && target.Window.Bounds.Height > 0)
                 {
                     return true;
                 }
@@ -310,6 +456,13 @@ public static class CdpVisualTreeHelper
         return false;
     }
 
+    /// <summary>
+    /// Draws the windows and open popups shown on top of <paramref name="primaryWindow"/> into <paramref name="baseSkBitmap"/>.
+    /// </summary>
+    /// <param name="primaryWindow">
+    /// Any session root window, not only the primary window. Only windows and popups shown on top of it are
+    /// considered: for the primary window these are all other windows, for a secondary window only the windows it owns.
+    /// </param>
     public static bool CompositeAllWindowsAndPopups(TopLevel? primaryWindow, SkiaSharp.SKBitmap? baseSkBitmap, double scale, string? targetViewId = null)
     {
         if (primaryWindow == null || baseSkBitmap == null) return false;
@@ -322,7 +475,7 @@ public static class CdpVisualTreeHelper
             foreach (var target in CdpServer.GetWindows())
             {
                 var win = target.Window;
-                if (win != null && win != primaryWindow && win.IsVisible && win.Bounds.Width > 0 && win.Bounds.Height > 0)
+                if (IsOverlayWindowFor(primaryWindow, win) && win.IsVisible && win.Bounds.Width > 0 && win.Bounds.Height > 0)
                 {
                     try
                     {
@@ -365,6 +518,14 @@ public static class CdpVisualTreeHelper
         return compositedAny;
     }
 
+    /// <summary>
+    /// Draws the open popups shown on top of <paramref name="topLevel"/> into <paramref name="baseSkBitmap"/>.
+    /// </summary>
+    /// <param name="topLevel">
+    /// Any session root window, not only the primary window. Only popups of this window and of the windows shown
+    /// on top of it are considered: for the primary window these are all other windows, for a secondary window
+    /// only the windows it owns.
+    /// </param>
     public static bool CompositeOpenPopups(TopLevel? topLevel, SkiaSharp.SKBitmap? baseSkBitmap, double scale)
     {
         if (topLevel == null || baseSkBitmap == null) return false;
@@ -378,7 +539,7 @@ public static class CdpVisualTreeHelper
             FindOpenPopups(topLevel, openPopups, visited);
             foreach (var target in CdpServer.GetWindows())
             {
-                if (target.Window != null)
+                if (IsOverlayWindowFor(topLevel, target.Window))
                 {
                     FindOpenPopups(target.Window, openPopups, visited);
                 }
@@ -503,7 +664,7 @@ public static class CdpVisualTreeHelper
             var secondaryWindows = new List<TopLevel>();
             foreach (var target in CdpServer.GetWindows())
             {
-                if (target.Window != null && target.Window != rootWindow && target.Window.IsVisible && target.Window.Bounds.Width > 0 && target.Window.Bounds.Height > 0)
+                if (IsOverlayWindowFor(rootWindow, target.Window) && target.Window.IsVisible && target.Window.Bounds.Width > 0 && target.Window.Bounds.Height > 0)
                 {
                     secondaryWindows.Add(target.Window);
                     FindOpenPopups(target.Window, openPopups, visited);

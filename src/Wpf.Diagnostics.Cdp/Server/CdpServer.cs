@@ -350,6 +350,11 @@ public static class CdpServer
         return _targets.Select(x => (x.Value.Id, x.Key, x.Value.Title));
     }
 
+    internal static bool IsRegistered(Window? window)
+    {
+        return window != null && _targets.ContainsKey(window);
+    }
+
     public static JsonArray GetActiveTargets()
     {
         return Chrome.DevTools.Protocol.CdpServer.GetActiveTargets();

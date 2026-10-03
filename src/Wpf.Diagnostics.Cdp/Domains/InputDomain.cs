@@ -80,43 +80,37 @@ public static class InputDomain
                 var screenPoint = window.PointToScreen(position);
                 var roots = new List<Visual>();
 
-                var mainWin = CdpServer.GetPrimaryWindow();
-                if (mainWin != null)
+                // The session window and the windows shown on top of it; for the main window session
+                // these are all windows, a dialog session never reaches its owner behind it.
+                roots.Add(window);
+
+                // other active windows
+                foreach (var winInfo in CdpServer.GetWindows())
                 {
-                    roots.Add(mainWin);
-
-                    // other active windows
-                    foreach (var winInfo in CdpServer.GetWindows())
+                    var win = winInfo.Window;
+                    if (CdpVisualTreeHelper.IsOverlayWindowFor(window, win) && win.IsVisible)
                     {
-                        var win = winInfo.Window;
-                        if (win != null && win != mainWin && win.IsVisible)
-                        {
-                            roots.Add(win);
-                        }
-                    }
-
-                    // open popup contents
-                    var openPopups = new List<Popup>();
-                    var visited = new HashSet<Visual>();
-                    foreach (var winInfo in CdpServer.GetWindows())
-                    {
-                        if (winInfo.Window != null)
-                        {
-                            CdpVisualTreeHelper.FindOpenPopups(winInfo.Window, openPopups, visited);
-                        }
-                    }
-                    foreach (var popup in openPopups)
-                    {
-                        var content = CdpVisualTreeHelper.GetPopupContent(popup);
-                        if (content != null && !roots.Contains(content))
-                        {
-                            roots.Add(content);
-                        }
+                        roots.Add(win);
                     }
                 }
-                else
+
+                // open popup contents
+                var openPopups = new List<Popup>();
+                var visited = new HashSet<Visual>();
+                foreach (var winInfo in CdpServer.GetWindows())
                 {
-                    roots.Add(window);
+                    if (winInfo.Window != null && (winInfo.Window == window || CdpVisualTreeHelper.IsOverlayWindowFor(window, winInfo.Window)))
+                    {
+                        CdpVisualTreeHelper.FindOpenPopups(winInfo.Window, openPopups, visited);
+                    }
+                }
+                foreach (var popup in openPopups)
+                {
+                    var content = CdpVisualTreeHelper.GetPopupContent(popup);
+                    if (content != null && !roots.Contains(content))
+                    {
+                        roots.Add(content);
+                    }
                 }
 
                 for (int i = roots.Count - 1; i >= 0; i--)
